@@ -62,6 +62,13 @@ internal static class AwkParsingSupport
     internal static AwkTextSpan SourceSpan(Pos<string> token) =>
         new(token.Location.Location.Position, token.Location.Length);
 
+    internal static AwkTextSpan FailureSpan(ParseException error, AwkParsingSource source)
+    {
+        // The dependency gives its synthetic EOF token a length of one.
+        var position = Math.Clamp(error.Location.Location.Position, 0, source.Text.Length);
+        return new(position, Math.Clamp(error.Location.Length, 0, source.Text.Length - position));
+    }
+
     // Generic grammar leaves must retain the lexical classification selected by the
     // compatibility profile and function scope. Reclassifying their text loses it.
     public static AwkToken RestoreToken(IReadOnlyList<AwkToken> tokens, Pos<string> value, Action? checkpoint = null)

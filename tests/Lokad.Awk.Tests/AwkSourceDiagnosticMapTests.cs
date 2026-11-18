@@ -2,6 +2,29 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkSourceDiagnosticMapTests
 {
+    [Theory]
+    [InlineData("BEGIN {\n print 1;\n ]\n}\n", 3, 2, "invalid action block.")]
+    [InlineData("BEGIN {\\\r\n print \"é😀\";\r\n ]\r\n}\r\n", 3, 2, "invalid action block.")]
+    [InlineData("function f(a) {\n return 1;\n ]\n}\n", 3, 2, "invalid function declaration.")]
+    [InlineData("BEGIN{print 1}\n] {print}\n", 2, 1, "invalid pattern.")]
+    [InlineData("function () { print 2 }\n", 1, 10, "expected function name.")]
+    [InlineData("BEGIN {\n print 1\n", 1, 7, "unterminated action block.")]
+    public async Task GrammarFailuresReportTheSourceFileAndToken(string source, int line, int column, string message)
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/before.awk", "BEGIN { print \"before\" }\n");
+        host.AddFile("/broken.awk", source);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/before.awk", "-f", "/broken.awk"));
+
+        var result = await awk.ExecuteAsync(host, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, result);
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(FormattableString.Invariant($"awk: /broken.awk:{line}:{column}: {message}\n"),
+            host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
     [Fact]
     public void MapDiagnostics_ReturnsDefaultInlineDiagnosticsWithoutAllocatingAMappedBatch()
     {

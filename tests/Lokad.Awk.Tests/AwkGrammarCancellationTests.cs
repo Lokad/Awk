@@ -300,7 +300,7 @@ public sealed class AwkGrammarCancellationTests
         {
             if (grammar == "top-level")
             {
-                Assert.True(AwkTopLevelSyntaxParser.TryParse(source, tokens, out var result, checkpoint));
+                Assert.True(AwkTopLevelSyntaxParser.TryParse(source, tokens, out var result, out _, checkpoint));
                 return Assert.IsType<AwkTopLevelSyntaxParser.ParseResult>(result);
             }
             if (grammar == "statements")

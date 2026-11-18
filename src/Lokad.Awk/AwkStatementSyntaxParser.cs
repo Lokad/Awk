@@ -19,38 +19,6 @@ internal sealed class AwkStatementSyntaxParser
         _checkpoint = checkpoint;
     }
 
-    private static AwkStatementParseResult ParseCore(
-        AwkParsingSource source,
-        IReadOnlyList<AwkToken> tokens,
-        Action? checkpoint)
-    {
-        checkpoint?.Invoke();
-        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
-        var parser = new AwkStatementSyntaxParser(source, tokens, checkpoint);
-        parser.Tokens = AwkParsingSupport.ToLexerResult(source, tokens, checkpoint, ensureEndOfFile: true);
-        try
-        {
-            checkpoint?.Invoke();
-            var statements = StreamParser(parser, parser.Tokens).Statements;
-            checkpoint?.Invoke();
-            return AwkStatementParseResult.Success(
-                statements,
-                CollectParseDiagnostics(statements, parser));
-        }
-        catch (ParseException)
-        {
-            return AwkStatementParseResult.InvalidResult;
-        }
-
-        static List<AwkDiagnostic> CollectParseDiagnostics(
-            IReadOnlyList<AwkStatementSyntax> statements, AwkStatementSyntaxParser parser)
-        {
-            var diagnostics = new List<AwkDiagnostic>();
-            parser.AddStatementDiagnostics(statements, diagnostics);
-            return diagnostics;
-        }
-    }
-
     public static IReadOnlyList<AwkStatementSyntax> ParseStatements(
         AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
@@ -58,27 +26,26 @@ internal sealed class AwkStatementSyntaxParser
         string invalidMessage,
         Action? checkpoint = null)
     {
-        var result = ParseCore(source, tokens, checkpoint);
-        if (result is AwkStatementParseResult.Parsed parsed)
+        checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
+        var parser = new AwkStatementSyntaxParser(source, tokens, checkpoint);
+        parser.Tokens = AwkParsingSupport.ToLexerResult(source, tokens, checkpoint, ensureEndOfFile: true);
+        IReadOnlyList<AwkStatementSyntax> statements;
+        try
         {
             checkpoint?.Invoke();
-            diagnostics.AddRange(parsed.Diagnostics);
-            checkpoint?.Invoke();
-            return parsed.Statements;
+            statements = StreamParser(parser, parser.Tokens).Statements;
+        }
+        catch (ParseException error)
+        {
+            diagnostics.Add(new AwkDiagnostic(AwkParsingSupport.FailureSpan(error, source), invalidMessage));
+            return [];
         }
 
-        AddInvalidStatementDiagnostic(tokens, diagnostics, invalidMessage, checkpoint);
-        return [];
-    }
-
-    private static void AddInvalidStatementDiagnostic(
-        IReadOnlyList<AwkToken> tokens,
-        List<AwkDiagnostic> diagnostics,
-        string invalidMessage, Action? checkpoint)
-    {
-        var first = AwkTokenNavigation.FindFirstSignificant(tokens, checkpoint);
-        if (first != null)
-            diagnostics.Add(new AwkDiagnostic(first.Value.Span, invalidMessage));
+        checkpoint?.Invoke();
+        parser.AddStatementDiagnostics(statements, diagnostics);
+        checkpoint?.Invoke();
+        return statements;
     }
 
     [Rule]
@@ -1588,29 +1555,6 @@ internal sealed class AwkStatementSyntaxParser
     internal sealed class ParseResult(IReadOnlyList<AwkStatementSyntax> statements)
     {
         public IReadOnlyList<AwkStatementSyntax> Statements { get; } = statements;
-    }
-
-    private abstract class AwkStatementParseResult
-    {
-        public static Invalid InvalidResult { get; } = new();
-
-        public static Parsed Success(
-            IReadOnlyList<AwkStatementSyntax> statements,
-            IReadOnlyList<AwkDiagnostic> diagnostics) =>
-            new(statements, diagnostics);
-
-        public sealed class Parsed(
-            IReadOnlyList<AwkStatementSyntax> statements,
-            IReadOnlyList<AwkDiagnostic> diagnostics) : AwkStatementParseResult
-        {
-            public IReadOnlyList<AwkStatementSyntax> Statements { get; } = statements;
-
-            public IReadOnlyList<AwkDiagnostic> Diagnostics { get; } = diagnostics;
-        }
-
-        public sealed class Invalid : AwkStatementParseResult
-        {
-        }
     }
 
     public readonly struct StatementListItem(

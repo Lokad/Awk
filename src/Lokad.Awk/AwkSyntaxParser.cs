@@ -62,7 +62,7 @@ internal static class AwkSyntaxParser
             checkpoint?.Invoke();
             AddLexicalDiagnostics();
 
-            if (AwkTopLevelSyntaxParser.TryParse(_source, _tokens, out var parsedProgram, checkpoint))
+            if (AwkTopLevelSyntaxParser.TryParse(_source, _tokens, out var parsedProgram, out var failureSpan, checkpoint))
             {
                 AddTopLevelItems(parsedProgram.Items);
                 if (parsedProgram.Items.Count == 0)
@@ -134,9 +134,7 @@ internal static class AwkSyntaxParser
                     return;
                 }
 
-                var first = AwkTokenNavigation.FindFirstSignificant(_tokens);
-                if (first != null)
-                    _diagnostics.Add(new AwkDiagnostic(first.Value.Span, "Invalid pattern."));
+                _diagnostics.Add(new AwkDiagnostic(failureSpan, "Invalid pattern."));
 
                 int FindNextSignificantIndex(int startIndex)
                 {

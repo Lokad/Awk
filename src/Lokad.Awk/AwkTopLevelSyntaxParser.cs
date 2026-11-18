@@ -24,6 +24,7 @@ internal sealed class AwkTopLevelSyntaxParser
         AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
         [NotNullWhen(true)] out ParseResult? result,
+        out AwkTextSpan failureSpan,
         Action? checkpoint = null)
     {
         checkpoint?.Invoke();
@@ -34,11 +35,13 @@ internal sealed class AwkTopLevelSyntaxParser
             checkpoint?.Invoke();
             result = StreamParser(parser, parser.Tokens);
             checkpoint?.Invoke();
+            failureSpan = default;
             return true;
         }
-        catch (ParseException)
+        catch (ParseException error)
         {
             result = null;
+            failureSpan = AwkParsingSupport.FailureSpan(error, source);
             return false;
         }
     }
