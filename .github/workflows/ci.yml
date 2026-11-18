@@ -36,6 +36,8 @@ jobs:
         run: dotnet build Lokad.Awk.slnx -c Release --no-restore
       - name: Test Release
         run: dotnet test Lokad.Awk.slnx -c Release --no-build --no-restore --logger trx --results-directory TestResults
+      - name: Verify benchmark workload outputs
+        run: dotnet run --project benchmarks/Lokad.Awk.Benchmarks -c Release --no-build --no-restore -- --smoke
       - name: Pack Release
         run: dotnet pack src/Lokad.Awk/Lokad.Awk.csproj -c Release --no-build --no-restore
       - name: Upload test results

@@ -185,8 +185,9 @@ dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --filter '*Wo
 
 Native comparisons need an independently installed GNU binary outside `external/`.
 `--check-machine` checks quietness; `--driver-smoke` checks process cancellation,
-early exits, drains and cleanup. `--smoke` checks library fixtures; it also runs native
-comparisons when `LOKAD_AWK_ORACLE_EXE` is set.
+early exits, drains and cleanup. Windows and Linux CI run `--smoke` to check every
+small workload and the startup controls against their expected outputs. Local smoke
+runs also compare against GNU awk when `LOKAD_AWK_ORACLE_EXE` is set.
 Catalog filters select family/scale before constructing input. `--governed-profile`
 uses existing budget controls. Small-stack safety is covered by the CI test suite.
 
