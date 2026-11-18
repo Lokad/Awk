@@ -4,8 +4,7 @@ namespace Lokad.Awk;
 
 // Two frame-owned slots separate staged input from the published record. Every
 // borrowed slot has an admitted fallback before publication or borrow retirement.
-internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
-    AwkRuntimeCounters counters, Action checkpoint, AwkFieldFrame? frame = null) : IDisposable
+internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
 {
     private const int MaxBorrowedRecordBytes = 4096;
     private const int MaxReusableRecordBytes = 65536;
@@ -41,7 +40,7 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
         var buffer = slot.Buffer;
         if (buffer is null)
         {
-            buffer = new(memory, (int)BitOperations.RoundUpToPowerOf2((uint)length));
+            buffer = new(state.MemoryAccounting, (int)BitOperations.RoundUpToPowerOf2((uint)length));
             slot.Buffer = buffer;
         }
         else buffer.EnsureCapacity(length);
@@ -55,13 +54,13 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
         ref var next = ref BufferAt(nextSlot);
         var buffer = Prepare(ref next, bytes.Length);
         buffer.Clear();
-        buffer.Append(bytes, checkpoint);
-        checkpoint();
+        buffer.Append(bytes, state.CancellationCheckpoint);
+        state.ThrowIfCancellationRequested();
         next.SetOwned();
         next.IsKnownAscii = false;
         _currentSlot = nextSlot;
 
-        counters.Add(AwkCounter.InputRecordBytesCopied, bytes.Length);
+        state.Counters.Add(AwkCounter.InputRecordBytesCopied, bytes.Length);
     }
 
     internal void StageBorrowed(AwkByteReader reader, ReadOnlyMemory<byte> bytes)
@@ -72,7 +71,7 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
         var nextSlot = _currentSlot ^ 1;
         ref var next = ref BufferAt(nextSlot);
         _ = Prepare(ref next, bytes.Length);
-        checkpoint();
+        state.ThrowIfCancellationRequested();
         reader.AttachRecordStorage(this);
         next.Borrower = reader;
         next.BorrowedBytes = bytes;
@@ -96,8 +95,8 @@ internal sealed class AwkRecordStorage(AwkMemoryAccounting memory,
             buffer.Clear();
             buffer.Append(bytes.Span);
             slot.SetOwned();
-            frame?.RebindBufferedRecord(this, index, buffer.AsMemory());
-            counters.Add(AwkCounter.InputRecordBytesCopied, bytes.Length);
+            state.RecordFields.RebindBufferedRecord(this, index, buffer.AsMemory());
+            state.Counters.Add(AwkCounter.InputRecordBytesCopied, bytes.Length);
         }
     }
 

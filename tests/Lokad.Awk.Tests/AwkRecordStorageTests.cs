@@ -7,10 +7,11 @@ public sealed class AwkRecordStorageTests
     [InlineData(true, false)] [InlineData(true, true)]
     public void FailedOwnedStagingKeepsPublishedRecordAndRefundsCapacity(bool cancel, bool growing)
     {
-        using var memory = new CooperativeTestMemory(1 << 20);
         using var cancellation = new CancellationTokenSource();
-        using var storage = new AwkRecordStorage(memory.Accounting,
-            AwkRuntimeCounters.Disabled, cancellation.Token.ThrowIfCancellationRequested);
+        using var memory = new CooperativeTestMemory(1 << 20)
+            .InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var baseline = memory.Budget.Reserved;
+        var storage = memory.State.InputRecordStorage;
         if (growing) storage.StageValidated("prior"u8);
         storage.StageValidated("published"u8);
         if (cancel) memory.Budget.OnGrowth = _ => cancellation.Cancel();
@@ -21,6 +22,7 @@ public sealed class AwkRecordStorageTests
         else Assert.Throws<AwkRuntimeException>(() => storage.StageValidated(bytes));
         Assert.Equal("published"u8.ToArray(), storage.Content.ToArray());
         storage.Dispose();
+        Assert.Equal(baseline, memory.Budget.Reserved);
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);

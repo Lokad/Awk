@@ -75,7 +75,8 @@ public sealed class AwkRecordInputMemoryTests
     [InlineData(true, true)]
     public async Task CapturedReaderRangeKeepsSpellingAfterRecordSlotsAreReplaced(bool governed, bool customMemory)
     {
-        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var baseline = memory.Budget.Reserved;
         var source = "pad café tail\n"u8.ToArray();
         using var manager = new TestMemoryManager(source);
         ReadOnlyMemory<byte> bytes = customMemory ? manager.Memory : source;
@@ -94,7 +95,7 @@ public sealed class AwkRecordInputMemoryTests
         };
         using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
             new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), false, 4096);
-        using var storage = new AwkRecordStorage(memory.Accounting, AwkRuntimeCounters.Disabled, static () => { });
+        var storage = memory.State.InputRecordStorage;
         Assert.True(await reader.TryBufferAsync());
         reader.Advance(4);
         storage.StageBorrowed(reader, reader.Content[..^1]);
@@ -111,6 +112,7 @@ public sealed class AwkRecordInputMemoryTests
         Assert.Throws<ObjectDisposedException>(() => owner.Content);
         Assert.False(storage.TryCaptureText(storage.CurrentSlot, storage.Content.Span, out _, out _));
         storage.Dispose();
+        Assert.Equal(baseline, memory.Budget.Reserved);
         memory.Dispose();
         AssertRefunded(memory.Budget);
     }
@@ -173,11 +175,12 @@ public sealed class AwkRecordInputMemoryTests
     public async Task SlotAsciiProofSurvivesPromotionAndResetsForNewBytes(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed).InitializeRuntime(counters);
         var host = new InputHost(memory.Budget, "a b\n", "é\n") { PoisonConsumedBytes = true };
         using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
             new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), false, 4 << 10);
-        using var storage = new AwkRecordStorage(memory.Accounting, counters, static () => { });
+        var baseline = memory.Budget.Reserved;
+        var storage = memory.State.InputRecordStorage;
 
         Assert.True(await reader.TryBufferAsync());
         Assert.True(reader.ContentIsAscii);
@@ -204,7 +207,9 @@ public sealed class AwkRecordInputMemoryTests
         storage.Dispose();
         Assert.False(storage.IsKnownAsciiAt(0));
         Assert.False(storage.IsKnownAsciiAt(1));
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(baseline, memory.Budget.Reserved);
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
     }
 
     [Theory]
@@ -590,8 +595,9 @@ public sealed class AwkRecordInputMemoryTests
     [Fact]
     public void BufferedHandoffRetainsItsSlotAndRejectsOwnedTextAccess()
     {
-        using var memory = new CooperativeTestMemory(1 << 20);
-        using var storage = new AwkRecordStorage(memory.Accounting, AwkRuntimeCounters.Disabled, static () => { });
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var baseline = memory.Budget.Reserved;
+        var storage = memory.State.InputRecordStorage;
         storage.StageValidated("first 0007"u8);
         var slot = storage.CurrentSlot;
         var record = AwkInputRecordResult.Buffered(storage, AwkRecordTerminator.NewLine);
@@ -603,7 +609,9 @@ public sealed class AwkRecordInputMemoryTests
         Assert.Equal("\n", record.Terminator.ByteText.AsString());
         Assert.Throws<InvalidOperationException>(() => record.RecordText);
         storage.Dispose();
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(baseline, memory.Budget.Reserved);
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
     }
 
     [Theory]
@@ -611,10 +619,11 @@ public sealed class AwkRecordInputMemoryTests
     [InlineData(true)]
     public void InactiveBufferGrowthFailurePreservesTheCurrentRecord(bool cancel)
     {
-        using var memory = new CooperativeTestMemory(1 << 20);
         using var cancellation = new CancellationTokenSource();
-        using var storage = new AwkRecordStorage(memory.Accounting, AwkRuntimeCounters.Disabled,
-            cancellation.Token.ThrowIfCancellationRequested);
+        using var memory = new CooperativeTestMemory(1 << 20)
+            .InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var baseline = memory.Budget.Reserved;
+        var storage = memory.State.InputRecordStorage;
         storage.StageValidated("old 0007"u8);
         var original = storage.Content;
         if (cancel) memory.Budget.OnGrowth = _ => cancellation.Cancel();
@@ -625,14 +634,17 @@ public sealed class AwkRecordInputMemoryTests
         Assert.Equal("old 0007", Encoding.UTF8.GetString(storage.Content.Span));
         Assert.Equal(original, storage.Content);
         storage.Dispose();
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(baseline, memory.Budget.Reserved);
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
     }
 
     [Fact]
     public void RecordBufferRetentionIsBoundedAndOversizedInputKeepsTheOwnedPath()
     {
-        using var memory = new CooperativeTestMemory(1 << 20);
-        using var storage = new AwkRecordStorage(memory.Accounting, AwkRuntimeCounters.Disabled, static () => { });
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var baseline = memory.Budget.Reserved;
+        var storage = memory.State.InputRecordStorage;
         foreach (var count in new[] { 1, 32, 4096, 8192, 65536, 128, 32768, 1, 65536, 16 })
         {
             var bytes = Encoding.UTF8.GetBytes(new string('x', count));
@@ -640,7 +652,7 @@ public sealed class AwkRecordInputMemoryTests
             storage.StageValidated(bytes);
             Assert.True(storage.Content.Span.SequenceEqual(bytes));
             Assert.Equal(count <= 4096, AwkRecordStorage.CanBorrow(count));
-            Assert.InRange(memory.Budget.Reserved, 1, 131072);
+            Assert.InRange(memory.Budget.Reserved - baseline, 1, 131072);
         }
         var held = memory.Budget.Reserved;
         var last = storage.Content;
@@ -648,7 +660,9 @@ public sealed class AwkRecordInputMemoryTests
         Assert.Equal(last, storage.Content);
         Assert.Equal(held, memory.Budget.Reserved);
         storage.Dispose();
-        Assert.Equal(0, memory.Budget.Reserved);
+        Assert.Equal(baseline, memory.Budget.Reserved);
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
     }
 
     [Theory]

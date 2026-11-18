@@ -251,13 +251,12 @@ public sealed class AwkFieldCancellationTests
     public void WhitespaceFieldSearchesCoverLongRunsWithinExistingChunks(string mode)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var splitter = Splitter(() => { }, counters, AwkMemoryAccounting.Disabled);
+        using var context = new AwkFieldTestContext(counters);
         var ascii = new string('a', 3 * AwkRuntimeLimits.CancellationCheckBytes + 17);
         var unicode = string.Concat(Enumerable.Repeat("é长", 1_200));
         var text = AwkText.FromString(" \t" + ascii + "\t" + unicode + " \n");
         if (mode == "record")
         {
-            using var context = new AwkFieldTestContext(counters);
             context.Frame.SetRecordText(text);
             Assert.Equal(2, context.Frame.GetFieldCount());
             Assert.True(context.Frame.TryGetUnmaterializedFieldBytes(new(1), out var first));
@@ -267,7 +266,7 @@ public sealed class AwkFieldCancellationTests
         }
         else
         {
-            var result = splitter.SplitFieldTextsBySeparator(text, AwkFieldSeparatorSpec.Default,
+            var result = context.Splitter.SplitFieldTextsBySeparator(text, AwkFieldSeparatorSpec.Default,
                 mode == "captures" ? AwkSeparatorCaptureMode.Capture : AwkSeparatorCaptureMode.Omit);
             Assert.Equal(2, result.Fields.Count);
             Assert.Equal(ascii, result.Fields[0].AsString());
@@ -317,18 +316,15 @@ public sealed class AwkFieldCancellationTests
     public void CanceledFieldWidthPreparationLeavesThePreviousPlanUntouched(bool estimate)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
-        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        var cancel = CancelOnCheck(cancellation, 6);
-        Action checkpoint = () => { if (armed) cancel(); };
-        var splitter = Splitter(checkpoint, counters, governor);
+        using var memory = Governor().InitializeRuntime(counters, cancellation.Token);
+        var governor = memory.Accounting;
+        var splitter = memory.State.FieldSplitter;
         splitter.AssignFieldWidths(splitter.PrepareFieldWidths(AwkText.FromString("2 3")));
         var previous = splitter.CaptureRecordPlan();
         var committed = governor.CurrentCommittedBytes;
         var pending = AwkText.FromString(new string('0', LongScan) + "1");
-        armed = true;
+        cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() =>
         {
             if (estimate) _ = splitter.EstimateFieldWidthsMemory(pending);
@@ -337,8 +333,8 @@ public sealed class AwkFieldCancellationTests
         Assert.Equal(previous, splitter.CaptureRecordPlan());
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        armed = false;
-        var retry = splitter.PrepareFieldWidths(pending);
+        using var retryContext = new AwkFieldTestContext(counters);
+        var retry = retryContext.Splitter.PrepareFieldWidths(pending);
         Assert.Single(retry);
         Assert.Equal(1, retry[0].Width.Value);
     }
@@ -358,7 +354,7 @@ public sealed class AwkFieldCancellationTests
     {
         // Keep enough scan regions to cancel within long work independently
         // of how many constant-time setup/accessor checks precede the scanner.
-        var scanLength = scenario == "characters" ? LongScan : 8 * LongScan;
+        var scanLength = 8 * LongScan;
         var source = scenario switch
         {
             "whitespace-word" => new string('a', scanLength) + " b",
@@ -370,23 +366,38 @@ public sealed class AwkFieldCancellationTests
         };
         var separator = AwkFieldSeparatorSpec.FromText(scenario == "literal" ? "," : scenario == "characters" ? "" : " ");
         var text = AwkText.FromString(source);
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
-        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        var cancel = CancelOnCheck(cancellation, 4 * LongScan / AwkRuntimeLimits.CancellationCheckBytes);
-        Action checkpoint = () => { if (armed) cancel(); };
-        var splitter = Splitter(checkpoint, counters, governor);
-        splitter.ValidateFieldSeparator(separator.ByteText);
-        var mode = captures ? AwkSeparatorCaptureMode.Capture : AwkSeparatorCaptureMode.Omit;
-        armed = true;
-        var error = Assert.Throws<OperationCanceledException>(() => splitter.SplitFieldTextsBySeparator(text, separator, mode));
+        // Start with a live token and cancel during traversal, with enough bytes left
+        // to require another scan region. The scanning primitives accept the poll directly.
+        var checkpoint = CancelOnCheck(cancellation, 4);
+        var bytes = text.AsMemory();
+        var error = Assert.Throws<OperationCanceledException>(() =>
+        {
+            switch (scenario)
+            {
+                case "characters":
+                    var characters = new AwkFieldSplitter.AwkCharacterFieldScanner(bytes.Span,
+                        AwkStringUnitMode.Utf8Rune, checkpoint);
+                    while (characters.MoveNext(out _)) { }
+                    break;
+                case "literal" when captures:
+                    var literal = new AwkFieldSplitter.AwkSingleByteFieldScanner(bytes.Span, (byte)',', checkpoint);
+                    while (literal.MoveNext(out _, out _)) { }
+                    break;
+                case "literal":
+                    _ = AwkFieldSplitter.CountSingleByteFields(bytes.Span, (byte)',', checkpoint);
+                    break;
+                default:
+                    var whitespace = new AwkFieldSplitter.AwkWhitespaceFieldScanner(bytes.Span, checkpoint);
+                    while (whitespace.MoveNext(out _, out _)) { }
+                    break;
+            }
+        });
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        armed = false;
-        var retry = splitter.SplitFieldTextsBySeparator(text, separator, mode);
+
+        using var context = new AwkFieldTestContext(AwkRuntimeCounters.Disabled);
+        var mode = captures ? AwkSeparatorCaptureMode.Capture : AwkSeparatorCaptureMode.Omit;
+        var retry = context.Splitter.SplitFieldTextsBySeparator(text, separator, mode);
         Assert.Equal(scenario == "characters" ? scanLength : 2, retry.Fields.Count);
         Assert.Equal(scenario == "characters" ? "a" : scenario == "literal" || scenario == "whitespace-word" ? new string('a', scanLength) : "a", retry.Fields[0].AsString());
         Assert.Equal(scenario == "characters" ? "a" : "b", retry.Fields[^1].AsString());
@@ -408,7 +419,7 @@ public sealed class AwkFieldCancellationTests
             memoryForGovernor.Budget.SetAvailableBytes(memoryForGovernor.Budget.Limit);
             var governor = memoryForGovernor.Accounting;
             var source = AwkText.Concat([AwkText.FromString(new string(operation == "widths" ? '0' : 'a', LongScan)), AwkText.FromString("1")], counters, governor);
-            var splitter = Splitter(cancellation.Token.ThrowIfCancellationRequested, counters, governor);
+            var splitter = memoryForGovernor.State.FieldSplitter;
             using var recordContext = new AwkFieldTestContext(memoryForGovernor);
             recordContext.Frame.SetRecordText(source);
             cancellation.Cancel();
@@ -441,22 +452,15 @@ public sealed class AwkFieldCancellationTests
         using (memoryForGovernor)
         {
             memoryForGovernor.Budget.SetAvailableBytes(memoryForGovernor.Budget.Limit);
-            var governor = memoryForGovernor.Accounting;
-            var armed = false;
-            var cancel = CancelOnCheck(cancellation, 4);
-            Action checkpoint = () => { if (armed) cancel(); };
-            var splitter = Splitter(checkpoint, counters, governor);
             var source = paragraph ? new string('a', LongScan) + "\nb" : new string('a', 4_095) + string.Concat(Enumerable.Repeat("\ud83d\ude00", LongScan));
             var text = AwkText.FromString(source);
             var plan = paragraph
                 ? new AwkRecordSplitPlan(AwkFieldSplittingMode.FieldSeparator, AwkFieldSeparatorSpec.FromText(","), AwkText.Empty, [], AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Paragraph)
                 : new AwkRecordSplitPlan(AwkFieldSplittingMode.FieldWidths, default, AwkText.Empty, [new(new(0), new(int.MaxValue))], AwkRegexCaseSensitivity.CaseSensitive, AwkRecordFieldSplittingMode.Ordinary);
-            if (paragraph) splitter.ValidateFieldSeparator(plan.Separator.ByteText);
             using var context = new AwkFieldTestContext(memoryForGovernor, separator: ",");
             context.Frame.SetRecordText(text, plan);
             cancellation.Cancel();
             Assert.Throws<OperationCanceledException>(() => context.Frame.GetFieldCount());
-            armed = false;
             using var retry = new AwkFieldTestContext(AwkRuntimeCounters.Disabled, separator: ",");
             context.Frame.ResetRecord();
             retry.Frame.SetRecordText(text, plan);
@@ -567,13 +571,6 @@ public sealed class AwkFieldCancellationTests
 
     private static CooperativeTestMemory Governor() =>
         new CooperativeTestMemory(8 << 20);
-
-    private static AwkFieldSplitter Splitter(Action checkpoint, AwkRuntimeCounters counters, AwkMemoryAccounting governor, AwkRuntimeResourceMonitor? resources = null)
-    {
-        var monitor = resources ?? new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
-        var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint, counters, monitor, governor, regexEngine: AwkUtf8RegexEngine.Instance);
-        return new(AwkFieldSeparatorSpec.Default, regex.Create, regex.CreateLiteral, regex.EnumerateMatchSpans, () => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint, governor, counters);
-    }
 
     private static Action CancelOnCheck(CancellationTokenSource cancellation, int check)
     {

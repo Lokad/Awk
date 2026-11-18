@@ -111,19 +111,7 @@ internal sealed class AwkRuntimeState : IDisposable
         {
             _stringRuntime = new AwkStringRuntime(stringUnitMode, CancellationCheckpoint);
             _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, this);
-            _fieldSplitter = new AwkFieldSplitter(
-                fieldSeparator,
-                _regexRuntime.Create,
-                _regexRuntime.CreateLiteral,
-                EnumerateRegexMatchSpans,
-                ResolveRegexCaseSensitivity,
-                stringUnitMode,
-                ThrowIfCancellationRequested,
-                MemoryAccounting,
-                Counters,
-
-                CompatibilityMode,
-                _regexRuntime.ResetWarningSite, csvInput);
+            _fieldSplitter = new AwkFieldSplitter(this, fieldSeparator);
             _recordFields = new AwkFieldFrame(this);
             recordFields = _recordFields;
             _specialVariables = new AwkSpecialVariableDispatcher(
@@ -1484,11 +1472,16 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkRegex CreateRegex(AwkRegexPattern pattern, AwkRegexCaseSensitivity sensitivity) =>
         _regexRuntime.Create(pattern, sensitivity);
 
+    internal AwkRegex CreateLiteralRegex(AwkRegexLiteralText literal, AwkRegexCaseSensitivity sensitivity) =>
+        _regexRuntime.CreateLiteral(literal, sensitivity);
+
+    internal void ResetRegexWarningSite(object site) => _regexRuntime.ResetWarningSite(site);
+
     private void ValidateRecordSeparator(AwkText value)
     {
         if (value.Equals(_recordSeparatorText))
             return;
-        _regexRuntime.ResetWarningSite(this);
+        ResetRegexWarningSite(this);
         AwkRecordCursor.ValidateSeparator(this, value);
     }
 

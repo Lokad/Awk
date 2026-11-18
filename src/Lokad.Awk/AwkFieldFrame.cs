@@ -22,7 +22,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     private bool HasBufferedRecord => _bufferedStorage is not null;
 
     internal AwkRecordStorage InputRecordStorage =>
-        _inputStorage ??= new(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint, this);
+        _inputStorage ??= new(state);
 
     private ReadOnlyMemory<byte> BufferedRecord => _bufferedRecord;
     private int RecordByteLength => HasBufferedRecord ? BufferedRecord.Length : _recordText.ByteLength;

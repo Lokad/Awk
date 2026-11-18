@@ -82,8 +82,8 @@ The record frame owns splitting, reference-free field descriptors, numeric cache
 owned escaping values. It reads conversion, admission and cancellation from its runtime;
 returned text retains its own immutable backing. Capture immutable splitting configuration
 when admitting a record.
-Record splitting, CSV decoding, split() and patsplit() share the splitter's conversion/admission context;
-FS and FPAT retain distinct warning histories.
+Record splitting, CSV decoding, split() and patsplit() use the invocation's conversion,
+regex and admission services. FS and FPAT retain distinct warning histories.
 Incremental splitting publishes only a successful tail; NF and mutation complete the
 necessary scan. Raw arithmetic, text-only reads and full-value observations retain their
 different classification and ownership requirements.
@@ -92,6 +92,8 @@ Current records may borrow host bytes. Promote retained slices before retiring t
 escaping values own their spelling. Rebuilding/output prepares the full byte length and
 admits destination storage before copying/publication. Field/cache identities survive
 split completion and reconstruction; failed staging leaves earlier observations valid.
+The frame's two input slots use the invocation ledger. A borrowed slot has funded
+fallback storage before it can be published, and promotion rebinds the frame's view.
 
 Enforced by [incremental fields](../tests/Lokad.Awk.Tests/AwkIncrementalFieldTests.cs),
 [input ownership](../tests/Lokad.Awk.Tests/AwkInputHandoffCancellationTests.cs),

@@ -3,19 +3,7 @@ using System.Text;
 
 namespace Lokad.Awk;
 
-internal sealed partial class AwkFieldSplitter(
-    AwkFieldSeparatorSpec fieldSeparator,
-    Func<AwkRegexPattern, AwkRegexCaseSensitivity, AwkRegex> createRegex,
-    Func<AwkRegexLiteralText, AwkRegexCaseSensitivity, AwkRegex> createLiteralRegex,
-    Func<AwkRegex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
-    Func<AwkRegexCaseSensitivity> resolveRegexCaseSensitivity,
-    AwkStringUnitMode stringUnitMode,
-    Action throwIfCancellationRequested,
-    AwkMemoryAccounting memoryAccounting,
-    AwkRuntimeCounters counters,
-    AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-    Action<object>? resetRegexWarningSite = null,
-    bool csv = false)
+internal sealed partial class AwkFieldSplitter(AwkRuntimeState state, AwkFieldSeparatorSpec fieldSeparator)
 {
     private static readonly AwkFieldSeparatorSpec NewlineSeparator = AwkFieldSeparatorSpec.FromText("\n");
 
@@ -23,11 +11,11 @@ internal sealed partial class AwkFieldSplitter(
     private AwkText _fieldPattern = AwkText.Empty;
     private List<AwkFieldWidth> _fieldWidths = [];
     private long _fieldWidthsBytes;
-    private AwkFieldSplittingMode _fieldSplittingMode = csv
+    private AwkFieldSplittingMode _fieldSplittingMode = state.CsvInput
         ? AwkFieldSplittingMode.Csv : AwkFieldSplittingMode.FieldSeparator;
     private AwkRecordFieldSplittingMode _recordFieldSplittingMode;
     private PreparedRecordPlans _recordPlans = PrepareRecordPlans(
-        csv ? AwkFieldSplittingMode.Csv : AwkFieldSplittingMode.FieldSeparator, fieldSeparator, AwkText.Empty, []);
+        state.CsvInput ? AwkFieldSplittingMode.Csv : AwkFieldSplittingMode.FieldSeparator, fieldSeparator, AwkText.Empty, []);
 
     public void SetRecordFieldSplittingMode(AwkRecordFieldSplittingMode mode) =>
         _recordFieldSplittingMode = mode;
@@ -63,23 +51,23 @@ internal sealed partial class AwkFieldSplitter(
     public void ValidateFieldPattern(AwkText value)
     {
         if (!value.Equals(_fieldPattern))
-            resetRegexWarningSite?.Invoke(this);
+            state.ResetRegexWarningSite(this);
         var pattern = new AwkRegexPattern(value, warningSite: this);
-        _ = createRegex(pattern, AwkRegexCaseSensitivity.CaseSensitive);
-        _ = createRegex(pattern, AwkRegexCaseSensitivity.IgnoreCase);
+        _ = state.CreateRegex(pattern, AwkRegexCaseSensitivity.CaseSensitive);
+        _ = state.CreateRegex(pattern, AwkRegexCaseSensitivity.IgnoreCase);
     }
 
     public long EstimateFieldWidthsMemory(AwkText value)
     {
-        throwIfCancellationRequested();
-        return AwkRuntimeMemory.EstimateFieldWidthListBytes(AwkFieldWidthsParser.Parse(value.AsSpan(throwIfCancellationRequested), null, throwIfCancellationRequested));
+        state.CancellationCheckpoint();
+        return AwkRuntimeMemory.EstimateFieldWidthListBytes(AwkFieldWidthsParser.Parse(value.AsSpan(state.CancellationCheckpoint), null, state.CancellationCheckpoint));
     }
 
     public List<AwkFieldWidth> PrepareFieldWidths(AwkText value)
     {
-        var count = AwkFieldWidthsParser.Parse(value.AsSpan(throwIfCancellationRequested), null, throwIfCancellationRequested);
+        var count = AwkFieldWidthsParser.Parse(value.AsSpan(state.CancellationCheckpoint), null, state.CancellationCheckpoint);
         var widths = new List<AwkFieldWidth>(count);
-        AwkFieldWidthsParser.Parse(value.AsSpan(throwIfCancellationRequested), widths, throwIfCancellationRequested);
+        AwkFieldWidthsParser.Parse(value.AsSpan(state.CancellationCheckpoint), widths, state.CancellationCheckpoint);
         return widths;
     }
 
@@ -88,11 +76,11 @@ internal sealed partial class AwkFieldSplitter(
         var bytes = AwkRuntimeMemory.EstimateFieldWidthListBytes(widths.Capacity);
         if (bytes > _fieldWidthsBytes)
         {
-            memoryAccounting.Reserve(bytes - _fieldWidthsBytes);
-            memoryAccounting.CommitReserved(bytes - _fieldWidthsBytes);
+            state.MemoryAccounting.Reserve(bytes - _fieldWidthsBytes);
+            state.MemoryAccounting.CommitReserved(bytes - _fieldWidthsBytes);
         }
         else
-            memoryAccounting.ReleaseCommitted(_fieldWidthsBytes - bytes);
+            state.MemoryAccounting.ReleaseCommitted(_fieldWidthsBytes - bytes);
         _fieldWidthsBytes = bytes;
         _fieldWidths = widths;
         _fieldSplittingMode = AwkFieldSplittingMode.FieldWidths;
@@ -101,7 +89,7 @@ internal sealed partial class AwkFieldSplitter(
 
     private void ClearUnusedFieldWidths()
     {
-        memoryAccounting.ReleaseCommitted(_fieldWidthsBytes);
+        state.MemoryAccounting.ReleaseCommitted(_fieldWidthsBytes);
         _fieldWidthsBytes = 0;
         _fieldWidths = [];
     }
@@ -111,7 +99,7 @@ internal sealed partial class AwkFieldSplitter(
 
     public AwkRecordSplitPlan CaptureRecordPlan(AwkRecordFieldSplittingMode recordMode) =>
         _recordPlans.Get(recordMode, _fieldSplittingMode == AwkFieldSplittingMode.Csv
-            ? AwkRegexCaseSensitivity.CaseSensitive : resolveRegexCaseSensitivity());
+            ? AwkRegexCaseSensitivity.CaseSensitive : state.ResolveRegexCaseSensitivity());
 
     private void PrepareRecordPlans() =>
         _recordPlans = PrepareRecordPlans(_fieldSplittingMode, _fieldSeparator, _fieldPattern, _fieldWidths);
@@ -143,10 +131,10 @@ internal sealed partial class AwkFieldSplitter(
     {
         if (!plan.RequiresRegexSubject)
         {
-            FillRecordFields(line.AsSpan(throwIfCancellationRequested), plan, ref writer);
+            FillRecordFields(line.AsSpan(state.CancellationCheckpoint), plan, ref writer);
             return;
         }
-        throwIfCancellationRequested();
+        state.CancellationCheckpoint();
         if (plan.Mode == AwkFieldSplittingMode.FieldPattern)
             FillFieldPattern(line, new AwkRegexPattern(plan.FieldPattern, warningSite: this),
                 plan.CaseSensitivity, ref writer);
@@ -156,8 +144,8 @@ internal sealed partial class AwkFieldSplitter(
 
     public void FillRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan, ref AwkRecordFieldWriter writer)
     {
-        throwIfCancellationRequested();
-        if (compatibilityMode != AwkCompatibilityMode.GnuDefault &&
+        state.CancellationCheckpoint();
+        if (state.CompatibilityMode != AwkCompatibilityMode.GnuDefault &&
             plan.Mode == AwkFieldSplittingMode.FieldSeparator && plan.Separator.ByteText.ByteLength == 0)
         {
             if (line.IsEmpty) return;
@@ -186,7 +174,7 @@ internal sealed partial class AwkFieldSplitter(
             return position + value;
         }
 
-        if (stringUnitMode is AwkStringUnitMode.Byte) SplitByteFields(line, ref writer);
+        if (state.StringUnitMode is AwkStringUnitMode.Byte) SplitByteFields(line, ref writer);
         else SplitRuneFields(line, ref writer);
 
         void SplitRuneFields(ReadOnlySpan<byte> content, ref AwkRecordFieldWriter writer)
@@ -202,7 +190,7 @@ internal sealed partial class AwkFieldSplitter(
                 {
                     if (bytePosition >= nextCheckpoint)
                     {
-                        throwIfCancellationRequested();
+                        state.CancellationCheckpoint();
                         nextCheckpoint = (long)bytePosition + AwkRuntimeLimits.CancellationCheckBytes;
                     }
                     var status = Rune.DecodeFromUtf8(content[bytePosition..], out _, out var consumed);
@@ -221,7 +209,7 @@ internal sealed partial class AwkFieldSplitter(
             for (var index = 0; index < fieldWidths.Count; index++)
             {
                 if ((index & 1023) == 0)
-                    throwIfCancellationRequested();
+                    state.CancellationCheckpoint();
                 if (bytePosition >= content.Length)
                     break;
                 var width = fieldWidths[index];
@@ -262,7 +250,7 @@ internal sealed partial class AwkFieldSplitter(
             for (var index = 0; index < fieldWidths.Count; index++)
             {
                 if ((index & 1023) == 0)
-                    throwIfCancellationRequested();
+                    state.CancellationCheckpoint();
                 if (position >= sourceLength)
                     break;
                 var width = fieldWidths[index];
