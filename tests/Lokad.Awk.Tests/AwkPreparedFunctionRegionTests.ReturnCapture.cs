@@ -150,7 +150,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetArrayAwkValue(a, new("r"), arrayValue);
         if (nested)
         {
-            var parent = state.GetSubarray(a, new("parent"), default);
+            var parent = state.Arrays.GetSubarray(a, new("parent"), default);
             if (!empty) state.SetArrayAwkValue(parent, new("r"), arrayValue);
         }
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -171,7 +171,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 if (nested)
                 {
                     state.DeleteArrayValue(a, new("parent"));
-                    state.SetArrayAwkValue(state.GetSubarray(a, new("parent"), default), new("r"), AwkValue.FromText("changed"));
+                    state.SetArrayAwkValue(state.Arrays.GetSubarray(a, new("parent"), default), new("r"), AwkValue.FromText("changed"));
                 }
                 entered.SetResult();
                 if (pending) await release.Task.ConfigureAwait(false);

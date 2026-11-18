@@ -10,11 +10,11 @@ internal partial struct AwkRegionMachine
         if (access.Path >= 0)
         {
             var path = storage.Path(region.Paths[access.Path].Slot);
-            target = new(AwkValue.FromArrayReference(_state.GetSubarray(path.ResolveOwner(_state), path.Key)));
+            target = new(AwkValue.FromArrayReference(_state.Variables.GetSubarray(path.ResolveOwner(_state), path.Key)));
             storage.ReleasePath(region.Paths[access.Path].Slot);
         }
         else if (access.Key >= 0)
-            target = new(AwkValue.FromArrayReference(_state.GetSubarray(access.Name, key, access.Binding)));
+            target = new(AwkValue.FromArrayReference(_state.Arrays.GetSubarray(access.Name, key, access.Binding)));
         else
             target = _state.TryGetBoundArray(access.Name, access.Binding, out var array)
                 ? new(AwkValue.FromArrayReference(array)) : new(access.Name);

@@ -20,7 +20,7 @@ public sealed partial class AwkRegionTests
         await region.ExecuteAsync(state, storage, regionOutput, regionIo);
         state.AssignVariableValue(AwkVariableName.FromText("i"), AwkValue.FromNumber(2));
         state.AssignVariableValue(AwkVariableName.FromText("later"), AwkValue.FromNumber(0));
-        var owner = state.ResolveOrdinaryArray(name);
+        var owner = state.Arrays.ResolveOrdinaryArray(name);
         var held = fixture.Budget.Reserved;
         if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -74,7 +74,7 @@ public sealed partial class AwkRegionTests
         var region = Compile(call + ";later=9", state);
         var name = AwkArrayName.FromText("a");
         state.SetArrayAwkValue(name, new("existing"), AwkValue.FromNumber(7));
-        var owner = state.ResolveOrdinaryArray(name, default);
+        var owner = state.Arrays.ResolveOrdinaryArray(name, default);
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var regionIo = AwkTestHarness.CreateRegionIo(state);
@@ -130,7 +130,7 @@ public sealed partial class AwkRegionTests
         var region = Compile("kind=" + builtin + "(a[\"missing\"]);later=9", state);
         var name = AwkArrayName.FromText("a");
         state.SetArrayAwkValue(name, new("existing"), AwkValue.FromNumber(7));
-        var owner = state.ResolveOrdinaryArray(name, default);
+        var owner = state.Arrays.ResolveOrdinaryArray(name, default);
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         var regionIo = AwkTestHarness.CreateRegionIo(state);

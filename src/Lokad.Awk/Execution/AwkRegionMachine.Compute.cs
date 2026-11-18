@@ -267,7 +267,8 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.NestedContains:
                     var membershipPath = computationView.CapturedPath(instruction.Left);
-                    var membershipOwner = computationView.State.GetSubarray(membershipPath.ResolveOwner(computationView.State), membershipPath.Key);
+                    var membershipOwner = computationView.State.Variables.GetSubarray(
+                        membershipPath.ResolveOwner(computationView.State), membershipPath.Key);
                     computationView.Numbers[instruction.Target] = membershipOwner.ByteLookup
                         .ContainsKey(computationView.Storage.Builders[instruction.Right].Buffer.AsMemory().Span) ? 1 : 0;
                     break;

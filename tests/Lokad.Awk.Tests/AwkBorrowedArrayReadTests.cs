@@ -67,7 +67,7 @@ public sealed class AwkBorrowedArrayReadTests
             Assert.Equal(0, target.Previous);
             Assert.Equal(key, target.Key);
             state.DeleteArrayValue(name, key);
-            state.CommitArrayUpdate(name, in target, 9);
+            state.Arrays.CommitUpdate(name, in target, 9);
             Assert.Equal(9, state.GetArrayAwkValue(name, key).AsNumber());
         }
         else Assert.Equal("", state.GetArrayAwkValue(name, key).AsString());

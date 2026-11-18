@@ -116,13 +116,13 @@ public sealed class AwkNestedArrayStorageTests
         var name = AwkArrayName.FromText("a");
         var row = new AwkArrayKey("row");
         var leaf = new AwkArrayKey("leaf");
-        var original = state.GetSubarray(name, row, default);
+        var original = state.Arrays.GetSubarray(name, row, default);
         state.SetArrayAwkValue(original, leaf, AwkValue.FromNumber(7));
         using (var captured = AwkCapturedArrayPath.Begin(state, name, default, 2))
         {
             captured.Append(state, 0, row);
             state.ClearArray(name);
-            var replacement = state.GetSubarray(name, row, default);
+            var replacement = state.Arrays.GetSubarray(name, row, default);
             state.SetArrayAwkValue(replacement, leaf, AwkValue.FromNumber(9));
             captured.Append(state, 1, leaf);
             Assert.True(original.IsDetached);

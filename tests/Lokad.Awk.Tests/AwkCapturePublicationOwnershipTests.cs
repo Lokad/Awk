@@ -13,7 +13,7 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         const int limit = 1 << 20;
         using var memoryForState = State(true);
         var state = memoryForState.State;
-        var parent = state.ResolveOrdinaryArray(Target);
+        var parent = state.Arrays.ResolveOrdinaryArray(Target);
         var reference = state.GetArrayAwkValue(parent, AwkArrayKey.FromOrdinal(1));
         var target = new AwkArrayTarget(reference);
         using (state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.LiveBytes))
@@ -33,9 +33,9 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
     {
         using var memoryForState = State(true);
         var state = memoryForState.State;
-        var parent = state.ResolveOrdinaryArray(Target);
-        var child = state.GetSubarray(parent, AwkArrayKey.FromOrdinal(1));
-        var grandchild = state.GetSubarray(child, AwkArrayKey.FromOrdinal(2));
+        var parent = state.Arrays.ResolveOrdinaryArray(Target);
+        var child = state.Variables.GetSubarray(parent, AwkArrayKey.FromOrdinal(1));
+        var grandchild = state.Variables.GetSubarray(child, AwkArrayKey.FromOrdinal(2));
         state.SetArrayAwkValue(grandchild, AwkArrayKey.FromOrdinal(3), AwkValue.FromText("old"));
         using var match = Match(state);
         if (refuse) memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -52,7 +52,7 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
             Assert.True(grandchild.IsDetached);
             Assert.Equal("s", state.GetArrayAwkValue(child, AwkArrayKey.FromOrdinal(1)).AsString());
         }
-        Assert.Same(child, state.GetSubarray(parent, AwkArrayKey.FromOrdinal(1)));
+        Assert.Same(child, state.Variables.GetSubarray(parent, AwkArrayKey.FromOrdinal(1)));
     }
 
     [Theory]

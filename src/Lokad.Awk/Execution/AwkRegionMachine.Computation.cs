@@ -524,12 +524,12 @@ internal partial struct AwkRegionMachine
         private AwkArrayIdentity ResolveImmediatePathOwner(in AwkRegionPath path, int[] keys)
         {
             var currentKey = CaptureKey(keys[0]);
-            var currentOwner = state.GetSubarray(path.Name, currentKey, path.Binding);
+            var currentOwner = state.Arrays.GetSubarray(path.Name, currentKey, path.Binding);
             for (var depth = 1; depth < keys.Length - 1; depth++)
             {
                 if ((depth & 63) == 63) state.ThrowIfCancellationRequested();
                 currentKey = CaptureKey(keys[depth]);
-                currentOwner = state.GetSubarray(currentOwner, currentKey);
+                currentOwner = state.Variables.GetSubarray(currentOwner, currentKey);
             }
             if (path.Owner.Role is AwkRegionPathOwnerRole.Initialize or AwkRegionPathOwnerRole.Read)
                 storage.StoreArrayOwner(path.Owner.Value, currentOwner);

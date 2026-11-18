@@ -43,7 +43,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var spelling = numericString ? "0007" : "0007" + new string('x', 256);
         var original = numericString ? AwkTestHarness.NumericInput(spelling) : AwkValue.FromText(spelling);
         var root = AwkArrayName.FromText("a");
-        var child = nested ? state.GetSubarray(root, new("k"), default) : null;
+        var child = nested ? state.Arrays.GetSubarray(root, new("k"), default) : null;
         if (child is not null) state.SetArrayAwkValue(child, new("v"), original);
         else state.SetArrayAwkValue(root, new("k"), original);
         var host = new MockFileSystem();

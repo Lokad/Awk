@@ -66,7 +66,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
 
         Assert.Equal(AwkStatementFlow.Continue, await execution.ExecuteAsync(storage));
 
-        var child = execution.State.GetSubarray(AwkArrayName.FromText("a"), new AwkArrayKey("r"), default);
+        var child = execution.State.Arrays.GetSubarray(AwkArrayName.FromText("a"), new AwkArrayKey("r"), default);
         Assert.Equal(2, execution.State.GetArrayNumber(child, new AwkArrayKey("n")));
         Assert.Equal(0, execution.Memory.Budget.Refusals);
     }

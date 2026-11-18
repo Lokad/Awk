@@ -1540,20 +1540,6 @@ internal sealed class AwkRuntimeState : IDisposable
     internal double GetArrayNumber(AwkArrayName name, double index, AwkArrayBinding binding) =>
         _arrayRuntime.GetNumber(name, index, binding);
 
-    internal AwkArrayIdentity ResolveOrdinaryArray(AwkArrayName name, AwkArrayBinding binding = default) =>
-        _arrayRuntime.ResolveOrdinaryArray(name, binding);
-
-    internal AwkArrayIdentity GetSubarray(AwkArrayIdentity parent, AwkArrayKey key) =>
-        _variables.GetSubarray(parent, key);
-
-    internal AwkArrayIdentity GetSubarray(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding) =>
-        _arrayRuntime.GetSubarray(name, key, binding);
-
-    internal AwkArrayIdentity? FindSubarray(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding) =>
-        _arrayRuntime.FindSubarray(name, key, binding);
-
-    internal AwkArrayIdentity? FindSubarray(AwkArrayIdentity parent, AwkArrayKey key) => _variables.FindSubarray(parent, key);
-
     internal AwkValue GetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key) =>
         _variables.GetArrayValue(array, key);
 
@@ -1618,21 +1604,6 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey key,
         in AwkArrayUpdateTarget previous = default) => _variables.PrepareArrayUpdate(array, key, in previous);
 
-    internal void CommitArrayUpdate(AwkCapturedArrayPath path, in AwkArrayUpdateTarget target, double number)
-    {
-        var array = path.ResolveOwner(this);
-        if (ReferenceEquals(array, target.Array))
-            _variables.SetCapturedArrayNumber(array, in target, number);
-        else _variables.SetArrayValue(array, path.Key, AwkValue.FromNumber(number));
-    }
-
-    internal void CommitArrayUpdate(AwkArrayName name, in AwkArrayUpdateTarget target, double number)
-    {
-        if (target.Array is { IsDetached: false } array)
-            _variables.SetCapturedArrayNumber(array, in target, number);
-        else SetArrayAwkValue(name, target.Key, AwkValue.FromNumber(number));
-    }
-
     public bool TryPeekArrayAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value) =>
         _arrayRuntime.TryPeekAwkValue(name, index, out value);
 
@@ -1662,8 +1633,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void DeleteArrayValue(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.DeleteValue(name, index);
-
-    internal void DeleteArrayValue(AwkArrayIdentity array, AwkArrayKey key) => _variables.DeleteArrayValue(array, key);
 
     internal int SplitIntoArray(AwkText input, AwkArrayTarget array, AwkFieldSeparatorSpec separator,
         AwkArrayTarget? separators, bool csv) => _arrayRuntime.SplitIntoArray(input, array, separator, separators, csv);

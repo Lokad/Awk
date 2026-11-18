@@ -180,7 +180,7 @@ public sealed class AwkPreparedArrayKindTests
             : "function lookup(){return +a[selected()]}";
         var region = Bind(state, "function selected(v){effects++;getline v<\"/side\";return " +
             (outcome == "fault" ? "1/0" : "v") + "}" + lookup + "BEGIN{" + body + "}");
-        if (mode == 4) state.SetArrayAwkValue(state.GetSubarray(Array, Key, default), new("leaf"), AwkValue.FromNumber(7));
+        if (mode == 4) state.SetArrayAwkValue(state.Arrays.GetSubarray(Array, Key, default), new("leaf"), AwkValue.FromNumber(7));
         else if (mode != 0) state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("old"));
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -211,7 +211,7 @@ public sealed class AwkPreparedArrayKindTests
             else
             {
                 state.ClearArray(Array);
-                if (mode == 4) state.SetArrayAwkValue(state.GetSubarray(Array, Key, default), new("leaf"), AwkValue.FromNumber(9));
+                if (mode == 4) state.SetArrayAwkValue(state.Arrays.GetSubarray(Array, Key, default), new("leaf"), AwkValue.FromNumber(9));
                 else state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(9));
                 state.SetCurrentRecord(AwkText.FromSourceLiteralString("k"));
             }
@@ -241,7 +241,7 @@ public sealed class AwkPreparedArrayKindTests
             if (mode != 0)
             {
                 Assert.Equal(9, mode == 4
-                    ? state.GetArrayAwkValue(state.GetSubarray(Array, Key, default), new("leaf")).AsNumber()
+                    ? state.GetArrayAwkValue(state.Arrays.GetSubarray(Array, Key, default), new("leaf")).AsNumber()
                     : state.GetArrayAwkValue(Array, Key).AsNumber());
                 Assert.False(state.ContainsArrayValue(Array, new("old")));
             }

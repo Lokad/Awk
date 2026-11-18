@@ -289,7 +289,7 @@ public sealed class AwkArgumentBindingTests
         var parent = AwkArrayName.FromText("a");
         var row = new AwkArrayKey("row");
         var key = new AwkArrayKey("key");
-        var child = state.GetSubarray(parent, row, default);
+        var child = state.Arrays.GetSubarray(parent, row, default);
         state.SetArrayAwkValue(child, key, AwkValue.FromNumber(7));
         var p = AwkVariableName.FromText("p");
         var q = AwkVariableName.FromText("q");

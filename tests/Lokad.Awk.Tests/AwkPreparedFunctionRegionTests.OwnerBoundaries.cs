@@ -25,7 +25,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             state.InitializeGlobalReadSlots(program.GlobalReadCount);
             state.InitializeFunctions(program.Functions);
             var name = AwkArrayName.FromText("a");
-            var original = state.GetSubarray(name, new("k"), default);
+            var original = state.Arrays.GetSubarray(name, new("k"), default);
             state.SetArrayAwkValue(original, new("sum"), AwkValue.FromNumber(10));
             var total = AwkVariableName.FromText("total");
             state.AssignVariableValue(total, AwkValue.FromNumber(5));
@@ -40,7 +40,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 Assert.Equal(12, state.GetArrayAwkValue(original, new("sum")).AsNumber());
                 if (changeKey) state.AssignVariableValue(AwkVariableName.FromText("k"), AwkValue.FromText("new"));
                 else state.DeleteArrayValue(name, new("k"));
-                var replacement = state.GetSubarray(name, new(changeKey ? "new" : "k"), default);
+                var replacement = state.Arrays.GetSubarray(name, new(changeKey ? "new" : "k"), default);
                 state.SetArrayAwkValue(replacement, new("sum"), AwkValue.FromNumber(40));
                 if (outcome == "refusal") budget.RefuseNextAdmissionMinimumGrowth = 1;
                 entered.TrySetResult();
@@ -81,7 +81,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 var success = outcome is "sync" or "pending";
                 Assert.Equal(success ? 40 : 5, state.ResolveVariableValue(total).AsNumber());
                 Assert.Equal(success, state.HasScalar(AwkVariableName.FromText("later")));
-                var current = state.GetSubarray(name, new(changeKey ? "new" : "k"), default);
+                var current = state.Arrays.GetSubarray(name, new(changeKey ? "new" : "k"), default);
                 Assert.Equal(success, current.ContainsKey(new("n")));
                 if (changeKey) Assert.False(original.ContainsKey(new("n")));
                 else Assert.True(original.IsDetached);

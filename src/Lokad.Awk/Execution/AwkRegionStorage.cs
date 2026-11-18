@@ -197,8 +197,8 @@ internal sealed class AwkRegionStorage : IDisposable
         var result = AwkNumericOperations.ApplyCompoundAssignment(target.Previous, right,
             (AwkCompoundAssignmentOperation)instruction.Detail);
         _state.ThrowIfCancellationRequested();
-        if (pathSlot >= 0) _state.CommitArrayUpdate(Path(pathSlot), in target, result);
-        else _state.CommitArrayUpdate(update.Name, in target, result);
+        if (pathSlot >= 0) _state.Arrays.CommitUpdate(Path(pathSlot), in target, result);
+        else _state.Arrays.CommitUpdate(update.Name, in target, result);
         if (instruction.Right >= 0) _numbers[instruction.Right] = target.Previous;
         if (update.PrepareAccess < 0) CompleteTarget(update.Slot);
         else if (update.Slot >= 0) StoreLocation(update.Slot, in target);

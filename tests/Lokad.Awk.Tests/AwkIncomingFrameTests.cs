@@ -71,7 +71,7 @@ public sealed class AwkIncomingFrameTests
         var state = fixture.State;
         var name = AwkArrayName.FromText("a");
         var parent = new AwkArrayKey("row");
-        var child = state.GetSubarray(name, parent, default);
+        var child = state.Arrays.GetSubarray(name, parent, default);
         state.SetArrayAwkValue(child, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
         var frame = state.FunctionCalls.PrepareFrame(new([AwkVariableName.FromText("p")]));
         state.FunctionCalls.StageArgument(frame, 0, AwkFunctionLocalSlot.ArrayAlias(child));

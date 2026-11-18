@@ -19,8 +19,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var global = AwkArrayName.FromText("a");
         var local = AwkArrayName.FromText("b");
         var x = AwkVariableName.FromText("x");
-        state.SetArrayAwkValue(state.GetSubarray(global, new("key"), default), new("v"), AwkValue.FromNumber(9));
-        state.SetArrayAwkValue(state.GetSubarray(local, new("key"), default), new("v"), AwkValue.FromNumber(7));
+        state.SetArrayAwkValue(state.Arrays.GetSubarray(global, new("key"), default), new("v"), AwkValue.FromNumber(9));
+        state.SetArrayAwkValue(state.Arrays.GetSubarray(local, new("key"), default), new("v"), AwkValue.FromNumber(7));
         state.AssignVariableValue(AwkVariableName.FromText("k"), AwkValue.FromText("key"));
         state.AssignVariableValue(x, AwkValue.FromNumber(5));
         state.PushFunctionFrame(function.LocalLayout,

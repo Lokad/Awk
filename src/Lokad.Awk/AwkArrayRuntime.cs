@@ -48,7 +48,7 @@ internal sealed partial class AwkArrayRuntime
         _fieldSplitter = fieldSplitter;
     }
 
-    internal AwkArrayIdentity ResolveOrdinaryArray(AwkArrayName name, AwkArrayBinding binding)
+    internal AwkArrayIdentity ResolveOrdinaryArray(AwkArrayName name, AwkArrayBinding binding = default)
     {
         if (_state.TryGetBoundArray(name, binding, out var array)) return array;
         var resolved = _variableRuntime.ResolveOrPromoteArrayName(name);
@@ -373,6 +373,21 @@ internal sealed partial class AwkArrayRuntime
         AwkArrayCell? cell = null;
         if (array is { IsIndexed: false }) array.TryGetDictionaryCell(key, out cell);
         return new(key, priorNumber, array, cell);
+    }
+
+    internal void CommitUpdate(AwkCapturedArrayPath path, in AwkArrayUpdateTarget target, double number)
+    {
+        var array = path.ResolveOwner(_state);
+        if (ReferenceEquals(array, target.Array))
+            _variables.SetCapturedArrayNumber(array, in target, number);
+        else _variables.SetArrayValue(array, path.Key, AwkValue.FromNumber(number));
+    }
+
+    internal void CommitUpdate(AwkArrayName name, in AwkArrayUpdateTarget target, double number)
+    {
+        if (target.Array is { IsDetached: false } array)
+            _variables.SetCapturedArrayNumber(array, in target, number);
+        else SetAwkValue(name, target.Key, AwkValue.FromNumber(number));
     }
 
     public AwkRuntimeValueKind GetElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default)

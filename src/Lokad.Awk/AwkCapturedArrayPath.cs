@@ -82,11 +82,11 @@ internal sealed class AwkCapturedArrayPath : IDisposable
         CaptureKey(state, index, key);
         if (index == _length - 1)
         {
-            _owner ??= state.ResolveOrdinaryArray(_rootName, _rootBinding);
+            _owner ??= state.Arrays.ResolveOrdinaryArray(_rootName, _rootBinding);
             return;
         }
-        _owner = index == 0 ? state.GetSubarray(_rootName, key, _rootBinding)
-            : state.GetSubarray(_owner is { IsDetached: false } live ? live
+        _owner = index == 0 ? state.Arrays.GetSubarray(_rootName, key, _rootBinding)
+            : state.Variables.GetSubarray(_owner is { IsDetached: false } live ? live
                 : ResolveOwner(state, _rootName, _rootBinding, _keys, index), key);
     }
     internal void CaptureKey(AwkRuntimeState state, int index, AwkArrayKey key)
@@ -99,14 +99,14 @@ internal sealed class AwkCapturedArrayPath : IDisposable
     internal void Delete(AwkRuntimeState state)
     {
         // Unlike ordinary access, all keys run before searching, without creating children.
-        var array = state.FindSubarray(_rootName, _keys[0], _rootBinding);
+        var array = state.Arrays.FindSubarray(_rootName, _keys[0], _rootBinding);
         for (var index = 1; index < _length - 1 && array is not null; index++)
         {
             state.ThrowIfCancellationRequested();
-            array = state.FindSubarray(array, _keys[index]);
+            array = state.Variables.FindSubarray(array, _keys[index]);
         }
         state.ThrowIfCancellationRequested();
-        if (array is not null) state.DeleteArrayValue(array, Key);
+        if (array is not null) state.Variables.DeleteArrayValue(array, Key);
     }
 
     public AwkArrayKey Key => _keys[_length - 1];
@@ -120,12 +120,12 @@ internal sealed class AwkCapturedArrayPath : IDisposable
     internal static AwkArrayIdentity ResolveOwner(AwkRuntimeState state, AwkArrayName rootName,
         AwkArrayBinding rootBinding, AwkArrayKey[] keys, int count)
     {
-        if (count == 0) return state.ResolveOrdinaryArray(rootName, rootBinding);
-        var array = state.GetSubarray(rootName, keys[0], rootBinding);
+        if (count == 0) return state.Arrays.ResolveOrdinaryArray(rootName, rootBinding);
+        var array = state.Arrays.GetSubarray(rootName, keys[0], rootBinding);
         for (var index = 1; index < count; index++)
         {
             state.ThrowIfCancellationRequested();
-            array = state.GetSubarray(array, keys[index]);
+            array = state.Variables.GetSubarray(array, keys[index]);
         }
         return array;
     }
