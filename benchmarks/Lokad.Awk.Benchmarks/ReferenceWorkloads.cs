@@ -16,7 +16,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "wide-field-rewrite", "filter", "numeric-filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "scalar-sum-decimal", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "prefix-nf-loop", "aggregate", "aggregate-decimal", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
+        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "wide-field-rewrite", "wide-numeric-mutation", "filter", "numeric-filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "scalar-sum", "scalar-sum-decimal", "field-call-loop", "field-number-loop", "numeric-wide", "fixed-field-loop", "prefix-nf-loop", "aggregate", "aggregate-decimal", "aggregate-composite", "profile-narrow", "profile-wide", "two-file",
         "csv", "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "format-literals", "numeric-output", "sorting", "unicode", "unicode-prefix",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "nested-array-calls-16", "nested-array-calls-1024", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
@@ -106,6 +106,26 @@ internal static class ReferenceWorkloads
             return new(name, scale, numeric.Records, numeric.Fields, "{$2=$1;print}",
                 numeric.StandardInput, numeric.Files, Bytes(string.Concat(Enumerable.Repeat(copiedRow, numeric.Records))));
         }
+        if (name == "wide-numeric-mutation")
+        {
+            const int width = 192;
+            var mutationRows = scale switch
+            {
+                "small" => 16,
+                "medium" => 1024,
+                "large" => 8192,
+                _ => throw new ArgumentException("Unknown scale.")
+            };
+            var cells = Enumerable.Repeat("x", width).ToArray();
+            cells[88] = "2.75";
+            var inputLine = string.Join(' ', cells) + "\n";
+            cells[88] = "3.25";
+            var outputLine = string.Join(' ', cells) + "\n";
+            return new(name, scale, mutationRows, width, "{$89=$89+0.5;print}",
+                Bytes(string.Concat(Enumerable.Repeat(inputLine, mutationRows))), [],
+                Bytes(string.Concat(Enumerable.Repeat(outputLine, mutationRows))));
+        }
+
         if (name is "numeric-wide" or "fixed-field-loop" or "prefix-nf-loop")
         {
             const int numericFields = 128;
