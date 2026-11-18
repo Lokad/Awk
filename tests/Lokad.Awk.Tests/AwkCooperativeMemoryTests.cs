@@ -106,7 +106,8 @@ public sealed class AwkCooperativeMemoryTests
         Assert.True(owner.TryResizeTracked(bytes));
         parent.Dispose();
         Assert.Equal(0, budget.Reserved);
-        Assert.Throws<ObjectDisposedException>(() => owner.TryResizeTracked(bytes));
+        var failure = Assert.Throws<AwkHostException>(() => owner.TryResizeTracked(bytes));
+        Assert.IsType<ObjectDisposedException>(failure.InnerException);
     }
 
     [Fact]

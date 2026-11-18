@@ -33,10 +33,15 @@ internal static class AwkTestHarness
     }
 
     public static AwkExecutionPolicy CreatePolicy() =>
-        AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
+        AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance)
+            .WithInternalFailureObserver(AwkInternalFailuresAttribute.CreateObserver());
 
     public static AwkRuntimeOptions CreateRuntimeOptions() =>
-        AwkRuntimeOptions.CreateSystemDefault() with { RegexEngine = AwkUtf8RegexEngine.Instance };
+        AwkRuntimeOptions.CreateSystemDefault() with
+        {
+            RegexEngine = AwkUtf8RegexEngine.Instance,
+            InternalFailureObserver = AwkInternalFailuresAttribute.CreateObserver()
+        };
 
     // Use the production record owner; fixtures can retain this view to verify
     // actual backing reuse before checking that captured values remain owned.

@@ -19,7 +19,7 @@ public sealed class AwkCommandForwardingTests
         await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
         {
             var receiver = new CapturingHost();
-            var host = new AwkBudgetHost(receiver, owner);
+            var host = new AwkExecutionHost(receiver, owner);
             _ = await host.RunCommandAsync(original, CancellationToken.None);
 
             var before = GC.GetAllocatedBytesForCurrentThread();

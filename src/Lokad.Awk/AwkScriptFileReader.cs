@@ -153,11 +153,10 @@ internal static class AwkScriptFileReader
             catch (Exception exception)
             {
                 await CloseForCleanupAsync(opened.FileDescriptor).ConfigureAwait(false);
+                if (exception is not AwkHostException)
+                    throw;
                 if (readResult is AwkScriptTextReadResult.Failed)
                     return readResult;
-
-                if (exception is AwkRuntimeException)
-                    throw;
 
                 return AwkScriptTextReadResult.Failure(
                     AwkMessages.FormatPathError(path.Display, "Close failed."),

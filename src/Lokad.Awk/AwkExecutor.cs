@@ -8,35 +8,73 @@ internal static class AwkExecutor
     {
         cancellationToken.ThrowIfCancellationRequested();
         var stderr = command.StdErr;
+        var applicationHost = host;
         AwkExecutionMemoryOwner owner;
         try { owner = AwkExecutionMemoryOwner.Create(runtimeOptions.MemoryBudget, cancellationToken); }
         catch (AwkRuntimeException exception)
         {
-            return await ReportRuntimeFailureAsync(host, stderr, runtimeOptions, exception, cancellationToken)
+            return await ReportRuntimeFailureAsync(
+                new AwkExecutionHost(applicationHost, AwkExecutionMemoryOwner.Disabled),
+                stderr, runtimeOptions, exception, cancellationToken)
                 .ConfigureAwait(false);
         }
-        await using (owner.ConfigureAwait(false))
+        catch (Exception exception)
         {
-            try
+            cancellationToken.ThrowIfCancellationRequested();
+            return await ReportUnexpectedFailureAsync(
+                new AwkExecutionHost(applicationHost, AwkExecutionMemoryOwner.Disabled),
+                stderr, runtimeOptions, exception, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        host = new AwkExecutionHost(applicationHost, owner);
+        var reported = false;
+        var observedInternalFailure = false;
+        try
+        {
+            await using (owner.ConfigureAwait(false))
             {
-                var token = owner.Token(cancellationToken);
-                var resolved = AwkCommandParser.Parse(command, owner.FrontendMemory, token);
-                var options = owner.IsEnabled ? runtimeOptions with { MemoryOwner = owner } : runtimeOptions;
-                var result = await ExecuteBodyAsync(owner.IsEnabled ? new AwkBudgetHost(host, owner) : host,
-                    resolved, token, options).ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                return result;
+                try
+                {
+                    var token = owner.Token(cancellationToken);
+                    var resolved = AwkCommandParser.Parse(command, owner.FrontendMemory, token);
+                    var options = owner.IsEnabled ? runtimeOptions with { MemoryOwner = owner } : runtimeOptions;
+                    var result = await ExecuteBodyAsync(host, resolved, token, options).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return result;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                { cancellationToken.ThrowIfCancellationRequested(); throw; }
+                catch (AwkRuntimeException exception)
+                {
+                    reported = true;
+                    return await ReportRuntimeFailureAsync(host, stderr, runtimeOptions, exception, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    reported = true;
+                    observedInternalFailure = exception is not AwkHostException;
+                    return await ReportUnexpectedFailureAsync(host, stderr, runtimeOptions, exception, cancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        { cancellationToken.ThrowIfCancellationRequested(); throw; }
+        catch (Exception exception)
+        {
+            // A broken cleanup callback must not replay a diagnostic or notify twice.
+            cancellationToken.ThrowIfCancellationRequested();
+            if (reported)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                throw;
+                if (!observedInternalFailure && exception is not AwkHostException)
+                    ObserveInternalFailure(runtimeOptions, exception);
+                return AwkDiagnostics.FatalExitCode;
             }
-            catch (AwkRuntimeException exception)
-            {
-                return await ReportRuntimeFailureAsync(host, stderr, runtimeOptions, exception, cancellationToken)
-                    .ConfigureAwait(false);
-            }
+            return await ReportUnexpectedFailureAsync(
+                new AwkExecutionHost(applicationHost, AwkExecutionMemoryOwner.Disabled),
+                stderr, runtimeOptions, exception, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -163,24 +201,30 @@ internal static class AwkExecutor
             cancellationToken.ThrowIfCancellationRequested();
             throw;
         }
-        catch (Exception)
+    }
+
+    private static void ObserveInternalFailure(AwkRuntimeOptions options, Exception exception)
+    {
+        try { options.InternalFailureObserver?.Invoke(exception); }
+        catch { /* Observability must not change command completion or cleanup. */ }
+    }
+
+    private static async Task<AwkExitCode> ReportUnexpectedFailureAsync(
+        IAwkHost host, AwkFileDescriptor stderr, AwkRuntimeOptions options,
+        Exception exception, CancellationToken cancellationToken)
+    {
+        var external = exception is AwkHostException;
+        if (!external) ObserveInternalFailure(options, exception);
+        var message = external ? AwkMessages.ErrorUnexpectedFailure : AwkMessages.ErrorInternalFailure;
+        try
         {
-            try
-            {
-                _ = await AwkHostBoundaryPolicy.AwaitAsync(
-                        host.AppendAsync(
-                            invocation.Stdio.StdErr,
-                            AwkMessages.ErrorUnexpectedFailure,
-                            cancellationToken),
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                return AwkDiagnostics.FatalExitCode;
-            }
-            catch (Exception)
-            {
-                return AwkDiagnostics.FatalExitCode;
-            }
+            options.Counters.RecordHostCall();
+            options.Counters.RecordOutputBytes(message.Length);
+            _ = await AwkHostBoundaryPolicy.AwaitAsync(host.AppendAsync(stderr, message, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
         }
+        catch { cancellationToken.ThrowIfCancellationRequested(); }
+        return AwkDiagnostics.FatalExitCode;
     }
 
     private static async Task<AwkExitCode> ReportRuntimeFailureAsync(

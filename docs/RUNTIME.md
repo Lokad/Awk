@@ -40,8 +40,12 @@ listed in [compatibility](COMPATIBILITY.md#host-io-and-getline).
 Return structured failures with safe, unprefixed `AwkOperationError` messages. Causes are
 `NotFound`, `PermissionDenied`, `NotSupported`, `IoFailure`, `PolicyDenied` and
 `Unspecified`. `PolicyDenied` is fatal; ordinary redirected getline I/O failure returns
--1 and sets enabled ERRNO without an automatic stderr diagnostic. Unexpected host
-exceptions become generic awk diagnostics, without CLR exception details. Completed
+-1 and sets enabled ERRNO without an automatic stderr diagnostic. Unexpected host/provider
+exceptions keep the generic host-failure diagnostic, without CLR details. Unexpected
+library failures return status 2 with `awk: internal error`. An optional
+`WithInternalFailureObserver(Action<Exception>)` receives the original library exception
+once before that diagnostic; observer exceptions are ignored. Expected AWK errors,
+refused admission and cancellation do not notify it. Completed
 effects are not rolled back when a later operation fails.
 Report absent files with `AwkOpenedFile.Failure(new(AwkOperationErrorKind.NotFound,
 "No such file or directory"))`. Source search and suffix fallback continue only for

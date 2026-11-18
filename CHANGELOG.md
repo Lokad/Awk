@@ -7,6 +7,10 @@ published 0.4.0. Before 1.0, minor releases may break public APIs.
 
 ### API migration
 
+- **Internal failures:** optional `WithInternalFailureObserver(Action<Exception>)` observes
+  library bugs once before `awk: internal error` (status 2). Callback exceptions are ignored.
+  Host/provider exceptions retain the generic host-failure diagnostic; expected AWK errors,
+  refused admission and cancellation do not notify the observer.
 - **Regex providers:** `TryCompile` borrows a UTF-8 `ReadOnlySpan<byte>`, replacing a
   UTF-16 pattern. Providers admit retained source. Replace stateless matching with
   `CreateSearch` over a complete immutable UTF-8 subject; scoped `Match` uses absolute

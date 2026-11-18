@@ -240,12 +240,13 @@ internal static class AwkRegexSyntaxValidator
             IAwkCompiledRegex? compiled = null;
             try
             {
-                var supported = regexEngine.TryCompile(translated.AsSpan(checkpoint), false, memoryBudget, cancellationToken, out compiled);
+                var supported = AwkRegexCallbacks.TryCompile(regexEngine, translated.AsSpan(checkpoint), false,
+                    memoryBudget, cancellationToken, out compiled);
                 if (!supported)
                     throw new AwkRuntimeException(AwkMessages.ErrorRegexProviderUnsupported, AwkDiagnosticId.RuntimeRegexProvider);
-                if (compiled is null || compiled.GroupCount < 1) return false;
+                if (compiled is null || AwkRegexCallbacks.GroupCount(compiled) < 1) return false;
             }
-            finally { compiled?.Dispose(); }
+            finally { AwkRegexCallbacks.Dispose(compiled); }
             checkpoint?.Invoke();
             return true;
         }

@@ -48,6 +48,8 @@ internal sealed record AwkRuntimeOptions
 
     public IAwkRegexEngine? RegexEngine { get; init; }
 
+    public Action<Exception>? InternalFailureObserver { get; init; }
+
     public AwkExecutionMemoryOwner MemoryOwner { get; init; } = AwkExecutionMemoryOwner.Disabled;
 
     public Func<AwkUnixTimestampSeconds> CurrentUnixTimeSeconds { get; }
@@ -81,8 +83,8 @@ internal sealed record AwkRuntimeOptions
     public static AwkRuntimeOptions CreateSystemDefault() => Create(AwkExecutionPolicy.CreateDefault());
 
     public static AwkRuntimeOptions Create(AwkExecutionPolicy policy, IMemoryBudget? invocationBudget = null) =>
-        new(
-            () => new AwkUnixTimestampSeconds(policy.TimeProvider.GetUtcNow().ToUnixTimeSeconds()),
+        new AwkRuntimeOptions(
+            () => ReadTime(policy.TimeProvider),
             policy.TimeZone,
             null,
             AwkRuntimeCounters.Disabled,
@@ -97,5 +99,12 @@ internal sealed record AwkRuntimeOptions
             policy.ExposeHostErrorDetails,
             policy.MaxHostErrorBytes,
             invocationBudget ?? policy.MemoryBudget,
-            policy.RegexEngine);
+            policy.RegexEngine)
+        { InternalFailureObserver = policy.InternalFailureObserver };
+
+    private static AwkUnixTimestampSeconds ReadTime(TimeProvider provider)
+    {
+        try { return new(provider.GetUtcNow().ToUnixTimeSeconds()); }
+        catch (Exception error) { throw new AwkHostException(error); }
+    }
 }

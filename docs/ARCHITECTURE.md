@@ -104,6 +104,10 @@ Enforced by [key origins](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.ArrayKeyOrigi
 
 ## Host and regex boundaries
 
+Tag faults only at actual application callbacks. Expected AWK/refusal signals and
+cancellation keep their contracts; unexpected library faults reach the policy observer
+once before a generic internal diagnostic. Observer failures do not interrupt cleanup.
+
 The host resolves and authorizes original path requests before effects. Command text is
 opaque, independent of path spelling. Read borrows must be consumed/disposed before
 another descriptor operation; appends retain bytes through actual completion. Terminal

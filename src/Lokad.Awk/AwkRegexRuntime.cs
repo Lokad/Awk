@@ -114,7 +114,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         try
         {
             _resources.RecordRegexMatch();
-            var result = owner.Pattern.IsMatch(input.AsSpan(_throwIfCancellationRequested), _cancellationToken);
+            var result = AwkRegexCallbacks.IsMatch(owner.Pattern, input.AsSpan(_throwIfCancellationRequested), _cancellationToken);
             _throwIfCancellationRequested();
             return result;
         }
@@ -171,7 +171,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             // One scoped owner, including its lease and input reference; no subject copy.
             lease = _memoryAccounting.ReserveTransient(128);
             var bytes = input.Materialize(_throwIfCancellationRequested);
-            provider = owner.Pattern.CreateSearch(bytes[inputStart..],
+            provider = AwkRegexCallbacks.CreateSearch(owner.Pattern, bytes[inputStart..],
                 _cancellationToken);
             _throwIfCancellationRequested();
             var search = new Search(this, owner, provider, bytes, inputStart, lease);
@@ -183,7 +183,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         {
             if (!transferred)
             {
-                try { provider?.Dispose(); }
+                try { AwkRegexCallbacks.Dispose(provider); }
                 finally { lease.Dispose(); owner.Unpin(); }
             }
         }
@@ -248,11 +248,11 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             var hasInputStart = HasInputStart(translated);
             if (suppressInputStart) translated = SuppressInputStart(translated, translatedText);
             _throwIfCancellationRequested();
-            var supported = engine.TryCompile(translated.AsSpan(_throwIfCancellationRequested),
+            var supported = AwkRegexCallbacks.TryCompile(engine, translated.AsSpan(_throwIfCancellationRequested),
                 sensitivity == AwkRegexCaseSensitivity.IgnoreCase, _regexMemoryBudget, _cancellationToken, out compiled);
             if (!supported)
                 throw new AwkRuntimeException(AwkMessages.ErrorRegexProviderUnsupported, AwkDiagnosticId.RuntimeRegexProvider);
-            if (compiled is null || compiled.GroupCount < 1)
+            if (compiled is null || AwkRegexCallbacks.GroupCount(compiled) < 1)
                 throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
             _throwIfCancellationRequested();
             var owner = new CompiledPattern(compiled, recipe, entryLease, hasInputStart);
@@ -269,7 +269,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         {
             if (!transferred)
             {
-                try { compiled?.Dispose(); }
+                try { AwkRegexCallbacks.Dispose(compiled); }
                 finally { entryLease.Dispose(); }
             }
         }
@@ -322,7 +322,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             var owned = _pattern;
             _pattern = null;
             _recipe = null;
-            try { owned?.Dispose(); }
+            try { AwkRegexCallbacks.Dispose(owned); }
             finally { lease.Dispose(); }
         }
     }
@@ -345,7 +345,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             try
             {
                 runtime._resources.RecordRegexMatch();
-                var whole = provider.Match(offset - inputStart, [], runtime._cancellationToken);
+                var whole = AwkRegexCallbacks.Match(provider, offset - inputStart, [], runtime._cancellationToken);
                 runtime._throwIfCancellationRequested();
                 if (!whole.Success) return AwkRegexMatchSpan.NoMatch;
                 AwkRegexMatch.ValidateRanges(_input.Span[inputStart..], whole, [], offset - inputStart,
@@ -362,13 +362,13 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             runtime._throwIfCancellationRequested();
             try
             {
-                var count = capturePlan.SelectGroupCount(owner.Pattern.GroupCount);
+                var count = capturePlan.SelectGroupCount(AwkRegexCallbacks.GroupCount(owner.Pattern));
                 using var scratch = governor.ReserveTransient(count <= 32 ? 0 :
                     AwkRuntimeMemory.EstimateRegexCaptureRangeArrayBytes(count));
                 Span<AwkRegexCaptureRange> ranges = count <= 32
                     ? stackalloc AwkRegexCaptureRange[count] : new AwkRegexCaptureRange[count];
                 runtime._resources.RecordRegexMatch();
-                var whole = provider.Match(offset - inputStart, ranges, runtime._cancellationToken);
+                var whole = AwkRegexCallbacks.Match(provider, offset - inputStart, ranges, runtime._cancellationToken);
                 runtime._throwIfCancellationRequested();
                 if (!whole.Success) { matchSpan = AwkRegexMatchSpan.NoMatch; return AwkLeasedRegexMatch.NoMatch; }
                 var result = AwkRegexMatch.FromRanges(whole, _input.Span[inputStart..], ranges, offset - inputStart,
@@ -385,7 +385,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             if (_disposed) return;
             _disposed = true;
             _input = default;
-            try { provider.Dispose(); }
+            try { AwkRegexCallbacks.Dispose(provider); }
             finally { lease.Dispose(); owner.Unpin(); }
         }
     }

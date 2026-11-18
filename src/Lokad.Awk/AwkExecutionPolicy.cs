@@ -3,6 +3,18 @@ namespace Lokad.Awk;
 /// <summary>Controls capabilities and resource budgets for one awk execution.</summary>
 public sealed record AwkExecutionPolicy
 {
+    /// <summary>Gets the optional observer for unexpected library failures.</summary>
+    public Action<Exception>? InternalFailureObserver { get; private init; }
+
+    /// <summary>Observes a library exception once, before its generic diagnostic is written.</summary>
+    /// <remarks>Host/provider faults, expected AWK failures and cancellation are not observed.
+    /// The callback runs on the executing command; its exceptions are ignored.</remarks>
+    public AwkExecutionPolicy WithInternalFailureObserver(Action<Exception> observer)
+    {
+        ArgumentNullException.ThrowIfNull(observer);
+        return this with { InternalFailureObserver = observer };
+    }
+
     /// <summary>Gets the borrowed application-supplied UTF-8 regex engine, or null when none is configured.</summary>
     public IAwkRegexEngine? RegexEngine { get; private init; }
 

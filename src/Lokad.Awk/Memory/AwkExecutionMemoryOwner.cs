@@ -33,10 +33,12 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
     public static AwkExecutionMemoryOwner Create(IMemoryBudget? budget, CancellationToken cancellationToken)
     {
         if (budget is null) return Disabled;
-        var scope = budget.CreateScope();
+        IMemoryScope scope;
+        try { scope = budget.CreateScope(); }
+        catch (Exception error) { throw new AwkHostException(error); }
         try
         {
-            if (!scope.TryReserve(0, out var reservation))
+            if (!AwkMemoryCallbacks.TryReserve(scope, 0, out var reservation))
                 throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
             try
             {
@@ -44,13 +46,13 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
             }
             catch
             {
-                reservation.Dispose();
+                AwkMemoryCallbacks.Dispose(reservation);
                 throw;
             }
         }
         catch
         {
-            scope.Dispose();
+            AwkMemoryCallbacks.Dispose(scope);
             throw;
         }
     }
@@ -83,8 +85,8 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         var unchanged = trackedBytes == _trackedBytes && temporaryBytes == _temporaryBytes;
         // Outside the admitted region, unchanged/zero requests must still detect
         // disposed reservations or ancestors rather than concealing lost funding.
-        if (!admitted && (!unchanged || charge == 0 || charge != reservation.Bytes) &&
-            !reservation.TryResize(charge)) return false;
+        if (!admitted && (!unchanged || charge == 0 || charge != AwkMemoryCallbacks.Bytes(reservation)) &&
+            !AwkMemoryCallbacks.TryResize(reservation, charge)) return false;
         _trackedBytes = trackedBytes;
         _temporaryBytes = temporaryBytes;
         return true;
@@ -100,7 +102,7 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
             AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes), growth));
         // If the floor grows, it exceeds both the prior floor and actual live
         // charges. Otherwise the existing owned admission already funds it.
-        if (floor > previous && !reservation.TryResize(floor))
+        if (floor > previous && !AwkMemoryCallbacks.TryResize(reservation, floor))
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
         _mutationFloor = floor;
         return new(this, previous);
@@ -111,7 +113,7 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         var heldFloor = _mutationFloor;
         _mutationFloor = previousFloor;
         var charge = Math.Max(previousFloor, AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes));
-        if (charge < heldFloor && _reservation is { } reservation && !reservation.TryResize(charge))
+        if (charge < heldFloor && _reservation is { } reservation && !AwkMemoryCallbacks.TryResize(reservation, charge))
             throw new InvalidOperationException("Releasing mutation admission cannot require more memory.");
     }
 
@@ -150,10 +152,16 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         }
         finally
         {
-            FrontendMemory.Dispose();
-            _reservation?.Dispose();
-            _scope.Dispose();
-            _cancellation?.Dispose();
+            try { FrontendMemory.Dispose(); }
+            finally
+            {
+                try { AwkMemoryCallbacks.Dispose(_reservation); }
+                finally
+                {
+                    try { AwkMemoryCallbacks.Dispose(_scope); }
+                    finally { _cancellation?.Dispose(); }
+                }
+            }
         }
     }
 }

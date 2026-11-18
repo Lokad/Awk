@@ -73,16 +73,16 @@ internal sealed class AwkFrontendMemory(IMemoryBudget? budget) : IDisposable
         var bytes = AwkRuntimeMemory.CheckedAdd(sourceBytes, parserBytes);
         if (_reservation is { } reservation)
         {
-            if (!reservation.TryResize(bytes))
+            if (!AwkMemoryCallbacks.TryResize(reservation, bytes))
                 throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
         }
         else
         {
-            if (!budget.TryReserve(bytes, out var created))
+            if (!AwkMemoryCallbacks.TryReserve(budget, bytes, out var created))
                 throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
             _reservation = created;
         }
     }
 
-    public void Dispose() => _reservation?.Dispose();
+    public void Dispose() => AwkMemoryCallbacks.Dispose(_reservation);
 }

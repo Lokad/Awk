@@ -29,6 +29,11 @@ independent contracts. Source-level checks cover additional parser/binder behavi
 
 ## Writing and running checks
 
+Harness policies record unexpected library failures. An assembly-level after-test
+assertion fails even when command status/diagnostics otherwise match; throwing from
+the production observer alone would be ignored. Host/provider callback faults remain
+separate. `AwkInternalFailureTests` covers notification ordering and fault classification.
+
 Select a class or method with `--filter FullyQualifiedName~AwkHostContractTests`, for
 example. A run discovering zero tests is invalid. DisplayName filters do not reliably
 select individual golden data rows; filter their actual entry methods instead.

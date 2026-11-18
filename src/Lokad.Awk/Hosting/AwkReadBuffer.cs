@@ -86,6 +86,7 @@ public sealed class AwkReadBuffer : IDisposable
         var complete = Interlocked.Exchange(ref _complete, null);
         if (complete is null) return;
         _content = default;
-        complete(_consumed);
+        try { complete(_consumed); }
+        catch (Exception error) { throw new AwkHostException(error); }
     }
 }
