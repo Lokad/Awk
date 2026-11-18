@@ -78,7 +78,7 @@ has no shared admission. GNU-marked extensions do not imply full conformance.
 ## Large-input processing
 
 Rows marked **§** measure record rebuilding on **2026-11-18 UTC**, including a
-numeric edit in a 192-column record. [Core revision b0aecaa6](https://github.com/Lokad/Awk/commit/b0aecaa6c64eb565a5df4ae22ed1169e29acdeb1)
+numeric edit in a 192-column record. [Core revision 61eaf54e](https://github.com/Lokad/Awk/commit/61eaf54ea2c2d265358aafb707904714abb280a2)
 
 Rows marked **‡** were refreshed at [e4edf7f3](https://github.com/Lokad/Awk/commit/e4edf7f3b7ef1c2cd23e5ed7d8f6c4b728b5f7c9)
 on **2026-11-18 UTC**. Rows marked **†** retain [070b3b5c](https://github.com/Lokad/Awk/commit/070b3b5c5382c2a52afcf41df2809d3b4821e676)
@@ -97,10 +97,10 @@ by process startup.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE boolean matching | 512.00 | 23.622 | 4.656 | 5.07× | 112.198 |
 | Text function with branches and local temporary † | 992.00 | 25.943 | 16.405 | 1.58× | 3.658 |
-| Numeric edit / rebuild record (192 columns) § | 3096.00 | 37.866 | 25.859 | 1.46× | 4.406 |
 | ASCII substr/index/length/casing † | 832.00 | 12.898 | 10.080 | 1.28× | 2.120 |
 | Numeric array sort (GNU) | 373.15 | 28.483 | 22.901 | 1.24× | 10.973 |
 | Project three columns / output ‡ | 960.00 | 11.772 | 9.964 | 1.18× | 0.070 |
+| Numeric edit / rebuild record (192 columns) § | 3096.00 | 29.691 | 26.297 | 1.13× | 4.406 |
 | Composite-key sum / sorted output (GNU) | 384.00 | 9.067 | 8.334 | 1.09× | 0.146 |
 | Loop with repeated field arguments | 401.40 | 54.461 | 50.766 | 1.07× | 0.155 |
 | Keyed sum / sorted output (GNU) ‡ | 384.00 | 6.505 | 6.181 | 1.05× | 0.119 |
@@ -118,8 +118,8 @@ by process startup.
 | Numeric range filtering / accumulation | 512.00 | 6.767 | 8.085 | 0.84× | 0.101 |
 | Numeric prefix / finish field loop through NF (128 columns) | 1616.00 | 29.994 | 36.034 | 0.83× | 0.122 |
 | Fixed-count numeric field loop (128 columns) | 1616.00 | 29.467 | 35.721 | 0.82× | 0.111 |
-| Copy field / rebuild record (128 columns) § | 1616.00 | 8.029 | 9.747 | 0.82× | 0.074 |
-| Copy field / rebuild record § | 960.00 | 8.531 | 10.918 | 0.78× | 0.065 |
+| Copy field / rebuild record (128 columns) § | 1616.00 | 8.183 | 10.116 | 0.81× | 0.074 |
+| Copy field / rebuild record § | 960.00 | 8.544 | 10.946 | 0.78× | 0.065 |
 | Sum every numeric field (128 columns) | 1616.00 | 28.076 | 35.943 | 0.78× | 0.110 |
 | 16 computed numbers / output | 320.00 | 39.970 | 70.883 | 0.56× | 0.166 |
 | Filter `$1` / occasionally print `$3`, 64 fields | 20733.15 | 5.566 | 23.207 | 0.24× | 0.106 |
