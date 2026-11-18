@@ -2,6 +2,32 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkFieldCancellationTests
 {
+    [Fact]
+    public void EmptyRebuildPublishesBeforeRetiringThePreviousRecord()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = new CooperativeTestMemory(8 << 20)
+            .InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
+        using var context = new AwkFieldTestContext(memory);
+        var frame = context.Frame;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("old record"));
+        frame.AssignFieldCount(new(0), AwkText.Empty);
+        bool? wasDirtyAtRefund = null;
+        memory.Budget.OnRefund = () =>
+        {
+            memory.Budget.OnRefund = null;
+            wasDirtyAtRefund = frame.TryGetRecomposedRecordFields(out _, out _, out _, out _);
+            cancellation.Cancel();
+        };
+
+        var error = Assert.Throws<OperationCanceledException>(() => _ = frame.RecordAwkText);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(false, wasDirtyAtRefund);
+        Assert.Equal(string.Empty, frame.RecordAwkText.AsString());
+        frame.ResetRecord();
+        Assert.Equal(context.BaselineBytes, memory.Accounting.LiveBytes);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]

@@ -1044,7 +1044,12 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
 
     private void EnsureRecordText()
     {
-        if (_recordTextIsCurrent) return;
+        if (!_recordTextIsCurrent && RebuildRecordText())
+            state.CancellationCheckpoint?.Invoke();
+    }
+
+    private bool RebuildRecordText()
+    {
         var fieldCount = _fieldTexts.Count;
         var numericCount = _numericFieldCount;
         var bufferBytes = state.MemoryAccounting.IsEnabled
@@ -1052,6 +1057,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
                 AwkRuntimeMemory.EstimateNumericFieldSpellingArrayBytes(numericCount))
             : 0;
         using var buffers = state.MemoryAccounting.ReserveTransient(bufferBytes);
+        if (bufferBytes > 0) state.CancellationCheckpoint?.Invoke();
         var formatted = numericCount == 0 ? [] : new (int FieldIndex, AwkText Text)[numericCount];
         var payloadByteLength = _fieldPayloadByteLength;
         var formattedCount = 0;
@@ -1071,9 +1077,8 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             fieldCount, payloadByteLength);
         var retained = EstimateRetainedBytes(AwkRuntimeMemory.EstimateTextBytes(byteLength),
             fieldCount, fieldCount, _fieldValueCache, _fieldCountValue);
-        using var recompositionAdmission = PreflightRecomposition(retained, byteLength);
         var fields = new AwkRecordFieldBuffer(fieldCount);
-        var destination = AwkText.AllocateOwnedBytes(byteLength, state.MemoryAccounting);
+        var destination = AwkText.AllocateOwnedBytes(byteLength, state.MemoryAccounting, buffers, state.CancellationCheckpoint);
         var separator = byteLength == 0 ? default : _recompositionSeparator.AsSpan(state.CancellationCheckpoint);
         var offset = 0;
         var nextFormatted = 0;
@@ -1097,13 +1102,13 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         }
         var recordText = byteLength == 0 ? AwkText.Empty : state.AdoptText(destination);
         state.CancellationCheckpoint?.Invoke();
-        ReplaceRetainedMemory(retained);
         ClearBufferedRecord();
         _recordText = recordText;
         _fieldTexts = fields;
         _recordTextIsCurrent = true;
         _recordWasRecomposed = true;
         _recompositionSeparator = AwkText.Empty;
+        return TransferFieldProductionFunding(retained, buffers);
     }
 
     public void PrepareOutputFieldSeparatorAssignment()
