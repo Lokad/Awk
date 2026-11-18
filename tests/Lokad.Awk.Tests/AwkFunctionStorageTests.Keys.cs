@@ -96,7 +96,7 @@ public sealed partial class AwkFunctionStorageTests
     {
         using var memory = new CooperativeTestMemory(1 << 20);
         using var cancellation = new CancellationTokenSource();
-        var stack = Stack(memory, cancellation.Token.ThrowIfCancellationRequested);
+        var stack = Stack(memory, cancellation.Token);
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("key")]);
         var key = new AwkArrayKey(new string('a', 4097));
         var caller = stack.PrepareFrame(layout);

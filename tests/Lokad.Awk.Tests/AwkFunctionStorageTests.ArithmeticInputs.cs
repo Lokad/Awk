@@ -13,7 +13,7 @@ public sealed partial class AwkFunctionStorageTests
         string spelling, AwkNumberParsingMode sourceMode, AwkNumberParsingMode frameMode, double expected)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
-        var stack = new AwkFunctionCallStack(1_024, memory.Accounting, frameMode);
+        var stack = Stack(memory, numberParsingMode: frameMode);
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("x")]);
         layout.PrepareInputs([AwkParameterInput.Arithmetic]);
         var value = AwkValue.FromNumericString(spelling, sourceMode);

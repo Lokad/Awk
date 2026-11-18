@@ -11,8 +11,7 @@ public sealed partial class AwkFunctionStorageTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(1 << 20);
         using var cancellation = new CancellationTokenSource();
-        var stack = new AwkFunctionCallStack(1_024, memory.Accounting, AwkNumberParsingMode.Decimal,
-            checkpoint: cancellation.Token.ThrowIfCancellationRequested, counters: counters);
+        var stack = Stack(memory, cancellation.Token, counters);
         var frame = stack.PrepareFrame(new([AwkVariableName.FromText("s")]));
         using var borrow = AwkReadBuffer.FromContent(new byte[3000], AwkReadCompletion.EndOfFile, static _ => { });
         stack.StageReaderText(frame, 0, borrow, 0, 3000);
@@ -74,8 +73,7 @@ public sealed partial class AwkFunctionStorageTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(1 << 20);
-        var stack = new AwkFunctionCallStack(1_024, memory.Accounting, AwkNumberParsingMode.Decimal,
-            counters: counters);
+        var stack = Stack(memory, counters: counters);
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("s")]);
         var first = stack.PrepareFrame(layout);
         var second = stack.PrepareFrame(layout);
@@ -271,17 +269,10 @@ public sealed partial class AwkFunctionStorageTests
     {
         using var memory = new CooperativeTestMemory(1 << 20);
         using var cancellation = new CancellationTokenSource();
-        var enabled = false;
-        long callerBytes = 0;
-        var stack = Stack(memory, () =>
-        {
-            if (enabled && memory.Budget.Reserved > callerBytes) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        });
+        var stack = Stack(memory, cancellation.Token);
         var name = AwkVariableName.FromText("x");
         stack.PushFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(42))]);
-        callerBytes = memory.Budget.Reserved;
-        enabled = true;
+        memory.Budget.OnGrowth = _ => cancellation.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() => stack.PushFrame(new([name]), []));
         Assert.True(stack.TryResolveLocalValue(name, out var caller));
         Assert.Equal(42, caller.Value.AsNumber());
@@ -292,6 +283,21 @@ public sealed partial class AwkFunctionStorageTests
         Assert.Equal(0, memory.Budget.Reserved);
     }
 
-    private static AwkFunctionCallStack Stack(CooperativeTestMemory memory, Action? checkpoint = null) =>
-        new(1_024, memory.Accounting, AwkNumberParsingMode.Decimal, checkpoint: checkpoint);
+    private static AwkFunctionCallStack Stack(CooperativeTestMemory memory,
+        CancellationToken cancellationToken = default, AwkRuntimeCounters? counters = null,
+        AwkNumberParsingMode numberParsingMode = AwkNumberParsingMode.Decimal)
+    {
+        var profile = numberParsingMode switch
+        {
+            AwkNumberParsingMode.Decimal => AwkCompatibilityProfile.Default,
+            AwkNumberParsingMode.HexadecimalInput => AwkCompatibilityProfile.Default.WithMode(AwkCompatibilityMode.Posix),
+            AwkNumberParsingMode.NonDecimalData => AwkCompatibilityProfile.Default.WithNonDecimalData(),
+            _ => throw new ArgumentOutOfRangeException(nameof(numberParsingMode))
+        };
+        var options = memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
+            null, counters ?? AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(1_024)));
+        memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken,
+            options, new AwkRuntimeResourceMonitor(options.Limits, options.Counters, cancellationToken), profile));
+        return new(memory.State);
+    }
 }

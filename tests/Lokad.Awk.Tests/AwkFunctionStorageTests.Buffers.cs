@@ -114,7 +114,7 @@ public sealed partial class AwkFunctionStorageTests
     {
         using var memory = new CooperativeTestMemory(16 << 20);
         using var cancellation = new CancellationTokenSource();
-        var stack = Stack(memory, cancellation.Token.ThrowIfCancellationRequested);
+        var stack = Stack(memory, cancellation.Token);
         stack.PushFrame(Layout(1), []);
         stack.PopFrame(static _ => { });
         var layout = Layout(100_000);
@@ -149,7 +149,7 @@ public sealed partial class AwkFunctionStorageTests
     {
         using var memory = new CooperativeTestMemory(4 << 20);
         using var cancellation = new CancellationTokenSource();
-        var stack = Stack(memory, cancellation.Token.ThrowIfCancellationRequested);
+        var stack = Stack(memory, cancellation.Token);
         // Cancel the captured text's admission after the smaller backing is funded.
         memory.Budget.OnGrowth = bytes => { if (bytes >= 32_768) cancellation.Cancel(); };
         AwkFunctionLocalSlot[] arguments = [AwkFunctionLocalSlot.Scalar(AwkValue.FromText(new string('x', 32_768)))];

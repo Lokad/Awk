@@ -27,6 +27,10 @@ Goldens run through public command execution. Focused internal preparation/owner
 fixtures are not a public compilation API; their planned migration must preserve
 independent contracts. Source-level checks cover additional parser/binder behavior.
 
+Initialize a CooperativeTestMemory runtime before using its accounting view. That view
+is the runtime's ledger; a standalone fixture instead creates its own ledger on first use.
+Admission callbacks can inject refusal or cancellation without fixing checkpoint counts.
+
 ## Writing and running checks
 
 Harness policies record unexpected library failures. An assembly-level after-test

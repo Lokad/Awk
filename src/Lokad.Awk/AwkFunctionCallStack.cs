@@ -3,16 +3,11 @@ using System.Diagnostics.CodeAnalysis;
 namespace Lokad.Awk;
 
 internal sealed class AwkFunctionCallStack(
-    int maxFunctionCallDepth,
-    AwkMemoryAccounting memoryAccounting,
-    AwkNumberParsingMode numberParsingMode,
+    AwkRuntimeState state,
     Func<AwkArrayName, bool>? containsArray = null,
-    Action? checkpoint = null,
     Func<AwkArrayName, AwkArrayIdentity?>? findArray = null,
-    Func<AwkUntypedScalar, AwkArrayIdentity>? promoteArrayOrigin = null,
-    AwkRuntimeCounters? counters = null)
+    Func<AwkUntypedScalar, AwkArrayIdentity>? promoteArrayOrigin = null)
 {
-    private readonly AwkRuntimeCounters _counters = counters ?? AwkRuntimeCounters.Disabled;
     private readonly Func<AwkArrayName, bool> _containsArray = containsArray ?? (static _ => false);
     private AwkFunctionFrame? _current;
     private int _depth;
@@ -59,14 +54,14 @@ internal sealed class AwkFunctionCallStack(
     // into the same owner before activation, without making callee locals visible.
     public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionLocalSlot> arguments)
     {
-        if (_depth >= maxFunctionCallDepth)
+        if (_depth >= state.Limits.MaxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
         var frame = PrepareFrame(layout);
         try
         {
             for (var index = 0; index < Math.Min(arguments.Length, layout.SlotCount); index++)
             {
-                if ((index & 63) == 63) checkpoint?.Invoke();
+                if ((index & 63) == 63) state.CancellationCheckpoint();
                 StageArgument(frame, index, arguments[index]);
             }
             ActivateFrame(frame);
@@ -112,17 +107,17 @@ internal sealed class AwkFunctionCallStack(
         {
             var retiredBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(cached.SlotCapacity);
             cached.DiscardSlotBuffer();
-            memoryAccounting.ReleaseCommitted(retiredBytes);
+            state.MemoryAccounting.ReleaseCommitted(retiredBytes);
         }
         if (capacity > 0)
             bufferBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(capacity);
         var frameBytes = newFrame ? AwkRuntimeMemory.EstimateFunctionFrameBytes() : 0;
         var unpublishedBytes = AwkRuntimeMemory.CheckedAdd(frameBytes, bufferBytes);
-        memoryAccounting.ReserveAndCommit(unpublishedBytes);
+        state.MemoryAccounting.ReserveAndCommit(unpublishedBytes);
         AwkFunctionFrame? frame = null;
         try
         {
-            checkpoint?.Invoke();
+            state.CancellationCheckpoint();
             if (newFrame)
             {
                 // Covers active, incoming and recycled owners. Cleanup never grows
@@ -142,7 +137,7 @@ internal sealed class AwkFunctionCallStack(
             if (frame is not null) RecycleFrame(frame);
             throw;
         }
-        finally { memoryAccounting.ReleaseCommitted(unpublishedBytes); }
+        finally { state.MemoryAccounting.ReleaseCommitted(unpublishedBytes); }
     }
 
     // Borrow immutable argument transport only during this synchronous staging.
@@ -161,7 +156,7 @@ internal sealed class AwkFunctionCallStack(
     internal void StageScalarArgument(AwkFunctionFrame frame, int index, in AwkValue value)
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return;
-        var captured = value.ForFunctionStorage(numberParsingMode, checkpoint);
+        var captured = value.ForFunctionStorage(state.NumberParsingMode, state.CancellationCheckpoint);
         // Arithmetic-only consumers need the normalized numeric fact, rather than
         // another owner of its spelling. Other contracts retain the full scalar.
         if (captured.StoredKind == AwkValueKind.NumericString &&
@@ -170,15 +165,15 @@ internal sealed class AwkFunctionCallStack(
             frame.StageNumber(index, captured.StoredNumber);
             return;
         }
-        var bytes = memoryAccounting.IsEnabled ? captured.RetainedTextMemoryBytes : 0;
-        memoryAccounting.ReserveAndCommit(bytes);
+        var bytes = state.MemoryAccounting.IsEnabled ? captured.RetainedTextMemoryBytes : 0;
+        state.MemoryAccounting.ReserveAndCommit(bytes);
         try
         {
-            if (bytes > 0) checkpoint?.Invoke();
+            if (bytes > 0) state.CancellationCheckpoint();
             frame.StageScalar(index, in captured);
             frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
         }
-        catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
+        catch { state.MemoryAccounting.ReleaseCommitted(bytes); throw; }
     }
 
     internal void StageReaderText(AwkFunctionFrame frame, int index, AwkReadBuffer borrow, int offset, int length)
@@ -197,7 +192,7 @@ internal sealed class AwkFunctionCallStack(
             return;
         }
         if ((uint)index >= (uint)frame.Layout.SlotCount) return; // Extra operands still evaluate in the caller.
-        var bytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(argument) : 0;
+        var bytes = state.MemoryAccounting.IsEnabled ? EstimateLocalSlotBytes(argument) : 0;
         if (bytes > 0)
         {
             // Capture before admission can replace a live source cell.
@@ -212,15 +207,15 @@ internal sealed class AwkFunctionCallStack(
         in AwkFunctionLocalSlot captured, long bytes)
     {
         // The caller captured the actual owning cell before this admission.
-        memoryAccounting.ReserveAndCommit(bytes);
+        state.MemoryAccounting.ReserveAndCommit(bytes);
         try
         {
-            checkpoint?.Invoke();
+            state.CancellationCheckpoint();
             var retained = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, bytes);
             frame.StageCell(index, in captured);
             frame.RetainedMemoryBytes = retained;
         }
-        catch { memoryAccounting.ReleaseCommitted(bytes); throw; }
+        catch { state.MemoryAccounting.ReleaseCommitted(bytes); throw; }
     }
 
     internal void StageArrayAlias(AwkFunctionFrame frame, int index, AwkArrayName name, AwkArrayIdentity array)
@@ -235,7 +230,7 @@ internal sealed class AwkFunctionCallStack(
     internal void StageKey(AwkFunctionFrame frame, int index, AwkArrayKey key)
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return;
-        var bytes = memoryAccounting.IsEnabled ? key.RetainedTextMemoryBytes : 0;
+        var bytes = state.MemoryAccounting.IsEnabled ? key.RetainedTextMemoryBytes : 0;
         if (bytes > 0)
         {
             var captured = AwkFunctionLocalSlot.PreparedKey(key);
@@ -274,7 +269,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 var owned = MaterializeReaderText(frame, source, in sourceSlot).Value;
                 StageKey(incoming, index,
-                    new AwkArrayKey(owned.ByteText, checkpoint).WithInputOrigin(owned.HasInputOrigin));
+                    new AwkArrayKey(owned.ByteText, state.CancellationCheckpoint).WithInputOrigin(owned.HasInputOrigin));
             }
             return true;
         }
@@ -285,7 +280,7 @@ internal sealed class AwkFunctionCallStack(
 
             if (prepareKey && value.TryGetStoredScalarText(out var text))
                 StageKey(incoming, index,
-                    new AwkArrayKey(text, checkpoint).WithInputOrigin(value.HasInputOrigin));
+                    new AwkArrayKey(text, state.CancellationCheckpoint).WithInputOrigin(value.HasInputOrigin));
             else StageScalarArgument(incoming, index, in value);
             return true;
         }
@@ -309,14 +304,14 @@ internal sealed class AwkFunctionCallStack(
 
     internal void ActivateFrame(AwkFunctionFrame frame)
     {
-        if (_depth >= maxFunctionCallDepth)
+        if (_depth >= state.Limits.MaxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
         var registered = 0;
         try
         {
             for (var index = 0; index < frame.ReconcileEnd; index++)
             {
-                if ((index & 63) == 63) checkpoint?.Invoke();
+                if ((index & 63) == 63) state.CancellationCheckpoint();
                 ref var slot = ref frame.GetSlot(index);
                 if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
                 {
@@ -333,12 +328,12 @@ internal sealed class AwkFunctionCallStack(
             }
             for (; registered < frame.PotentialAliasEnd; registered++)
             {
-                if ((registered & 63) == 63) checkpoint?.Invoke();
+                if ((registered & 63) == 63) state.CancellationCheckpoint();
                 var slot = frame.GetSlot(registered);
                 if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
                     RegisterPotentialArrayAlias(slot.ArrayName);
             }
-            checkpoint?.Invoke();
+            state.CancellationCheckpoint();
             frame.Parent = _current;
             _current = frame;
             _depth++;
@@ -362,7 +357,7 @@ internal sealed class AwkFunctionCallStack(
         var payload = frame.RetainedMemoryBytes;
         _incomingFrames--;
         RecycleFrame(frame);
-        memoryAccounting.ReleaseCommitted(payload);
+        state.MemoryAccounting.ReleaseCommitted(payload);
     }
 
     public void PopFrame(Action<AwkArrayName> removeFunctionLocalArray)
@@ -385,7 +380,7 @@ internal sealed class AwkFunctionCallStack(
         var payloadBytes = frame.RetainedMemoryBytes;
 
         RecycleFrame(frame);
-        memoryAccounting.ReleaseCommitted(payloadBytes);
+        state.MemoryAccounting.ReleaseCommitted(payloadBytes);
     }
 
     internal bool TryReadBoundLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue value, bool allowArray = false)
@@ -395,7 +390,7 @@ internal sealed class AwkFunctionCallStack(
             ref readonly var slot = ref frame.GetSlot(slotId.Index);
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
             {
-                value = slot.ReadValue(checkpoint);
+                value = slot.ReadValue(state.CancellationCheckpoint);
                 return true;
             }
             if (slot.Kind == AwkFunctionLocalSlotKind.ReaderText)
@@ -520,7 +515,7 @@ internal sealed class AwkFunctionCallStack(
         if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
         {
             var localArrayName = AwkArrayName.FunctionLocal(frame.Layout.Parameters[slotId.Index].Identifier, frame.Id);
-            using var allocationPeak = memoryAccounting.ReserveAllocationPeak(AwkRuntimeMemory.EstimateUntypedScalarBytes());
+            using var allocationPeak = state.MemoryAccounting.ReserveAllocationPeak(AwkRuntimeMemory.EstimateUntypedScalarBytes());
             var value = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
             ReplaceLocalSlot(
                 frame,
@@ -692,7 +687,7 @@ internal sealed class AwkFunctionCallStack(
 
     public void RepairSubarrayAliases(AwkArrayIdentity removed, bool includeRoot, bool cancellable)
     {
-        var poll = cancellable ? checkpoint : null;
+        var poll = cancellable ? state.CancellationCheckpoint : null;
         for (var frame = _current; frame is not null; frame = frame.Parent)
         {
             for (var index = 0; index < frame.Layout.SlotCount; index++)
@@ -718,7 +713,7 @@ internal sealed class AwkFunctionCallStack(
         for (var frame = _current; frame is not null; frame = frame.Parent)
             for (var index = 0; index < frame.Layout.SlotCount; index++)
             {
-                if ((index & 63) == 0) checkpoint?.Invoke();
+                if ((index & 63) == 0) state.CancellationCheckpoint();
                 var slot = frame.GetSlot(index);
                 if (slot.Value.TryGetUntypedScalar(out var origin) && ReferenceEquals(origin, removed))
                     ReplaceLocalSlot(frame, new(index), slot, AwkFunctionLocalSlot.MissingScalar());
@@ -726,11 +721,11 @@ internal sealed class AwkFunctionCallStack(
     }
 
     public bool TryAssignLocal(AwkVariableName name, string value) =>
-        TryAssignLocal(name, AwkValue.FromDeferredText(AwkText.FromString(value), numberParsingMode));
+        TryAssignLocal(name, AwkValue.FromDeferredText(AwkText.FromString(value), state.NumberParsingMode));
 
     public bool TryAssignLocal(AwkVariableName name, AwkValue value)
     {
-        value = value.ForFunctionStorage(numberParsingMode, checkpoint);
+        value = value.ForFunctionStorage(state.NumberParsingMode, state.CancellationCheckpoint);
         if (!TryPeekLocalFrame(out var frame))
             return false;
 
@@ -755,9 +750,9 @@ internal sealed class AwkFunctionCallStack(
         // Computed text was constructed in this execution's immutable mode.
         // Other captures keep their ordinary scalar/origin normalization.
         if (source is null || sourceOperand.Kind != AwkRegionOperandKind.TextTemporary)
-            value = value.ForFunctionStorage(numberParsingMode, checkpoint);
+            value = value.ForFunctionStorage(state.NumberParsingMode, state.CancellationCheckpoint);
         else System.Diagnostics.Debug.Assert(value.StoredKind ==
-            AwkValue.FromDeferredText(AwkText.Empty, numberParsingMode).StoredKind);
+            AwkValue.FromDeferredText(AwkText.Empty, state.NumberParsingMode).StoredKind);
         if (!TryPeekLocalFrame(out var frame))
             return false;
 
@@ -795,8 +790,8 @@ internal sealed class AwkFunctionCallStack(
         if (addsPotentialAlias)
             RegisterPotentialArrayAlias(newSlot.ArrayName);
 
-        var oldBytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(oldSlot) : 0;
-        var nextBytes = memoryAccounting.IsEnabled ? EstimateLocalSlotBytes(newSlot) : 0;
+        var oldBytes = state.MemoryAccounting.IsEnabled ? EstimateLocalSlotBytes(oldSlot) : 0;
+        var nextBytes = state.MemoryAccounting.IsEnabled ? EstimateLocalSlotBytes(newSlot) : 0;
         var growth = nextBytes - oldBytes;
         // Prepared discarded text/value scratch already funds the new scalar payload.
         // Both cases share validation, publication, alias handling and retirement.
@@ -805,11 +800,11 @@ internal sealed class AwkFunctionCallStack(
         {
             var retained = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, growth);
             if (admission > 0)
-                memoryAccounting.Reserve(admission);
+                state.MemoryAccounting.Reserve(admission);
 
             try
             {
-                if (admission > 0) checkpoint?.Invoke();
+                if (admission > 0) state.CancellationCheckpoint();
                 source?.TransferScalarFunding(in sourceOperand, nextBytes);
                 frame.GetSlot(slotId.Index) = newSlot;
                 frame.RecordAlias(slotId.Index, newSlot.Kind);
@@ -817,17 +812,17 @@ internal sealed class AwkFunctionCallStack(
             catch
             {
                 if (admission > 0)
-                    memoryAccounting.ReleaseReserved(admission);
+                    state.MemoryAccounting.ReleaseReserved(admission);
 
                 throw;
             }
 
             // Publish the funded local and clear a consumed source before refunds
-            // can call the provider. Actual new admission retains its checkpoint.
+            // can call the provider. Actual new admission retains its state.CancellationCheckpoint.
             frame.RetainedMemoryBytes = retained;
-            if (admission > 0) memoryAccounting.CommitReserved(admission);
+            if (admission > 0) state.MemoryAccounting.CommitReserved(admission);
             var refund = source is null ? Math.Max(0, -growth) : oldBytes;
-            if (refund > 0) memoryAccounting.ReleaseCommitted(refund);
+            if (refund > 0) state.MemoryAccounting.ReleaseCommitted(refund);
         }
         catch
         {
@@ -875,7 +870,7 @@ internal sealed class AwkFunctionCallStack(
         {
             AwkFunctionLocalProjection.Kind => AwkResolvedFunctionLocal.Scalar(),
             AwkFunctionLocalProjection.Value => AwkResolvedFunctionLocal.ScalarValue(
-                slot.ReadValue(checkpoint)),
+                slot.ReadValue(state.CancellationCheckpoint)),
             _ => throw new InvalidOperationException("Unknown function-local projection.")
         };
     }
@@ -883,7 +878,7 @@ internal sealed class AwkFunctionCallStack(
     private void RegisterPotentialArrayAlias(AwkArrayName arrayName)
     {
         _potentialArrayAliasCounts.TryGetValue(arrayName, out var count);
-        if (memoryAccounting.IsEnabled && count == 0 &&
+        if (state.MemoryAccounting.IsEnabled && count == 0 &&
             _potentialArrayAliasCounts.Count == _potentialArrayAliasCounts.EnsureCapacity(0))
         {
             var target = (int)Math.Min(Array.MaxLength,
@@ -891,10 +886,10 @@ internal sealed class AwkFunctionCallStack(
             // Dictionary prime rounding stays below this conservative bound. Admit the
             // new backing while the old backing is live; keep its actual capacity funded.
             var bound = (int)Math.Min(Array.MaxLength, 2L * target + 4);
-            using var growth = memoryAccounting.AdmitMutation(AwkRuntimeMemory.EstimateDictionaryBufferBytes(bound));
+            using var growth = state.MemoryAccounting.AdmitMutation(AwkRuntimeMemory.EstimateDictionaryBufferBytes(bound));
             var capacity = _potentialArrayAliasCounts.EnsureCapacity(target);
             var bytes = AwkRuntimeMemory.EstimateDictionaryBufferBytes(capacity);
-            memoryAccounting.ReserveAndCommit(bytes - _aliasCapacityBytes);
+            state.MemoryAccounting.ReserveAndCommit(bytes - _aliasCapacityBytes);
             _aliasCapacityBytes = bytes;
         }
         _potentialArrayAliasCounts[arrayName] = checked(count + 1);
@@ -915,7 +910,7 @@ internal sealed class AwkFunctionCallStack(
     {
         var slot = frame.GetSlot(slotId.Index);
         if (slot.Kind == AwkFunctionLocalSlotKind.ReaderText) slot = MaterializeReaderText(frame, slotId, in slot);
-        return slot.ReadValue(checkpoint);
+        return slot.ReadValue(state.CancellationCheckpoint);
     }
 
     private AwkFunctionLocalSlot MaterializeReaderText(AwkFunctionFrame frame, AwkFunctionLocalSlotId slotId,
@@ -925,14 +920,14 @@ internal sealed class AwkFunctionCallStack(
         var captured = slot;
         var id = frame.Id;
         var source = bytes.Span;
-        var retained = memoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateTextBytes(source.Length) : 0;
-        memoryAccounting.ReserveAndCommit(retained);
+        var retained = state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateTextBytes(source.Length) : 0;
+        state.MemoryAccounting.ReserveAndCommit(retained);
         try
         {
-            if (retained > 0) checkpoint?.Invoke();
-            var text = AwkText.CopyTrustedBytes(source, _counters, AwkMemoryAccounting.Disabled, checkpoint);
+            if (retained > 0) state.CancellationCheckpoint();
+            var text = AwkText.CopyTrustedBytes(source, state.Counters, AwkMemoryAccounting.Disabled, state.CancellationCheckpoint);
 
-            var owned = AwkFunctionLocalSlot.Scalar(AwkValue.FromDeferredText(text, numberParsingMode));
+            var owned = AwkFunctionLocalSlot.Scalar(AwkValue.FromDeferredText(text, state.NumberParsingMode));
             // Admission and polls can retire/reuse a cell. Keep the copy funded
             // through construction, caching only into its original live owner.
             if (frame.Id == id && (uint)slotId.Index < (uint)frame.Layout.SlotCount &&
@@ -945,7 +940,7 @@ internal sealed class AwkFunctionCallStack(
             }
             return owned;
         }
-        finally { memoryAccounting.ReleaseCommitted(retained); }
+        finally { state.MemoryAccounting.ReleaseCommitted(retained); }
     }
 
     private AwkFunctionLocalSlot PromoteScalarProjection(

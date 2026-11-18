@@ -276,8 +276,11 @@ public sealed class AwkNestedArrayStorageTests
         var child = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance, parent);
         parent.Add(AwkArrayKey.FromOrdinal(1), AwkValue.FromArrayReference(child));
         var parameter = AwkVariableName.FromText("p");
-        var calls = new AwkFunctionCallStack(4, AwkMemoryAccounting.Disabled, AwkNumberParsingMode.Decimal,
-            checkpoint: cancellation.Token.ThrowIfCancellationRequested);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, null,
+            AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(4));
+        using var callState = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, cancellation.Token, options);
+        var calls = new AwkFunctionCallStack(callState);
         calls.PushFrame(new([parameter]), [AwkFunctionLocalSlot.ArrayAlias(child)]);
         cancellation.Cancel();
         Assert.ThrowsAny<OperationCanceledException>(() => calls.RepairSubarrayAliases(parent, false, true));

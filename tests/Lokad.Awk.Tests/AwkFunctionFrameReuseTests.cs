@@ -8,13 +8,14 @@ public sealed class AwkFunctionFrameReuseTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task OneTwoAndThreeLocalLayoutsRecycleAndKeepMissingValues(bool governed)
+    public void OneTwoAndThreeLocalLayoutsRecycleAndKeepMissingValues(bool governed)
     {
-        var budget = new CooperativeTestBudget(1 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(owner);
+        using var memory = CreateMemory(governed);
+        var budget = memory.Budget;
+        var accounting = memory.Accounting;
         Assert.Equal(governed, accounting.IsEnabled);
-        var stack = Stack(accounting);
+        var stack = new AwkFunctionCallStack(memory.State);
+        var bootstrap = budget.Reserved;
         AwkVariableName[] names = [AwkVariableName.FromText("a"), AwkVariableName.FromText("b"), AwkVariableName.FromText("c")];
         foreach (var count in new[] { 2, 1, 3, 0, 2 })
         {
@@ -45,39 +46,39 @@ public sealed class AwkFunctionFrameReuseTests
             finally { stack.PopFrame(static _ => { }); }
             Assert.False(stack.IsInsideFunction);
             Assert.Equal(0, accounting.CurrentReservedBytes);
-            if (governed) Assert.True(budget.Reserved > 0); // Cached frame, not its released payload.
+            if (governed) Assert.True(budget.Reserved > bootstrap); // Cached frame, not its released payload.
         }
-        await owner.DisposeAsync();
+        memory.Dispose();
         Assert.Equal(0, budget.Reserved);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task RecycledPairReleasesTheSecondPayloadAfterActualUse(bool governed)
+    public void RecycledPairReleasesTheSecondPayloadAfterActualUse(bool governed)
     {
-        var budget = new CooperativeTestBudget(1 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(owner);
+        using var memory = CreateMemory(governed);
+        var budget = memory.Budget;
+        var accounting = memory.Accounting;
         Assert.Equal(governed, accounting.IsEnabled);
-        var stack = Stack(accounting);
+        var stack = new AwkFunctionCallStack(memory.State);
         var weak = RunPairWithOwnedPayload(stack);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
         Assert.False(weak.TryGetTarget(out _));
         GC.KeepAlive(stack);
-        await owner.DisposeAsync();
+        memory.Dispose();
         Assert.Equal(0, budget.Reserved);
     }
 
     [Fact]
-    public async Task RefusedPairEntryPreservesCallerAndRefundsAtUnwind()
+    public void RefusedPairEntryPreservesCallerAndRefundsAtUnwind()
     {
-        var budget = new CooperativeTestBudget(1 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(owner);
-        var stack = Stack(accounting);
+        using var memory = CreateMemory(true);
+        var budget = memory.Budget;
+        var accounting = memory.Accounting;
+        var stack = new AwkFunctionCallStack(memory.State);
         var name = AwkVariableName.FromText("parent");
         stack.PushFrame(new([name]), [AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(19))]);
         var before = budget.Reserved;
@@ -97,7 +98,7 @@ public sealed class AwkFunctionFrameReuseTests
         stack.PopFrame(static _ => { });
         Assert.False(stack.IsInsideFunction);
         Assert.True(budget.Reserved > 0);
-        await owner.DisposeAsync();
+        memory.Dispose();
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -114,7 +115,13 @@ public sealed class AwkFunctionFrameReuseTests
         return weak;
     }
 
-    private static AwkFunctionCallStack Stack(AwkMemoryAccounting accounting) =>
-        new(8, accounting, AwkNumberParsingMode.Decimal);
+    private static CooperativeTestMemory CreateMemory(bool governed)
+    {
+        var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
+        var options = memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
+            null, AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(8)));
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None, options));
+    }
 }
 

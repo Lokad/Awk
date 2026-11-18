@@ -90,14 +90,10 @@ internal sealed class AwkRuntimeState : IDisposable
                 .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint, numberParsingMode);
         _removeFunctionLocalArray = _variables.RemoveFunctionLocalArray;
         _functions = new AwkFunctionCallStack(
-            Limits.MaxFunctionCallDepth,
-            MemoryAccounting,
-            numberParsingMode,
+            this,
             _variables.ContainsArray,
-            CancellationCheckpoint,
             name => _variables.TryGetOrdinaryArray(name, out var array) ? array : null,
-            _variables.PromoteArrayOrigin,
-            Counters);
+            _variables.PromoteArrayOrigin);
         _variables.RepairSubarrayAliases = _functions.RepairSubarrayAliases;
         _variables.RepairElementAliases = _functions.RepairElementAliases;
         _regexRuntime = new AwkRegexRuntime(
