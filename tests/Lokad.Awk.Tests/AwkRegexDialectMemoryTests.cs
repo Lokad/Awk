@@ -121,5 +121,5 @@ public sealed class AwkRegexDialectMemoryTests
     private static AwkRegexRuntime Runtime(AwkMemoryAccounting governor, Action checkpoint) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint,
             AwkRuntimeCounters.Disabled,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            governor, regexEngine: AwkUtf8RegexEngine.Instance);
 }

@@ -9,7 +9,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     private readonly Action _throwIfCancellationRequested;
     private readonly CancellationToken _cancellationToken;
     private readonly AwkRuntimeCounters _counters;
-    private readonly AwkRuntimeResourceMonitor _resources;
     private AwkBoundedCache<AwkRegexCacheKey, CompiledPattern>? _compiledRegexCache;
     private AwkMemoryLease _cacheStorage = AwkMemoryLease.Disabled;
     private readonly IAwkRegexEngine? _engine;
@@ -23,23 +22,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         AwkStringUnitMode stringUnitMode,
         Action throwIfCancellationRequested,
         AwkRuntimeCounters counters,
-        IAwkRegexEngine? regexEngine = null,
-        CancellationToken cancellationToken = default)
-        : this(
-            resolveCaseSensitivity,
-            stringUnitMode,
-            throwIfCancellationRequested,
-            counters,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), regexEngine: regexEngine, cancellationToken: cancellationToken)
-    {
-    }
-
-    public AwkRegexRuntime(
-        Func<AwkRegexCaseSensitivity> resolveCaseSensitivity,
-        AwkStringUnitMode stringUnitMode,
-        Action throwIfCancellationRequested,
-        AwkRuntimeCounters counters,
-        AwkRuntimeResourceMonitor resources,
         AwkMemoryAccounting? memoryAccounting = null,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         Action<string>? reportUnicodeWarning = null,
@@ -55,7 +37,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         _counters = counters;
         _engine = regexEngine;
         _regexMemoryBudget = memoryBudget;
-        _resources = resources;
         _memoryAccounting = memoryAccounting ?? AwkMemoryAccounting.Disabled;
         _compatibilityMode = compatibilityMode;
         _unicodeWarnings = new AwkRegexUnicodeWarnings(_memoryAccounting, compatibilityMode,
@@ -113,8 +94,9 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         owner.Pin();
         try
         {
-            _resources.Checkpoint();
-            var result = AwkRegexCallbacks.IsMatch(owner.Pattern, input.AsSpan(_throwIfCancellationRequested), _cancellationToken);
+            var subject = input.AsSpan(_throwIfCancellationRequested);
+            _cancellationToken.ThrowIfCancellationRequested();
+            var result = AwkRegexCallbacks.IsMatch(owner.Pattern, subject, _cancellationToken);
             _throwIfCancellationRequested();
             return result;
         }
@@ -337,7 +319,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             runtime._throwIfCancellationRequested();
             try
             {
-                runtime._resources.Checkpoint();
+                runtime._cancellationToken.ThrowIfCancellationRequested();
                 var whole = AwkRegexCallbacks.Match(provider, offset - inputStart, [], runtime._cancellationToken);
                 runtime._throwIfCancellationRequested();
                 if (!whole.Success) return AwkRegexMatchSpan.NoMatch;
@@ -360,7 +342,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
                     AwkRuntimeMemory.EstimateRegexCaptureRangeArrayBytes(count));
                 Span<AwkRegexCaptureRange> ranges = count <= 32
                     ? stackalloc AwkRegexCaptureRange[count] : new AwkRegexCaptureRange[count];
-                runtime._resources.Checkpoint();
+                runtime._cancellationToken.ThrowIfCancellationRequested();
                 var whole = AwkRegexCallbacks.Match(provider, offset - inputStart, ranges, runtime._cancellationToken);
                 runtime._throwIfCancellationRequested();
                 if (!whole.Success) { matchSpan = AwkRegexMatchSpan.NoMatch; return AwkLeasedRegexMatch.NoMatch; }

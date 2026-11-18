@@ -44,7 +44,6 @@ public sealed class AwkRegexCacheAdmissionTests
         using var memory = new CooperativeTestMemory(16L << 20);
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled),
             memory.Accounting, regexEngine: new CompactClassEngine(), memoryBudget: memory.Budget);
         Assert.Equal(0, memory.Accounting.CurrentCommittedBytes); // Cache storage is lazy.
         var source = AwkText.FromSourceLiteralString("[" + new string('x', 30_000) + "]");

@@ -37,7 +37,7 @@ public sealed class AwkRegexProviderSemanticsTests
     internal void RepeatedMatchingUsesThePreparedProviderHandle()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(counters, AwkRuntimeLimits.CreateDefault());
+        var runtime = Runtime(counters);
         var regex = runtime.Create(new AwkRegexPattern("a+"));
         var input = AwkText.FromString("zaaa");
         var allocations = counters[AwkCounter.TextAllocations];
@@ -65,7 +65,7 @@ public sealed class AwkRegexProviderSemanticsTests
     internal void UnambiguousScalarPatternsKeepByteNativeRoute(string pattern)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(counters, AwkRuntimeLimits.CreateDefault());
+        var runtime = Runtime(counters);
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         var input = AwkText.FromString("SKU12abc;,😀😀");
 
@@ -82,10 +82,9 @@ public sealed class AwkRegexProviderSemanticsTests
 AwkStringUnitMode units)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
         var governor = memoryForGovernor.Accounting;
-        var runtime = Runtime(counters, limits, units);
+        var runtime = Runtime(counters, units);
         var regex = runtime.Create(new AwkRegexPattern("(😀|😀😀)"));
         var input = AwkText.FromString(new string('z', 2000) + "😀😀");
 
@@ -112,10 +111,9 @@ AwkStringUnitMode units)
     internal void CaptureFailurePreflightsAllPublicGroups()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(4096);
         var governor = memoryForGovernor.Accounting;
-        var runtime = Runtime(counters, limits);
+        var runtime = Runtime(counters);
         var regex = runtime.Create(new AwkRegexPattern("(a|aa)"));
 
         memoryForGovernor.Budget.RefuseNextAdmissionMinimumGrowth = 1;
@@ -130,7 +128,7 @@ AwkStringUnitMode units)
     [Fact(Skip = AwkRegexProviderGaps.SkipReason)]
     public void ProviderSelectionKeepsPublicGroupNumbers()
     {
-        var runtime = Runtime(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault());
+        var runtime = Runtime(AwkRuntimeCounters.Disabled);
         var regex = runtime.Create(new AwkRegexPattern("(a|aa)"));
         using var match = runtime.MatchValue(regex, AwkText.FromString("aa"),
             AwkMemoryAccounting.Disabled, AwkRegexCapturePlan.All);
@@ -155,6 +153,6 @@ AwkStringUnitMode units)
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
-    private static AwkRegexRuntime Runtime(AwkRuntimeCounters counters, AwkRuntimeLimits limits, AwkStringUnitMode units = AwkStringUnitMode.Utf8Rune) =>
-        new(() => AwkRegexCaseSensitivity.CaseSensitive, units, static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters), regexEngine: AwkUtf8RegexEngine.Instance);
+    private static AwkRegexRuntime Runtime(AwkRuntimeCounters counters, AwkStringUnitMode units = AwkStringUnitMode.Utf8Rune) =>
+        new(() => AwkRegexCaseSensitivity.CaseSensitive, units, static () => { }, counters, regexEngine: AwkUtf8RegexEngine.Instance);
 }

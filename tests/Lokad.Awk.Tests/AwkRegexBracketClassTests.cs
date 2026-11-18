@@ -10,10 +10,9 @@ public sealed class AwkRegexBracketClassTests
         AwkCompatibilityMode mode)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
         var governor = AwkMemoryAccounting.Disabled;
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, counters, governor, mode, regexEngine: AwkUtf8RegexEngine.Instance);
         for (var run = 0; run < 2; run++)
         {
             var failure = Assert.ThrowsAny<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern("[[:word:]]")));
@@ -146,9 +145,8 @@ public sealed class AwkRegexBracketClassTests
     public void CaptureNumbersAndByteNativeSymbolMatchingRemainUnchanged()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters), regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var captured = runtime.Create(new AwkRegexPattern("([[:digit:]])([[:alpha:]])"));
         using var captures = runtime.MatchCaptureValue(captured, AwkText.FromString("7A"), AwkMemoryAccounting.Disabled);
         Assert.Equal(3, captures.Match.Groups.Count);

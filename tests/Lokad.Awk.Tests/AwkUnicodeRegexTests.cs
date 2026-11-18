@@ -39,11 +39,10 @@ public sealed class AwkUnicodeRegexTests
     public void RuntimeWarningsPrecedeSharedCacheHits(int mode)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
         var messages = new List<string>();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
-            new AwkRuntimeResourceMonitor(limits, counters), compatibilityMode: (AwkCompatibilityMode)mode,
+compatibilityMode: (AwkCompatibilityMode)mode,
             reportUnicodeWarning: messages.Add, regexEngine: AwkUtf8RegexEngine.Instance);
         var first = new AwkRegexPattern(@"\u", warningSite: new object());
         var second = new AwkRegexPattern(@"\u", warningSite: new object());
@@ -110,13 +109,12 @@ public sealed class AwkUnicodeRegexTests
     public void DecodeBufferAdmissionFailsBeforeCompilationOrCacheRetention()
     {
         const string pattern = @"\u0041";
-        var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1);
         var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
-            new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+governor, regexEngine: AwkUtf8RegexEngine.Instance);
         for (var i = 0; i < 2; i++)
         {
             var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(pattern)));

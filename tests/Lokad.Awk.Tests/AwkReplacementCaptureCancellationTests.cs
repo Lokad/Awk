@@ -330,7 +330,7 @@ public sealed class AwkReplacementCaptureCancellationTests
             {
                 if (counters[AwkCounter.TextAllocations] > 0) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
-            }, counters, new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            }, counters, governor, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         Assert.Throws<OperationCanceledException>(() =>
         {

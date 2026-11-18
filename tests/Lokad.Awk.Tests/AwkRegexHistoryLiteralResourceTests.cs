@@ -263,5 +263,5 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     private static AwkRegexRuntime Runtime(AwkMemoryAccounting governor, AwkRuntimeCounters counters, Action? checkpoint = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             checkpoint ?? (() => { }), counters,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            governor, regexEngine: AwkUtf8RegexEngine.Instance);
 }

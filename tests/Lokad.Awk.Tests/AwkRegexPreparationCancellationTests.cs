@@ -122,7 +122,6 @@ public sealed class AwkRegexPreparationCancellationTests
     public void CancelingLeasedDecodingReleasesScratchBeforeRetry()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
@@ -133,7 +132,7 @@ public sealed class AwkRegexPreparationCancellationTests
             {
                 if (armed && governor.CurrentCommittedBytes > 0 && ++checks == 6) cancellation.Cancel();
                 if (armed) cancellation.Token.ThrowIfCancellationRequested();
-            }, counters, new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            }, counters, governor, regexEngine: AwkUtf8RegexEngine.Instance);
         var pattern = new AwkRegexPattern(string.Concat(Enumerable.Repeat(@"\x61", 4096)));
         var error = Assert.Throws<OperationCanceledException>(() => runtime.Create(pattern));
         Assert.Equal(cancellation.Token, error.CancellationToken);

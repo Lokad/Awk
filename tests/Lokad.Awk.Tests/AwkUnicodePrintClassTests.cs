@@ -61,9 +61,8 @@ public sealed class AwkUnicodePrintClassTests
 
     private static AwkRegexRuntime Runtime(int profile, AwkRuntimeCounters counters)
     {
-        var limits = AwkRuntimeLimits.CreateDefault();
         return new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters),
+            static () => { }, counters,
             compatibilityMode: (AwkCompatibilityMode)profile, regexEngine: AwkUtf8RegexEngine.Instance);
     }
 }

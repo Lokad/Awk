@@ -147,6 +147,8 @@ Core translates AWK patterns and validates/publishes captures and replacements. 
 scopes borrow one complete immutable UTF-8 subject, using absolute byte coordinates.
 Active calls/searches pin compiled handles through cache eviction. Unsupported patterns
 fail clearly without a fallback engine; provider deferrals do not qualify missing semantics.
+Provider entry checks the invocation token after subject materialization and capture
+storage admission.
 
 Enforced by [host traversal](../tests/Lokad.Awk.Tests/AwkHostContractTests.cs),
 [streaming](../tests/Lokad.Awk.Tests/AwkHostStreamingTests.cs),

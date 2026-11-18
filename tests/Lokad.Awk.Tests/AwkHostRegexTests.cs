@@ -361,7 +361,6 @@ public sealed class AwkHostRegexTests
         var engine = new RecordingEngine(Behavior.Unsupported);
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters),
             memory.Accounting, regexEngine: engine, memoryBudget: memory.Budget);
         var subject = memory.State.ConcatText([AwkText.FromString(new string('a', 16_384)), AwkText.FromString("z")]);
         var recipe = new AwkRegex(AwkText.FromSourceLiteralString("a"), AwkRegexCaseSensitivity.CaseSensitive);
@@ -389,7 +388,6 @@ public sealed class AwkHostRegexTests
         var engine = new RecordingEngine();
         using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, counters,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters),
             memory.Accounting, regexEngine: engine, memoryBudget: memory.Budget,
             cancellationToken: cancellation.Token);
         var regex = runtime.Create(new AwkRegexPattern("a"));
@@ -413,6 +411,28 @@ public sealed class AwkHostRegexTests
         runtime.Dispose();
         Assert.True(pattern.Disposed);
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+    }
+
+    [Fact]
+    public void SubjectCopyRefundCancellationPrecedesBooleanProviderEntry()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var called = false;
+        var engine = new RecordingEngine { BeforeMatch = _ => called = true };
+        using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+            AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested, AwkRuntimeCounters.Disabled,
+            memory.Accounting, regexEngine: engine, memoryBudget: memory.Budget, cancellationToken: cancellation.Token);
+        var regex = runtime.Create(new AwkRegexPattern("a"));
+        var subject = memory.State.ConcatText([AwkText.FromString(new string('a', 16_384)), AwkText.FromString("z")]);
+        var reserved = memory.Budget.Reserved;
+        memory.Budget.OnRefund = cancellation.Cancel;
+
+        var error = Assert.Throws<OperationCanceledException>(() => runtime.IsMatch(regex, subject));
+
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.False(called);
+        Assert.Equal(reserved, memory.Budget.Reserved);
     }
 
     private static Awk Tool(string source) => AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));

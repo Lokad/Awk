@@ -11,8 +11,7 @@ public sealed class AwkRegexProfileTests
     internal void CachedPatternsRetainTheirProfile(AwkCompatibilityMode mode)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
-        var runtime = Runtime(mode, limits, counters);
+        var runtime = Runtime(mode, counters);
         var pattern = new AwkRegexPattern(@"\w");
         var first = runtime.Create(pattern);
         Assert.Same(first, runtime.Create(pattern));
@@ -31,7 +30,7 @@ public sealed class AwkRegexProfileTests
     public void CanonicalLetterClassesKeepBooleanMatchingByteNative(string pattern)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(AwkCompatibilityMode.GnuDefault, AwkRuntimeLimits.CreateDefault(), counters);
+        var runtime = Runtime(AwkCompatibilityMode.GnuDefault, counters);
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         var input = AwkText.FromString("W");
         Assert.True(runtime.IsMatch(regex, input));
@@ -40,8 +39,8 @@ public sealed class AwkRegexProfileTests
 
     }
 
-    private static AwkRegexRuntime Runtime(AwkCompatibilityMode mode, AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>
+    private static AwkRegexRuntime Runtime(AwkCompatibilityMode mode, AwkRuntimeCounters counters) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters),
+            static () => { }, counters,
             compatibilityMode: mode, regexEngine: AwkUtf8RegexEngine.Instance);
 }
