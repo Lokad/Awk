@@ -1035,7 +1035,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(AwkRuntimeLimits.DefaultMaxInputFiles, limits.MaxInputFiles);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxPipes, limits.MaxPipes);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxIncludeDepth, limits.MaxIncludeDepth);
-        Assert.Equal(AwkByteReader.ReadSize, AwkByteReader.ReadSize);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxFunctionCallDepth, limits.MaxFunctionCallDepth);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth, limits.MaxSyntaxNestingDepth);
     }

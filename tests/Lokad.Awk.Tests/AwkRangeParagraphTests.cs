@@ -62,10 +62,8 @@ public sealed class AwkRangeParagraphTests
 
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void LazyParagraphFieldsRetryAfterMemoryFailureUsingTheirCapturedSeparator(bool backend)
+    [Fact]
+    public void LazyParagraphFieldsRetryAfterMemoryFailureUsingTheirCapturedSeparator()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForState = State(counters);
@@ -91,8 +89,7 @@ public sealed class AwkRangeParagraphTests
         Assert.Equal(2, state.FieldCount);
         Assert.True(state.GetFieldValue(1).ByteText.AsSpan().SequenceEqual("a\nb"u8));
         Assert.True(state.GetFieldValue(2).ByteText.AsSpan().SequenceEqual("x"u8));
-        if (backend)
-            Assert.Equal(0, counters[AwkCounter.StringDecodes]); // Literal FS preparation and record bytes stay native.
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
