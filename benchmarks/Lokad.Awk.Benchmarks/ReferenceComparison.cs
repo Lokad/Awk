@@ -1,4 +1,6 @@
 using System.Text;
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Filters;
 using BenchmarkDotNet.Running;
 
 namespace Lokad.Awk.Benchmarking;
@@ -7,7 +9,16 @@ internal static class ReferenceComparison
 {
     internal static int RunBenchmarks(Type[] types, string[] arguments)
     {
-        var summaries = BenchmarkSwitcher.FromTypes(types).Run(arguments).ToArray();
+        var steady = arguments.Contains("--steady", StringComparer.Ordinal);
+        var snapshot = arguments.Contains("--snapshot", StringComparer.Ordinal);
+        if (steady || snapshot)
+            arguments = arguments.Where(argument => argument is not ("--steady" or "--snapshot")).ToArray();
+        if (snapshot)
+            arguments = [.. arguments, "--launchCount", "1", "--warmupCount", "4", "--iterationCount", "5",
+                "--iterationTime", "500", "--exporters", "json"];
+
+        var config = ManualConfig.Create(DefaultConfig.Instance).AddFilter(new SimpleFilter(Include));
+        var summaries = BenchmarkSwitcher.FromTypes(types).Run(arguments, config).ToArray();
         if (summaries.Length > 0)
             return summaries.All(summary => !summary.HasCriticalValidationErrors && summary.Reports.Length > 0 &&
                 summary.Reports.All(report => report.Success)) ? 0 : 1;
@@ -18,6 +29,16 @@ internal static class ReferenceComparison
             arguments[list + 1].ToLowerInvariant() is "flat" or "tree";
         return isListing || arguments.Any(argument => argument is "--help" or "--version" or "--info" ||
             argument.ToLowerInvariant() is "--list=flat" or "--list=tree") ? 0 : 1;
+
+        bool Include(BenchmarkCase benchmark)
+        {
+            if (benchmark.Descriptor.Type != typeof(ReferenceAwkBenchmarks) &&
+                benchmark.Descriptor.Type != typeof(WorkloadAllocationBenchmarks)) return !steady;
+            var scale = benchmark.Parameters[nameof(ReferenceAwkBenchmarks.Scale)];
+            if (!Equals(scale, ReferenceWorkloads.SteadyScale)) return !steady;
+            return steady && benchmark.Parameters[nameof(ReferenceAwkBenchmarks.Workload)] is string name &&
+                ReferenceWorkloads.IsSteadyFamily(name);
+        }
     }
 
     public static async Task<int> RunCommandAsync(string[] arguments, CancellationToken token)
@@ -139,8 +160,8 @@ internal static class ReferenceComparison
             smoke ? "BenchmarkDotNet.Artifacts/reference/smoke.json" : "BenchmarkDotNet.Artifacts/reference/verification.json"));
         var name = options.GetValueOrDefault("--case", "*");
         var scale = options.GetValueOrDefault("--scale", smoke ? "small" : "all");
-        var workloads = ReferenceWorkloads.CreateAll(name, scale, includeControls: smoke).ToArray();
-        if (workloads.Length == 0)
+        var cases = ReferenceWorkloads.Select(name, scale, includeControls: smoke).ToArray();
+        if (cases.Length == 0)
             throw new ArgumentException("No workloads match --case/--scale.");
         var host = await ReferenceReport.IdentifyHostAsync(token).ConfigureAwait(false);
         string? executable = smoke && !options.ContainsKey("--awk") &&
@@ -152,9 +173,10 @@ internal static class ReferenceComparison
         await SaveAsync().ConfigureAwait(false);
         try
         {
-            foreach (var workload in workloads)
+            foreach (var (family, size) in cases)
             {
                 token.ThrowIfCancellationRequested();
+                var workload = ReferenceWorkloads.Create(family, size);
                 using var prepared = new PreparedReferenceWorkload(workload);
                 ReferenceVerification verified;
                 if (executable is null)
@@ -182,7 +204,7 @@ internal static class ReferenceComparison
         }
 
         Task SaveAsync() => ReferenceReport.SaveAsync(output,
-            ReferenceReport.Create(mode, host, reference, workloads.Length, complete, rows), CancellationToken.None);
+            ReferenceReport.Create(mode, host, reference, cases.Length, complete, rows), CancellationToken.None);
     }
 
     internal static Dictionary<string, string> Options(string[] arguments)
@@ -193,7 +215,7 @@ internal static class ReferenceComparison
             if (i + 1 >= arguments.Length || arguments[i] is not ("--awk" or "--mode" or "--case" or "--scale" or "--output") ||
                 !options.TryAdd(arguments[i], arguments[i + 1]))
                 throw new ArgumentException("Usage: --compare|--smoke [--awk PATH] [--mode verify] " +
-                    "[--case NAME] [--scale small|medium|large|control|all] [--output BenchmarkDotNet.Artifacts/PATH]");
+                    "[--case NAME] [--scale small|medium|large|steady|control|all] [--output BenchmarkDotNet.Artifacts/PATH]");
         }
         return options;
     }

@@ -171,7 +171,9 @@ BenchmarkDotNet uses one launch, four warmups and five 500 ms measurement iterat
 with normal outlier handling. GNU elapsed comes from `ReferenceAwkBenchmarks.GnuAwkCli`;
 managed elapsed and allocation come from `WorkloadAllocationBenchmarks.LokadFullInvocation`,
 avoiding duplicate managed timing. Raw results and history remain local.
-The marked focused cohort adds `--inProcess` to these existing benchmark commands.
+`--snapshot` supplies these settings and the JSON exporter. The marked focused
+cohort also uses `--inProcess`. Keep explicit BenchmarkDotNet flags for short
+development runs.
 
 With the SDK in `global.json`, `--compare --mode verify` writes correctness JSON.
 BenchmarkDotNet supplies timings and allocations.
@@ -180,8 +182,21 @@ BenchmarkDotNet supplies timings and allocations.
 dotnet test Lokad.Awk.slnx -c Release
 dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --counter-report
 dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --compare --mode verify --awk PATH_TO_GAWK --scale medium
-dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --reference-benchmarks --awk PATH_TO_GAWK --filter '*ReferenceAwkBenchmarks.GnuAwkCli*medium*'
-dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --filter '*WorkloadAllocationBenchmarks.LokadFullInvocation*medium*'
+dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --reference-benchmarks --awk PATH_TO_GAWK --snapshot --filter '*ReferenceAwkBenchmarks.GnuAwkCli*medium*'
+dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks -- --snapshot --filter '*WorkloadAllocationBenchmarks.LokadFullInvocation*medium*'
+```
+
+For steady processing, use `--scale steady` with `verify`, then add `--steady`
+to both timing commands and select `steady` in the filters. The opt-in cohort
+contains 1,048,576 records per workload for projection, filtering, scalar sum,
+aggregation, joins and CSV. The join divides them equally between two files.
+
+Use each pass's log and `*-report-full-compressed.json` from BenchmarkDotNet.
+The renderer checks build and fixture stamps against the correctness report and
+joins elapsed medians with managed allocations.
+
+```text
+python benchmarks/render-reference-catalog.py verification.json gnu-report.json gnu.log managed-report.json managed.log
 ```
 
 On Linux, `benchmarks/run-reference-linux.sh` uses Python 3 to read the SDK

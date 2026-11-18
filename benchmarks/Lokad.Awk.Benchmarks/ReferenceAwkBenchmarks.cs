@@ -13,7 +13,7 @@ public class ReferenceAwkBenchmarks
     [ParamsSource(nameof(Families))]
     public string Workload { get; set; } = "projection";
     public IEnumerable<string> Families => ReferenceWorkloads.Families;
-    [Params("small", "medium", "large")]
+    [Params("small", "medium", "large", ReferenceWorkloads.SteadyScale)]
     public string Scale { get; set; } = "small";
 
     [GlobalSetup]
@@ -28,7 +28,7 @@ public class ReferenceAwkBenchmarks
         if (verified.Status != "Equivalent")
             throw new InvalidOperationException("Reference preflight failed: " + verified.Reason);
         Console.WriteLine("GNU reference: " + identity.Version + "; SHA-256 " + identity.Sha256);
-        Console.WriteLine("Input bytes " + workload.InputBytes + "; expected output " + _expected.Sha256);
+        ReferenceReport.ReportBenchmark(workload, identity.Sha256);
     }
 
     [GlobalCleanup]
@@ -65,7 +65,7 @@ public class WorkloadAllocationBenchmarks
     [ParamsSource(nameof(Families))]
     public string Workload { get; set; } = "projection";
     public IEnumerable<string> Families => ReferenceWorkloads.Families;
-    [Params("small", "medium", "large")]
+    [Params("small", "medium", "large", ReferenceWorkloads.SteadyScale)]
     public string Scale { get; set; } = "small";
 
     [GlobalSetup]
@@ -74,6 +74,7 @@ public class WorkloadAllocationBenchmarks
         _workload = ReferenceWorkloads.Create(Workload, Scale);
         var result = ReferenceExecution.RunLibraryAsync(_workload, true, CancellationToken.None).GetAwaiter().GetResult();
         ReferenceExecution.Verify(result, _workload.ExpectedDigest);
+        ReferenceReport.ReportBenchmark(_workload);
     }
 
     [Benchmark]

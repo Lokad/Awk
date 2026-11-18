@@ -21,26 +21,46 @@ internal static class ReferenceWorkloads
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "general-call-loop", "function-control-flow", "branching-calls", "branching-unary-calls", "nested-array-calls-16", "nested-array-calls-1024", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
+    public const string SteadyScale = "steady";
+    public const int SteadyRecords = 1_048_576;
 
-    public static IEnumerable<ReferenceWorkload> CreateAll(
+    public static bool IsSteadyFamily(string name) =>
+        name is "projection" or "filter" or "scalar-sum" or "aggregate" or "two-file" or "csv";
+
+    public static IEnumerable<(string Name, string Scale)> Select(
         string name = "*", string scale = "all", bool includeControls = false)
     {
         foreach (var family in Families)
-            if (name == "*" || family == name)
-                foreach (var size in Scales)
-                    if (scale == "all" || size == scale)
-                        yield return Create(family, size);
+        {
+            if (name != "*" && name != family) continue;
+            if (scale == SteadyScale)
+            {
+                if (IsSteadyFamily(family)) yield return (family, SteadyScale);
+                continue;
+            }
+            foreach (var size in Scales)
+                if (scale == "all" || size == scale) yield return (family, size);
+        }
         if (scale == "all" || scale == "control" || includeControls)
         {
             if (name is "*" or "startup-empty")
-                yield return new("startup-empty", "control", 0, 0, "BEGIN{}", [], [], []);
+                yield return ("startup-empty", "control");
             if (name is "*" or "startup-tiny")
-                yield return new("startup-tiny", "control", 1, 3, "{print $2}", Bytes("a b c\n"), [], Bytes("b\n"));
+                yield return ("startup-tiny", "control");
         }
     }
 
     public static ReferenceWorkload Create(string name, string scale)
     {
+        if (scale == "control")
+            return name switch
+            {
+                "startup-empty" => new(name, scale, 0, 0, "BEGIN{}", [], [], []),
+                "startup-tiny" => new(name, scale, 1, 3, "{print $2}", Bytes("a b c\n"), [], Bytes("b\n")),
+                _ => throw new ArgumentException("Unknown workload control.")
+            };
+        if (scale == SteadyScale && !IsSteadyFamily(name))
+            throw new ArgumentException("This workload does not have a steady scale.");
         if (name == "unicode-prefix")
         {
             var count = scale switch { "small" => 1, "medium" => 64, "large" => 1024, _ => throw new ArgumentException("Unknown scale.") };
@@ -75,7 +95,11 @@ internal static class ReferenceWorkloads
         if (name is "scalar-sum" or "scalar-sum-decimal" or "field-call-loop" or "field-number-loop")
         {
             var decimalValues = name == "scalar-sum-decimal";
-            var scalarRows = scale switch { "small" => 16, "medium" => 4096, "large" => 65536, _ => throw new ArgumentException("Unknown scale.") };
+            var scalarRows = scale switch
+            {
+                "small" => 16, "medium" => 4_096, "large" => 65_536, SteadyScale => SteadyRecords,
+                _ => throw new ArgumentException("Unknown scale.")
+            };
             var scalarInput = new StringBuilder();
             long scalarTotal = 0;
             for (var scalarRow = 0; scalarRow < scalarRows; scalarRow++)
@@ -202,6 +226,7 @@ internal static class ReferenceWorkloads
             "small" => 16,
             "medium" => 4_096,
             "large" => 65_536,
+            SteadyScale => SteadyRecords,
             _ => throw new ArgumentException("Unknown workload scale.")
         };
         var input = new StringBuilder();
@@ -368,6 +393,7 @@ internal static class ReferenceWorkloads
             case "two-file":
                 program = "NR==FNR{left[$1]=$2;next} ($1 in left)&&left[$1]!=$2{n++} END{print n+0}";
                 fields = 2;
+                if (scale == SteadyScale) rows /= 2;
                 var left = new StringBuilder();
                 var right = new StringBuilder();
                 for (var i = 0; i < rows; i++)

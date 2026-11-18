@@ -31,6 +31,14 @@ internal static class ReferenceReport
         "GNU uses processes and native fixture files; Lokad uses an embedded in-memory host. No timings collected.";
     public static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
+    public static void ReportBenchmark(ReferenceWorkload workload, string? referenceSha256 = null) =>
+        Console.WriteLine("Awk benchmark " + JsonSerializer.Serialize(new
+        {
+            LibraryBuild = Build(typeof(Awk).Assembly),
+            Workload = Describe(workload),
+            ReferenceSha256 = referenceSha256
+        }));
+
     public static ReferenceWorkloadInfo Describe(ReferenceWorkload workload) =>
         new(workload.Name, workload.Scale, workload.Records, workload.Fields, workload.InputBytes, workload.Arguments,
             workload.Locale, "UTC", Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(workload.Program))),
@@ -96,8 +104,6 @@ internal static class ReferenceReport
             }
         }
 
-        static string Build(Assembly assembly) =>
-            assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "Unavailable";
         static string[] ReadLines(string path)
         {
             if (!OperatingSystem.IsLinux())
@@ -106,6 +112,9 @@ internal static class ReferenceReport
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return []; }
         }
     }
+
+    private static string Build(Assembly assembly) =>
+        assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "Unavailable";
 
     public static async Task<string> HashFileAsync(string path, CancellationToken token)
     {
