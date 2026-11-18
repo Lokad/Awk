@@ -15,7 +15,7 @@ internal sealed partial class AwkRegionCompiler
                 return new LengthWork(syntax.Children.Count == 1 ? null : syntax.Children[1]);
             if (AwkBuiltins.TryGetCallable(target.Name, out var builtin) &&
                 AwkCompatibilityNames.EnablesBuiltin(builtin, _scope.CompatibilityMode) &&
-                target.HasDelimitedCall && AwkBuiltinCallShape.AcceptsArgumentCount(builtin, syntax.Children.Count - 1))
+                target.HasDelimitedCall && builtin.Arity.Accepts(syntax.Children.Count - 1))
             {
                 if (builtin.Id is AwkBuiltinId.IsArray or AwkBuiltinId.TypeOf)
                     return new IntrospectionWork(syntax.Children[1], builtin.Id == AwkBuiltinId.TypeOf);

@@ -602,22 +602,8 @@ internal static class AwkSemanticValidator
                 return;
             }
 
-            if (!AwkBuiltinCallShape.AcceptsArgumentCount(call.Definition, call.ArgumentCount))
-            {
-                diagnostics.Add(new AwkDiagnostic(
-                    expression.Span,
-                    "Invalid number of arguments for " + call.Target.Name,
-                    AwkDiagnosticId.BindInvalidProgram));
-                return;
-            }
-
-            if (AwkBuiltinCallShape.TryGetArgumentRoleFailure(call, context.Scope, out var failure))
-            {
-                diagnostics.Add(new AwkDiagnostic(
-                    failure.Argument.Span,
-                    AwkBuiltinCallShape.FormatArgumentRoleFailure(call, failure),
-                    AwkDiagnosticId.BindInvalidProgram));
-            }
+            if (AwkBuiltinCallShape.TryGetDiagnostic(call, context.Scope, out var diagnostic))
+                diagnostics.Add(diagnostic);
         }
 
         static void ValidateMainInputGetlineUsage(

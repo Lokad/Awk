@@ -11,10 +11,10 @@ public sealed partial class AwkRegionTests
     }
 
     [Theory]
-    [InlineData("BEGIN{print length(1,2)}", "Invalid number of arguments for length.")]
-    [InlineData("BEGIN{{print length(1,2)}}", "Invalid number of arguments for length.")]
-    [InlineData("BEGIN{while(1){print length(1,2)}}", "Invalid `while' statement.")]
-    [InlineData("missing(){print length(1,2)}", "Invalid number of arguments for length.")]
+    [InlineData("BEGIN{print 1 >}", "Invalid expression.")]
+    [InlineData("BEGIN{{print 1 >}}", "Invalid expression.")]
+    [InlineData("BEGIN{while(1){print 1 >}}", "Invalid `while' statement.")]
+    [InlineData("missing(){print 1 >}", "Invalid expression.")]
     public void PreparationFailureKeepsTheEnclosingDiagnosticAndBodyPrecedence(string source, string expected)
     {
         var parsed = AwkTestHarness.ParseSource(source);

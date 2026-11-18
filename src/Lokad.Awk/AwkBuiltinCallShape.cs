@@ -16,44 +16,10 @@ internal readonly struct AwkBuiltinCallSyntax(
     public AwkCallableTargetSyntax Target { get; } = target;
 
     public int ArgumentCount => Math.Max(0, Expression.Children.Count - 1);
-
-    public AwkSyntaxOptional<AwkExpressionSyntax> GetArgument(int argumentIndex) =>
-        argumentIndex >= 0 && argumentIndex < ArgumentCount
-            ? AwkSyntaxOptional<AwkExpressionSyntax>.Some(Expression.Children[argumentIndex + 1])
-            : AwkSyntaxOptional<AwkExpressionSyntax>.None;
-}
-
-internal readonly struct AwkBuiltinArgumentRoleFailure(
-    int argumentIndex,
-    AwkBuiltinArgumentRole role,
-    AwkExpressionSyntax? argument)
-{
-    public int ArgumentIndex { get; } = argumentIndex;
-
-    public AwkBuiltinArgumentRole Role { get; } = role;
-
-    public AwkExpressionSyntax Argument => argument ??
-        throw new InvalidOperationException("The default role failure has no argument.");
 }
 
 internal static class AwkBuiltinCallShape
 {
-    public static bool TryCreate(
-        AwkBuiltinDefinition definition,
-        AwkExpressionSyntax expression,
-        out AwkBuiltinCallSyntax call)
-    {
-        call = default;
-        if (!AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) ||
-            !string.Equals(target.Name, definition.Name, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        call = new AwkBuiltinCallSyntax(definition, expression, target);
-        return true;
-    }
-
     public static bool TryCreateKnownCallable(
         AwkExpressionSyntax expression,
         out AwkBuiltinCallSyntax call)
@@ -78,85 +44,58 @@ internal static class AwkBuiltinCallShape
         call = default;
         if (statement.Expressions.Count != 1 ||
             !AwkBuiltins.TryGetStatementDefinition(statement.Kind, out var definition) ||
-            definition.Id != id ||
-            !TryCreate(definition, statement.Expressions[0], out call) ||
-            !AcceptsArgumentCount(definition, call.ArgumentCount) ||
-            !AcceptsArgumentRoles(call))
+            definition.Id != id)
         {
             return false;
         }
 
+        var expression = statement.Expressions[0];
+        if (!AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) ||
+            !string.Equals(target.Name, definition.Name, StringComparison.Ordinal) ||
+            !definition.Arity.Accepts(expression.Children.Count - 1))
+            return false;
+        call = new AwkBuiltinCallSyntax(definition, expression, target);
         return true;
     }
 
-    public static bool AcceptsArgumentCount(AwkBuiltinDefinition definition, int argumentCount) =>
-        definition.Arity.Accepts(argumentCount);
-
-    public static bool AcceptsArgumentRoles(AwkBuiltinCallSyntax call)
-    {
-        return !TryGetArgumentRoleFailure(call, out _);
-    }
-
-    public static bool TryGetArgumentRoleFailure(
-        AwkBuiltinCallSyntax call,
-        out AwkBuiltinArgumentRoleFailure failure) =>
-        TryGetArgumentRoleFailure(call, AwkLoweringScope.Global, out failure);
-
-    public static bool TryGetArgumentRoleFailure(
+    public static bool TryGetDiagnostic(
         AwkBuiltinCallSyntax call,
         AwkLoweringScope scope,
-        out AwkBuiltinArgumentRoleFailure failure)
+        out AwkDiagnostic diagnostic)
     {
+        if (!call.Definition.Arity.Accepts(call.ArgumentCount))
+        {
+            diagnostic = new(call.Expression.Span,
+                "Invalid number of arguments for " + call.Target.Name, AwkDiagnosticId.BindInvalidProgram);
+            return true;
+        }
+
         static bool IsArrayName(AwkExpressionSyntax argument, AwkLoweringScope scope) =>
             AwkExpressionSyntaxFacts.TryGetArrayRoot(argument, out var identifier) &&
             (argument.Kind == AwkExpressionKind.Variable ||
                 argument.Kind == AwkExpressionKind.ArrayElement && scope.CompatibilityMode == AwkCompatibilityMode.GnuDefault) &&
             !scope.IsReservedVariable(identifier.Name);
 
-        static bool AcceptsArgumentRole(
-            AwkBuiltinArgumentRole role,
-            AwkExpressionSyntax argument,
-            AwkLoweringScope scope) =>
-            role switch
-            {
-                AwkBuiltinArgumentRole.ArrayName => IsArrayName(argument, scope),
-                AwkBuiltinArgumentRole.LValue =>
-                    AwkExpressionSyntaxFacts.IsValidMutationTarget(argument, scope),
-                _ => true
-            };
-
-        for (var index = 0; index < call.ArgumentCount; index++)
+        // Arguments without an explicit role accept any scalar expression.
+        var roles = call.Definition.ArgumentRoles;
+        var count = Math.Min(call.ArgumentCount, roles.Count);
+        for (var index = 0; index < count; index++)
         {
-            if (!call.GetArgument(index).TryGetValue(out var argument))
-                throw new InvalidOperationException("A counted builtin argument must be present.");
-
-            if (!AcceptsArgumentRole(call.Definition.GetArgumentRole(index), argument, scope))
+            var argument = call.Expression.Children[index + 1];
+            var expected = roles[index] switch
             {
-                failure = new AwkBuiltinArgumentRoleFailure(
-                    index,
-                    call.Definition.GetArgumentRole(index),
-                    argument);
-                return true;
-            }
+                AwkBuiltinArgumentRole.ArrayName when !IsArrayName(argument, scope) => "an array name",
+                AwkBuiltinArgumentRole.LValue when !AwkExpressionSyntaxFacts.IsValidMutationTarget(argument, scope) =>
+                    "an lvalue",
+                _ => null
+            };
+            if (expected is null) continue;
+            diagnostic = new(argument.Span, "Argument " + (index + 1).ToString(CultureInfo.InvariantCulture) +
+                " of `" + call.Target.Name + "' must be " + expected + ".", AwkDiagnosticId.BindInvalidProgram);
+            return true;
         }
 
-        failure = default;
+        diagnostic = default;
         return false;
-    }
-
-    public static string FormatArgumentRoleFailure(
-        AwkBuiltinCallSyntax call,
-        AwkBuiltinArgumentRoleFailure failure)
-    {
-        var expected = failure.Role switch
-        {
-            AwkBuiltinArgumentRole.ArrayName => "an array name",
-            AwkBuiltinArgumentRole.LValue => "an lvalue",
-            AwkBuiltinArgumentRole.ScalarOrArray => "a scalar or array expression",
-            _ => "a scalar expression"
-        };
-
-        return "Argument " + (failure.ArgumentIndex + 1).ToString(CultureInfo.InvariantCulture) +
-            " of `" + call.Target.Name + "' must be " + expected + ".";
     }
 }

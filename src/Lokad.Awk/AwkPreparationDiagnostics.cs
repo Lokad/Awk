@@ -55,13 +55,6 @@ internal static class AwkPreparationDiagnostics
                 return AwkExpressionSyntaxParser.CreateSyntaxDiagnostic(expression);
             if (expression.Kind == AwkExpressionKind.FunctionCall)
             {
-                if (AwkBuiltinCallShape.TryCreateKnownCallable(expression, out var call))
-                {
-                    if (!AwkBuiltinCallShape.AcceptsArgumentCount(call.Definition, call.ArgumentCount))
-                        return InvalidExpression(expression, "Invalid number of arguments for " + call.Target.Name + ".");
-                    if (AwkBuiltinCallShape.TryGetArgumentRoleFailure(call, out var failure))
-                        return InvalidExpression(failure.Argument, AwkBuiltinCallShape.FormatArgumentRoleFailure(call, failure));
-                }
                 if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var callTarget) &&
                     AwkBuiltins.TryGetSpecialSyntax(callTarget.Name, out var specialSyntax) &&
                     specialSyntax.Id == AwkBuiltinId.Getline)
