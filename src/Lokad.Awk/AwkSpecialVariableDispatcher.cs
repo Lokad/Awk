@@ -212,8 +212,9 @@ internal sealed class AwkSpecialVariableDispatcher(
         if (publish)
             growth = AwkRuntimeMemory.CheckedAdd(growth,
                 variables.EstimateArrayValueMemoryGrowth(ProcInfo, FieldModeKey, fieldMode));
-        using var allocationPeak = memoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(growth,
+        using var admission = memoryAccounting.AdmitMutation(AwkRuntimeMemory.CheckedAdd(growth,
             AwkRuntimeMemory.EstimateFieldWidthListBytes(widthCount)));
+        checkpoint();
         if (id == AwkSpecialVariableId.FieldWidths)
             widths = fieldSplitter.PrepareFieldWidths(text, widthCount);
 

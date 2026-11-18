@@ -361,6 +361,62 @@ public sealed class AwkFieldCancellationTests
         Assert.Equal(1, retry[0].Width.Value);
     }
 
+    [Fact]
+    public void WidthAssignmentUsesAdmittedSpaceForTheReplacementPlan()
+    {
+        using var memory = Governor().InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var state = memory.State;
+        AssignWidths(state, "000001");
+        var previous = state.FieldSplitter.CaptureRecordPlan();
+
+        // The scalar spelling has the same retained size. Both lists coexist
+        // while the new layout is prepared, and the snapshot keeps the old list.
+        memory.Budget.SetAvailableBytes(AwkRuntimeMemory.EstimateFieldWidthListBytes(3));
+        AssignWidths(state, "1 1 1 ");
+
+        Assert.Equal("1 1 1 ", state.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldWidths).AsString());
+        Assert.Equal(3, state.FieldSplitter.CaptureRecordPlan().FieldWidths.Count);
+        Assert.Single(previous.FieldWidths);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WidthAssignmentPreservesBothScalarAndPlanOnFailedAdmission(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = Governor().InitializeRuntime(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var state = memory.State;
+        AssignWidths(state, "000001");
+        var previous = state.FieldSplitter.CaptureRecordPlan();
+        var reserved = memory.Budget.Reserved;
+
+        if (cancel)
+        {
+            memory.Budget.OnGrowth = _ => cancellation.Cancel();
+            Assert.ThrowsAny<OperationCanceledException>(() => AssignWidths(state, "1 1 1 "));
+            memory.Budget.OnGrowth = null;
+        }
+        else
+        {
+            memory.Budget.SetAvailableBytes(0);
+            var error = Assert.Throws<AwkRuntimeException>(() => AssignWidths(state, "1 1 1 "));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        }
+
+        Assert.Equal("000001", state.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldWidths).AsString());
+        Assert.Equal(previous, state.FieldSplitter.CaptureRecordPlan());
+        Assert.Equal(reserved, memory.Budget.Reserved);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    private static void AssignWidths(AwkRuntimeState state, string spelling) =>
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldWidths,
+            AwkValue.FromText(AwkText.FromSourceLiteralString(spelling)));
+
     [Theory]
     [InlineData("whitespace-word", false)]
     [InlineData("whitespace-word", true)]

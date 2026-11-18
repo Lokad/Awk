@@ -125,6 +125,8 @@ returned text retains its own immutable backing. Capture immutable splitting con
 when admitting a record.
 Record splitting, CSV decoding, split() and patsplit() use the invocation's conversion,
 regex and admission services. FS and FPAT retain distinct warning histories.
+Split configuration assignments admit the scalar, any staged width list and
+`PROCINFO` growth together before publication.
 Incremental splitting publishes only a successful tail; NF and mutation complete the
 necessary scan. Raw arithmetic, text-only reads and full-value observations retain their
 different classification and ownership requirements.
