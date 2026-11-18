@@ -192,7 +192,7 @@ internal sealed partial class AwkArrayRuntime
         var resolved = _variableRuntime.ResolveArrayReadName(name);
         if (_variables.TryGetOrdinaryArray(resolved, out var array))
         {
-            target = _variables.PrepareArrayUpdate(array, index, input);
+            target = _variables.PrepareArrayUpdate(array, index, input: input);
             _state.BindGlobalArray(binding, resolved);
             return true;
         }
@@ -266,17 +266,8 @@ internal sealed partial class AwkArrayRuntime
     public double GetNumber(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         TryGetBorrowedNumber(name, builder.AsSpan(), out var number, binding) ? number : GetNumber(name, CopyKey(builder), binding);
 
-    public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding)
-    {
-        var bytes = builder.AsSpan();
-        if (_state.TryGetBoundArray(name, binding, out var array))
-            return _variables.PrepareArrayUpdate(array, bytes);
-        return TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding)
-            ? target : PrepareUpdate(name, CopyKey(builder), binding);
-    }
-
     public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous)
+        in AwkArrayUpdateTarget previous = default)
     {
         var bytes = builder.AsSpan();
         if (_state.TryGetBoundArray(name, binding, out var array))
@@ -288,16 +279,8 @@ internal sealed partial class AwkArrayRuntime
     private AwkArrayKey CopyKey(AwkUtf8Builder builder) =>
         new(_state.AdoptText(builder.CopyToOwnedBytes(_state.CancellationCheckpoint)), _state.CancellationCheckpoint);
 
-    internal AwkArrayUpdateTarget PrepareUpdate(in AwkArrayName name, double index, AwkArrayBinding binding)
-    {
-        if (AwkValue.TryGetArrayOrdinal(index, out var ordinal) &&
-            _state.TryGetBoundArray(name, binding, out var array))
-            return _variables.PrepareArrayUpdate(array, AwkArrayKey.FromOrdinal(ordinal));
-        return PrepareUpdate(name, _state.ToArrayKey(AwkValue.FromNumber(index)), binding);
-    }
-
     internal AwkArrayUpdateTarget PrepareUpdate(in AwkArrayName name, double index, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous)
+        in AwkArrayUpdateTarget previous = default)
     {
         if (AwkValue.TryGetArrayOrdinal(index, out var ordinal) &&
             _state.TryGetBoundArray(name, binding, out var array))
@@ -305,12 +288,8 @@ internal sealed partial class AwkArrayRuntime
         return PrepareUpdate(name, _state.ToArrayKey(AwkValue.FromNumber(index)), binding, in previous);
     }
 
-    public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding) =>
-        TryResolveUpdateOwner(name, binding, out var array)
-            ? _variables.PrepareArrayUpdate(array, key) : PrepareMissingUpdate(name, key, binding);
-
     public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous) =>
+        in AwkArrayUpdateTarget previous = default) =>
         TryResolveUpdateOwner(name, binding, out var array)
             ? _variables.PrepareArrayUpdate(array, key, in previous) : PrepareMissingUpdate(name, key, binding);
 

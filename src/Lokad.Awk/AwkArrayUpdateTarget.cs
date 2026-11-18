@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Lokad.Awk;
 
 // Capture the owning key and old number. Dictionary cells survive rehash; ordinal
@@ -10,11 +12,18 @@ internal readonly record struct AwkArrayUpdateTarget(AwkArrayKey Key, double Pre
         Array is { IsDetached: false } && Cell is { IsAttached: true };
 
     internal bool TryGetCurrentCell(AwkArrayIdentity array, AwkArrayKey key,
-        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkArrayCell? cell)
+        [NotNullWhen(true)] out AwkArrayCell? cell) =>
+        TryGetReusableCell(array, out cell) && Key.Equals(key, checkpoint: null);
+
+    internal bool TryGetCurrentCell(AwkArrayIdentity array, ReadOnlySpan<byte> key,
+        [NotNullWhen(true)] out AwkArrayCell? cell) =>
+        TryGetReusableCell(array, out cell) && Key.Equals(key, checkpoint: null);
+
+    private bool TryGetReusableCell(AwkArrayIdentity array, [NotNullWhen(true)] out AwkArrayCell? cell)
     {
         cell = Cell;
-        return !array.IsDetached && ReferenceEquals(Array, array) && cell is { IsAttached: true } &&
-            Key.RequiresTextMaterialization && Key.Equals(key, checkpoint: null);
+        return ReferenceEquals(Array, array) && !array.IsDetached && cell is { IsAttached: true } &&
+            Key.RequiresTextMaterialization;
     }
 
     public long RetainedTargetBytes => AwkRuntimeMemory.CheckedAdd(Key.RetainedTextMemoryBytes,

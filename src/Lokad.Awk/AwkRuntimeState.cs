@@ -1712,41 +1712,15 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
         _arrayRuntime.GetElementRuntimeKind(name, index, binding);
 
-    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(in AwkArrayName name, int index, AwkArrayBinding binding = default)
+    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(in AwkArrayName name, int index,
+        AwkArrayBinding binding = default, in AwkArrayUpdateTarget previous = default)
     {
         if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
         {
             if (TryGetBoundArray(in name, binding, out var array))
-            {
-                var boundTarget = _variables.PrepareArrayUpdate(array, bytes, input: true);
-
-                return boundTarget;
-            }
+                return _variables.PrepareArrayUpdate(array, bytes, in previous, input: true);
             if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding, input: true))
-            {
-
                 return target;
-            }
-        }
-        return PrepareArrayUpdate(name, CaptureArrayFieldKey(index), binding);
-    }
-
-    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(in AwkArrayName name, int index, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous)
-    {
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
-        {
-            if (TryGetBoundArray(in name, binding, out var array))
-            {
-                var boundTarget = _variables.PrepareArrayUpdate(array, bytes, in previous, input: true);
-
-                return boundTarget;
-            }
-            if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding, input: true))
-            {
-
-                return target;
-            }
         }
         return PrepareArrayUpdate(name, CaptureArrayFieldKey(index), binding, in previous);
     }
@@ -1771,32 +1745,20 @@ internal sealed class AwkRuntimeState : IDisposable
     internal double GetArrayNumber(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         _arrayRuntime.GetNumber(name, builder, binding);
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
-        _arrayRuntime.PrepareUpdate(name, builder, binding);
-
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous) =>
+        in AwkArrayUpdateTarget previous = default) =>
         _arrayRuntime.PrepareUpdate(name, builder, binding, in previous);
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(in AwkArrayName name, double index, AwkArrayBinding binding) =>
-        _arrayRuntime.PrepareUpdate(in name, index, binding);
-
     internal AwkArrayUpdateTarget PrepareArrayUpdate(in AwkArrayName name, double index, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous) =>
+        in AwkArrayUpdateTarget previous = default) =>
         _arrayRuntime.PrepareUpdate(in name, index, binding, in previous);
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding) =>
-        _arrayRuntime.PrepareUpdate(name, key, binding);
-
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayName name, AwkArrayKey key, AwkArrayBinding binding,
-        in AwkArrayUpdateTarget previous) =>
+        in AwkArrayUpdateTarget previous = default) =>
         _arrayRuntime.PrepareUpdate(name, key, binding, in previous);
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey key) =>
-        _variables.PrepareArrayUpdate(array, key);
-
     internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey key,
-        in AwkArrayUpdateTarget previous) => _variables.PrepareArrayUpdate(array, key, in previous);
+        in AwkArrayUpdateTarget previous = default) => _variables.PrepareArrayUpdate(array, key, in previous);
 
     internal void CommitArrayUpdate(AwkCapturedArrayPath path, in AwkArrayUpdateTarget target, double number)
     {

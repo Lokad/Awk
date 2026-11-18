@@ -202,8 +202,13 @@ internal sealed partial class AwkVariables
             ? slot : InsertByteSlot(array, index, default, missing: true, out _, out _, input);
     }
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index, bool input = false)
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index,
+        in AwkArrayUpdateTarget previous = default, bool input = false)
     {
+        // Reuse only the location. The current cell supplies the observed number.
+        if (previous.TryGetCurrentCell(array, index, out var prior) && prior.Slot.TryGetNumberValue(out var number))
+            return new(previous.Key.WithInputOrigin(input), number, array, prior);
+
         ThrowIfDetached(array);
         AwkArrayKey key;
         AwkValue slot = default;
@@ -223,23 +228,13 @@ internal sealed partial class AwkVariables
         return new(key.WithInputOrigin(input), ReadArraySlotNumber(in numberSource), array, cell);
     }
 
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, ReadOnlySpan<byte> index,
-        in AwkArrayUpdateTarget previous, bool input = false)
+    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index,
+        in AwkArrayUpdateTarget previous = default)
     {
-        if (!array.IsDetached && ReferenceEquals(previous.Array, array) && previous.Cell is { IsAttached: true } priorCell &&
-            previous.Key.RequiresTextMaterialization && previous.Key.Equals(index, checkpoint: null) &&
-            priorCell.Slot.TryGetNumberValue(out var number))
-        {
-            // No callback occurs between validating the bounded owning key and
-            // capturing the current number. Never reuse the earlier snapshot.
+        // Reuse only the location. The current cell supplies the observed number.
+        if (previous.TryGetCurrentCell(array, index, out var prior) && prior.Slot.TryGetNumberValue(out var number))
+            return new(index, number, array, prior);
 
-            return new(previous.Key.WithInputOrigin(input), number, array, priorCell);
-        }
-        return PrepareArrayUpdate(array, index, input);
-    }
-
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index)
-    {
         ThrowIfDetached(array);
         AwkValue slot = default;
         ref readonly var numberSource = ref slot;
@@ -255,23 +250,6 @@ internal sealed partial class AwkVariables
             else slot = CreateMissingArraySlot(array, index, out cell);
         }
         return new(index, ReadArraySlotNumber(in numberSource), array, cell);
-    }
-
-    internal AwkArrayUpdateTarget PrepareArrayUpdate(AwkArrayIdentity array, AwkArrayKey index,
-        in AwkArrayUpdateTarget previous)
-    {
-        if (!array.IsDetached && ReferenceEquals(previous.Array, array) && previous.Cell is { IsAttached: true } priorCell &&
-            previous.Key.RequiresTextMaterialization && previous.Key.Equals(index, checkpoint: null) &&
-            priorCell.Slot.TryGetNumberValue(out var number))
-        {
-            // Keep the newly evaluated owning key, including its origin. The old
-            // location supplies only the attached cell and its current number.
-
-            return new(index, number, array, priorCell);
-        }
-        // Fresh complete operations need no prior-target transport. Actual reuse
-        // misses share their ordinary lookup, admission and conversion.
-        return PrepareArrayUpdate(array, index);
     }
 
     internal double ReadArraySlotNumber(scoped in AwkValue slot)

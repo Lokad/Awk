@@ -339,7 +339,7 @@ internal partial struct AwkRegionMachine
         {
             var previous = location >= 0 ? storage.Targets[location] : default;
             var key = ResolvePath(index, out var owner);
-            return location >= 0 ? state.PrepareArrayUpdate(owner, key, in previous) : state.PrepareArrayUpdate(owner, key);
+            return state.PrepareArrayUpdate(owner, key, in previous);
         }
 
         internal void CompleteScalarUpdate(in AwkRegionInstruction instruction)
@@ -396,8 +396,7 @@ internal partial struct AwkRegionMachine
                 CompleteCapturedArrayUpdate(in instruction, in update, in captured);
                 return;
             }
-            var target = update.Slot >= 0 ? state.PrepareArrayUpdate(owner, key, in previousLocation)
-                : state.PrepareArrayUpdate(owner, key);
+            var target = state.PrepareArrayUpdate(owner, key, in previousLocation);
             CompleteCapturedArrayUpdate(in instruction, in update, in target);
         }
 
@@ -649,7 +648,7 @@ internal partial struct AwkRegionMachine
             ref readonly var key = ref operands[access.Key];
             // Key evaluation can enter admission callbacks. Keep an owning snapshot,
             // not a reference into scratch that a callback may retire or reuse.
-            var previous = storage.Targets[captureSlot];
+            var previous = captureSlot >= 0 ? storage.Targets[captureSlot] : default;
             switch (key.Kind)
             {
                 case AwkRegionOperandKind.Field:
@@ -672,22 +671,7 @@ internal partial struct AwkRegionMachine
         {
             ref readonly var access = ref region.Arrays[accessIndex];
             ref readonly var key = ref operands[access.Key];
-            if (location >= 0) PrepareArrayUpdate(accessIndex, out target, location);
-            else switch (key.Kind)
-            {
-                case AwkRegionOperandKind.Field:
-                case AwkRegionOperandKind.DynamicField:
-                    target = state.PrepareArrayFieldUpdate(in access.Name, FieldOrdinal(in key), access.Binding);
-                    break;
-                case AwkRegionOperandKind.KeyBuilder:
-                    target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding);
-                    break;
-                default:
-                    target = TryArrayNumberKey(access.Key, out var number)
-                        ? state.PrepareArrayUpdate(in access.Name, number, access.Binding)
-                        : state.PrepareArrayUpdate(access.Name, ReadKey(access.Key), access.Binding);
-                    break;
-            }
+            PrepareArrayUpdate(accessIndex, out target, location);
             // Retire key scratch only after the complete operation owns its key,
             // in the order of the separate ArrayPrepare/KeyEnd instructions.
             if (key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Buffer.Clear();
