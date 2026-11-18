@@ -7,7 +7,6 @@ internal sealed class AwkIo
     private readonly AwkPipeRuntime _pipes;
     private readonly AwkSpecialPathPolicy _specialPaths;
     private readonly AwkRuntimeState _state;
-    private readonly AwkRecordDescriptorReader _descriptorReader;
     private readonly AwkFileDescriptor _stdIn;
     private readonly AwkFileDescriptor _stdOut;
     private readonly AwkFileDescriptor _stdErr;
@@ -60,10 +59,6 @@ internal sealed class AwkIo
         _allowCommandPipes = allowCommandPipes;
         _state = state;
         _descriptors = new AwkIoDescriptorTable(state.MemoryAccounting);
-        _descriptorReader = new AwkRecordDescriptorReader(
-            host,
-            cancellationToken,
-            state.Options);
         _pipes = new AwkPipeRuntime(
             _host,
             state.MemoryAccounting,
@@ -268,7 +263,7 @@ internal sealed class AwkIo
         AwkFileDescriptor descriptor, AwkParagraphLeaderPolicy paragraphLeaderPolicy) =>
         new(
             _state,
-            _descriptorReader.CreateByteReader(descriptor),
+            _host.CreateByteReader(descriptor),
             paragraphLeaderPolicy);
 
     private void ThrowIfFileRedirectionDisabled()

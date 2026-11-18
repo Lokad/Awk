@@ -43,8 +43,8 @@ public sealed class AwkRangeParagraphTests
         using var memoryForState = State(counters);
         var state = memoryForState.State;
         Assign(state, "RS", "");
-        var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
-        using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
+        var byteReader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        using var cursor = new AwkRecordCursor(state, byteReader);
 
         var first = await cursor.ReadRecordAsync();
         var last = await cursor.ReadRecordAsync();
@@ -106,8 +106,8 @@ public sealed class AwkRangeParagraphTests
         // CRLF remain in the EOF buffer for the second read and its allocation check.
         host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             "a\n\nx\r\n"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { }));
-        var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
-        using var cursor = new AwkRecordCursor(state, descriptorReader.CreateByteReader(AwkFileDescriptor.StdIn));
+        var byteReader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        using var cursor = new AwkRecordCursor(state, byteReader);
         _ = await cursor.ReadRecordAsync();
         var before = state.MemoryAccounting.LiveBytes;
         var pressure = memoryForState.Budget.Limit - memoryForState.Budget.Reserved - 2;

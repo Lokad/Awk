@@ -53,8 +53,8 @@ public sealed class AwkRecordScanCancellationTests
         }
 
         Assign(state, "RS", initial);
-        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
-        using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn), scanCheckpoint: Check);
+        var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        using var cursor = new AwkRecordCursor(state, reader, scanCheckpoint: Check);
         Assert.Equal("first", (await cursor.ReadRecordAsync()).RecordText.AsString());
         Assign(state, "RS", selected);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
@@ -117,8 +117,8 @@ public sealed class AwkRecordScanCancellationTests
         }
 
         Assign(state, "RS", paragraph ? "" : "([,|]+)");
-        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
-        using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn),
+        var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        using var cursor = new AwkRecordCursor(state, reader,
             scanCheckpoint: Check);
         Assert.Equal("first", (await cursor.ReadRecordAsync()).RecordText.AsString());
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
@@ -179,8 +179,8 @@ public sealed class AwkRecordScanCancellationTests
         }
 
         Assign(state, "RS", separator);
-        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
-        using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn),
+        var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        using var cursor = new AwkRecordCursor(state, reader,
             scanCheckpoint: Check);
         armed = true;
 
@@ -218,8 +218,8 @@ public sealed class AwkRecordScanCancellationTests
         }
 
         Assign(state, "RS", "|");
-        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
-        using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn),
+        var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        using var cursor = new AwkRecordCursor(state, reader,
             scanCheckpoint: Check);
         Assert.Equal(prefix, (await cursor.ReadRecordAsync()).RecordText.AsString());
         Assign(state, "RS", "z+");
@@ -262,8 +262,8 @@ public sealed class AwkRecordScanCancellationTests
         using var memoryForState = State(observed);
         var state = memoryForState.State;
         Assign(state, "RS", separator);
-        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
-        using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn));
+        var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        using var cursor = new AwkRecordCursor(state, reader);
         var first = await cursor.ReadRecordAsync();
         Assert.Equal(prefix, first.RecordText.AsString());
         Assert.Equal(separator, first.Terminator.ByteText.AsString());

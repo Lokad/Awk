@@ -119,8 +119,8 @@ public sealed class AwkStdinBorrowingTests
         var limits = AwkRuntimeLimits.CreateDefault();
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance));
-        var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Options);
-        using var cursor = new AwkRecordCursor(state, reader.CreateByteReader(AwkFileDescriptor.StdIn));
+        var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        using var cursor = new AwkRecordCursor(state, reader);
         var allocated = counters[AwkCounter.TextBytes];
         foreach (var expected in new[] { "a", "b", "c" })
             Assert.Equal(expected, (await cursor.ReadRecordAsync()).RecordText.AsString());
