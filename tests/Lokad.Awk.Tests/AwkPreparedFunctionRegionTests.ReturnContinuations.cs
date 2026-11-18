@@ -4,7 +4,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
 {
     private const string ForwardReturnOwnedSource =
         "function leaf(n,held){held=$0 \"suffix\";ready=1;return n+1}" +
-        "function relay(n,owned){owned[\"v\"]=99;return leaf(n)}{total=relay($1);print \"done\"}";
+        "function relay(n,owned){owned[\"v\"]=99;return leaf(n)} BEGIN{total=relay($1);print \"done\"}";
 
     [Theory]
     [InlineData(false)]
@@ -59,7 +59,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.Equal(99, state.GetArrayNumber(AwkArrayName.FromText("owned"), new AwkArrayKey("v"), default));
             output.Append(AwkText.FromSourceLiteralString("refund\n"));
         };
-        var run = program.MainProgram.ExecuteAsync(state, io, output).AsTask();
+        var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -128,7 +128,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => program.MainProgram.ExecuteAsync(state, io, output).AsTask());
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask());
             Assert.True(observed);
             Assert.False(state.IsInsideFunction);
             Assert.Equal(0, state.ResolveVariableValue(total).AsNumber());

@@ -98,7 +98,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     public async Task ClosedCallResultStopsAfterCancellationDuringCalleeRetirement()
     {
         const string source = "function copy(s,t,unused){unused=substr(s,1);t=substr(s,1);ready=1;return t}" +
-            "{v=copy($1);total+=length(v);print \"unreached\"}";
+            "BEGIN{v=copy($1);total+=length(v);print \"unreached\"}";
         var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue), CancellationToken.None),
             AwkCompatibilityProfile.Default, externalArguments: new([], [], [], AwkPath.Root));
         Assert.True(binding.Success);
@@ -128,7 +128,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => program.MainProgram.ExecuteAsync(state, io, output).AsTask());
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask());
             Assert.True(observed);
             Assert.False(state.IsInsideFunction);
             Assert.Equal(0, state.ResolveVariableValue(total).AsNumber());

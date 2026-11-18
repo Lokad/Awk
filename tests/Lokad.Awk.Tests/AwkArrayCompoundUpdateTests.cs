@@ -152,7 +152,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         using var storage = new AwkRegionStorage(state);
         storage.Initialize(execution.Region);
         execution.Memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var failure = Assert.Throws<AwkRuntimeException>(() => execution.Region.Execute(state, storage));
+        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await execution.ExecuteAsync(storage));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal(7, state.GetArrayAwkValue(array, Key).AsNumber());
         Assert.False(state.ContainsArrayValue(array, new AwkArrayKey("missing")));
@@ -214,6 +214,12 @@ public sealed partial class AwkArrayCompoundUpdateTests
         {
             Assert.Null(_run);
             return _run = Region.ExecuteAsync(State, _io, _output).AsTask();
+        }
+
+        internal async ValueTask<AwkStatementFlow> ExecuteAsync(AwkRegionStorage storage)
+        {
+            using var context = State.PushExecutionContext(_output, _io);
+            return await Region.ExecuteAsync(State, storage, _output, _io).ConfigureAwait(false);
         }
         private async ValueTask<AwkReadBuffer> Read(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
         {

@@ -49,7 +49,7 @@ public sealed class AwkFieldTargetAllocationTests
     }
 
     [Fact]
-    public void ExistingFieldTargetUpdatesAvoidPerRecordAllocation()
+    public async Task ExistingFieldTargetUpdatesAvoidPerRecordAllocation()
     {
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var name = AwkArrayName.FromText("values");
@@ -63,17 +63,20 @@ public sealed class AwkFieldTargetAllocationTests
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var region = Assert.Single(program.BeginActions);
         using var storage = new AwkRegionStorage(state);
-        for (var warm = 0; warm < 32; warm++) Update();
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        for (var warm = 0; warm < 32; warm++) await UpdateAsync();
         var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var row = 0; row < 1024; row++) Update();
+        for (var row = 0; row < 1024; row++) await UpdateAsync();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.InRange(allocated, 0, 1024);
         Assert.Equal(1063, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
 
-        void Update()
+        async ValueTask UpdateAsync()
         {
-            if (region.Execute(state, storage) != AwkStatementFlow.Continue)
+            if (await region.ExecuteAsync(state, storage, regionOutput, regionIo) != AwkStatementFlow.Continue)
                 throw new InvalidOperationException("Unexpected native array-update control flow.");
         }
     }

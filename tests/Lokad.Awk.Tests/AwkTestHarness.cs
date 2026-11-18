@@ -82,9 +82,19 @@ internal static class AwkTestHarness
         new(
             AwkMemoryAccounting.Disabled);
 
-    public static AwkIo CreateRegionIo(AwkRuntimeState state, MockFileSystem host) =>
-        new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
-            CancellationToken.None, state.Limits, state, static _ => []);
+    public static AwkIo CreateRegionIo(AwkRuntimeState state, IAwkHost? host = null,
+        CancellationToken cancellationToken = default) =>
+        new(host ?? new MockFileSystem(), AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
+            cancellationToken, state.Limits, state, static _ => []);
+
+    public static AwkInputScheduler BindRegionInput(string source, AwkRuntimeActionExecutor executor,
+        AwkRuntimeState state, AwkIo io, IAwkHost host, CancellationToken cancellationToken = default)
+    {
+        var invocation = AwkCommandParser.Parse(BuildInvocation("awk", source));
+        var input = new AwkInputScheduler(host, invocation, executor, state, io, cancellationToken);
+        io.BindMainInputReader(input, input.PreserveStandardInput);
+        return input;
+    }
 
     public static AwkCompatibilityProfile ProfileForNumberParsing(AwkNumberParsingMode mode) => mode switch
     {

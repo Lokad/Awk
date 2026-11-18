@@ -108,7 +108,7 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void NativeBuiltinStorageAdmissionPrecedesArgumentEffects(bool observed)
+    public async Task NativeBuiltinStorageAdmissionPrecedesArgumentEffects(bool observed)
     {
         using var memory = State(observed, CancellationToken.None);
         var state = memory.State;
@@ -117,8 +117,11 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
         var parsed = AwkParser.Parse("BEGIN{result=int(++count)}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
-        var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal(0, state.ResolveVariableValue(name).AsNumber());
         Assert.False(state.HasScalar(AwkVariableName.FromText("result")));

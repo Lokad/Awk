@@ -11,26 +11,13 @@ internal sealed class AwkRegion(
     AwkRegionStringCall[] strings, AwkRegionPath[] paths, AwkSwitchCasePattern[] switchCases,
     AwkRegionRegexMatch[] regexMatches, AwkRegionSplit[] splits, AwkRegionMatch[] matches,
     AwkRegionSubstitution[] substitutions, AwkRegionGensub[] gensubs, AwkRegionSort[] sorts, AwkRegionIteration[] iterations, AwkRegionKind kind,
-    int mainBodyStart = -1, AwkRegionRuleScope[]? ruleScopes = null, int entryFieldDemand = 0)
+    AwkRegionRuleScope[]? ruleScopes = null, int entryFieldDemand = 0)
 {
     private readonly AwkRegionStorageLayout _layout = layout;
     internal AwkRegionKind Kind => kind;
     internal ref readonly AwkRegionStorageLayout Layout => ref _layout;
-    internal int MainBodyStart => mainBodyStart;
     internal int EntryFieldDemand => entryFieldDemand;
     internal AwkRegionRuleScope[] RuleScopes => ruleScopes ?? [];
-
-    internal AwkStatementFlow Execute(AwkRuntimeState state, AwkRegionStorage storage)
-    {
-        var machine = new AwkRegionMachine(state, this, storage, null, null);
-        try
-        {
-            machine.Initialize();
-            if (!machine.Run()) throw new InvalidOperationException("A synchronous region cannot suspend.");
-            return machine.Flow;
-        }
-        finally { machine.Cleanup(); }
-    }
 
     // Phase/reentrant execution owns scratch separately from the continuing main driver.
     internal async ValueTask<AwkStatementFlow> ExecuteAsync(AwkRuntimeState state, AwkIo io, AwkOutputSink output)
@@ -282,7 +269,7 @@ internal sealed record AwkRegionPrint(int Texts, int Segments, AwkRegionPrintArg
 }
 // Format is -1 only for a bare printf statement without arguments.
 internal sealed record AwkRegionPrintf(int Format, int Values, int Count, int[] Fields, AwkRegionOutput Output = default);
-internal readonly record struct AwkRegionGetline(int Slot, int Source, AwkGetlineSourceKind Kind, int Result, bool IsExpression);
+internal readonly record struct AwkRegionGetline(int Slot, int Source, AwkGetlineSourceKind Kind, int Result);
 internal readonly record struct AwkRegionOutput
 {
     internal AwkRegionOutput(int value, AwkOutputRedirectionKind kind) => (IsRedirected, Value, Kind) = (true, value, kind);

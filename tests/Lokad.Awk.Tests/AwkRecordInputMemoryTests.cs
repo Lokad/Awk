@@ -57,13 +57,17 @@ public sealed class AwkRecordInputMemoryTests
             else state.SetArrayAwkValue(array, key, AwkValue.FromText("100"));
         };
         using var storage = new AwkRegionStorage(state);
-        Assert.Equal(AwkStatementFlow.Continue, Assert.Single(program.BeginActions).Execute(state, storage));
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        Assert.Equal(AwkStatementFlow.Continue, await Assert.Single(program.BeginActions).ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.True(changed);
         Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
         Assert.Equal(10, state.GetArrayAwkValue(array, key).AsNumber());
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         storage.Dispose();
         reader.Dispose();
+        regionOutput.Dispose();
         memory.Dispose();
         AssertRefunded(memory.Budget);
     }

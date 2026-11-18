@@ -4,16 +4,14 @@ internal partial struct AwkRegionMachine
 {
     private void BeginRead(AwkRegionGetline read)
     {
-        if (!Context.TryGetExecutionContext(out var execution))
-            throw new InvalidOperationException("Getline requires a host context.");
         var storage = _storage;
         _state.ThrowIfCancellationRequested();
         _pending = Pending.Read;
         _hostCompletion = read.Kind switch
         {
-            AwkGetlineSourceKind.MainInput => execution.Io.ReadMainRecordAsync(),
-            AwkGetlineSourceKind.RedirectedFile => execution.Io.ReadRedirectedRecordAsync(storage.PreparedString(read.Source)),
-            AwkGetlineSourceKind.InputPipe => execution.Io.ReadPipeRecordAsync(storage.PreparedString(read.Source)),
+            AwkGetlineSourceKind.MainInput => _io.ReadMainRecordAsync(),
+            AwkGetlineSourceKind.RedirectedFile => _io.ReadRedirectedRecordAsync(storage.PreparedString(read.Source)),
+            AwkGetlineSourceKind.InputPipe => _io.ReadPipeRecordAsync(storage.PreparedString(read.Source)),
             _ => throw new InvalidOperationException("Unknown getline source.")
         };
     }

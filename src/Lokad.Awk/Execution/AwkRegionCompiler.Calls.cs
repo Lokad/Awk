@@ -186,7 +186,6 @@ internal sealed partial class AwkRegionCompiler
         private int _start;
         private int _returned;
         private int _result;
-        private int _boundary;
         private int _argument;
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
@@ -200,8 +199,8 @@ internal sealed partial class AwkRegionCompiler
                 compiler._values = checked(compiler._values + count);
                 _returned = compiler._values++;
                 _result = compiler.Operand(AwkRegionOperandKind.ValueTemporary, _returned);
-                _boundary = compiler.Emit(new(AwkRegionInstructionKind.BuiltinBoundary, Left: _returned,
-                    Detail: flushBeforeArguments ? 1 : 0));
+                if (flushBeforeArguments)
+                    compiler.Emit(new(AwkRegionInstructionKind.BuiltinBoundary));
             }
             else
             {
@@ -221,7 +220,7 @@ internal sealed partial class AwkRegionCompiler
             var site = compiler._builtins.Count;
             compiler._builtins.Add(new(null, _start, count, [], implementation));
             compiler.Emit(new(AwkRegionInstructionKind.Builtin, _returned, site));
-            compiler.Patch(_boundary, compiler.Label());
+            compiler.Label();
             return Complete(_result);
         }
     }

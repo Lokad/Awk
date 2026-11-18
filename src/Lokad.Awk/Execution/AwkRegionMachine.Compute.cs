@@ -38,10 +38,10 @@ internal partial struct AwkRegionMachine
                     if (instruction.Detail > 0) computationView.State.PrepareAdmittedFields(instruction.Detail);
                     break;
                 case AwkRegionInstructionKind.StatementBoundary:
-                    if (output is { HasPendingOutput: true })
+                    if (output.HasPendingOutput)
                     {
                         if (instruction.Right > 0) computationView.Storage.StoreArrayOwner(instruction.Right - 1, null);
-                        TryFlush(output, position + 1, instruction.Detail);
+                        TryFlush(position + 1, instruction.Detail);
                         goto Resume;
                     }
                     if (instruction.Detail > 0) computationView.State.PrepareAdmittedFields(instruction.Detail);
@@ -213,7 +213,7 @@ internal partial struct AwkRegionMachine
                     computationView.Storage.ReleaseTexts(instruction.Left, instruction.Right);
                     break;
                 case AwkRegionInstructionKind.PrintField:
-                    computationView.State.AppendFieldPrint(output ?? throw new InvalidOperationException("Print requires an output sink."),
+                    computationView.State.AppendFieldPrint(output,
                         computationView.FieldOrdinal(computationView.Operands[instruction.Left]));
                     break;
                 case AwkRegionInstructionKind.PrintList:
@@ -221,8 +221,7 @@ internal partial struct AwkRegionMachine
                     var print = computationView.Region.Prints[instruction.Left];
                     var last = print.Arguments[^1];
                     var current = last.Kind == AwkRegionPrintArgumentKind.Current ? computationView.Value(last.Index) : default;
-                    var sink = output ?? throw new InvalidOperationException("Print requires an output sink.");
-                    var payloadStart = AwkRegionPrinting.Append(computationView.State, computationView.Storage, sink, print, in current);
+                    var payloadStart = AwkRegionPrinting.Append(computationView.State, computationView.Storage, output, print, in current);
                     if (print.Output.IsRedirected)
                     {
                         _position = position + 1;
@@ -235,7 +234,7 @@ internal partial struct AwkRegionMachine
                 {
                     var print = computationView.Region.Printfs[instruction.Left];
                     AwkRegionPrinting.Printf(computationView.State, computationView.Storage,
-                        output ?? throw new InvalidOperationException("Printf requires an output sink."), print);
+                        output, print);
                     if (print.Output.IsRedirected)
                     {
                         _position = position + 1;
@@ -492,35 +491,18 @@ internal partial struct AwkRegionMachine
                     if (ExecuteBuiltin(in computationView, in instruction, position)) goto Resume;
                     break;
                 case AwkRegionInstructionKind.BuiltinBoundary:
-                    if (!Context.TryGetExecutionContext(out var builtinExecution))
-                    {
-                        computationView.Storage.StoreValue(instruction.Left, AwkValue.FromNumber(-1));
-                        position = instruction.Target - 1;
-                    }
-                    else if (instruction.Detail != 0)
-                    {
-                        _position = position + 1;
-                        TryCompleteFlush(builtinExecution.Output.FlushDiagnosticsAsync(builtinExecution.Io));
-                        goto Resume;
-                    }
-                    break;
+                    _position = position + 1;
+                    TryCompleteFlush(output.FlushDiagnosticsAsync(_io));
+                    goto Resume;
                 case AwkRegionInstructionKind.UnsupportedCoprocess:
                     throw new AwkRuntimeException(AwkMessages.ErrorUnsupportedCoprocess, AwkDiagnosticId.UnsupportedPolicy);
                 case AwkRegionInstructionKind.GetlineBoundary:
                 {
                     var read = computationView.Region.Getlines[instruction.Left];
-                    if (!Context.TryGetExecutionContext(out var execution))
-                    {
-                        if (!read.IsExpression) throw new InvalidOperationException("Getline requires a host context.");
-                        computationView.Numbers[read.Result] = -1;
-                        position = instruction.Target - 1;
-                        break;
-                    }
-                    if (read.Kind != AwkGetlineSourceKind.MainInput && !read.IsExpression) break;
                     _position = position + 1;
                     var flush = read.Kind == AwkGetlineSourceKind.MainInput
-                        ? execution.Output.FlushAsync(execution.Io)
-                        : execution.Output.FlushDiagnosticsAsync(execution.Io);
+                        ? output.FlushAsync(_io)
+                        : output.FlushDiagnosticsAsync(_io);
                     TryCompleteFlush(flush);
                     goto Resume;
                 }
@@ -556,7 +538,7 @@ internal partial struct AwkRegionMachine
                         returnedValue = instruction.Target >= 0
                             ? computationView.Storage.Values[instruction.Target] : AwkValue.Unassigned();
                     }
-                    if (output is { HasPendingOutput: true } && !TryFlush(output, position + 1))
+                    if (output.HasPendingOutput && !TryFlush(position + 1))
                     {
                         _pendingValue = new(returnedValue);
                         _pending = Pending.ValueReturn;
@@ -569,7 +551,7 @@ internal partial struct AwkRegionMachine
                     returnedNumber = computationView.CompleteNumberRead(in instruction, returnSource.IsRegister
                         ? computationView.Numbers[returnSource.RegisterIndex] : computationView.ReadBoundNumber(in computationView.Operands[returnSource.OperandIndex]));
                 NumberReturn:
-                    if (output is { HasPendingOutput: true } && !TryFlush(output, position + 1))
+                    if (output.HasPendingOutput && !TryFlush(position + 1))
                     {
                         _returningNumber = returnedNumber;
                         _pending = Pending.NumberReturn;

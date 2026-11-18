@@ -47,13 +47,13 @@ public sealed partial class AwkPrintStagingMemoryTests
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes - 131_071);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var io = Io(state, new MockFileSystem());
-        var binding = AwkBinder.Bind(AwkParser.Parse("{print \"" + new string('x', 10_000) + "\",\"" + new string('y', 10_000) + "\"}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print \"" + new string('x', 10_000) + "\",\"" + new string('y', 10_000) + "\"}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-            await program.MainProgram.ExecuteAsync(state, io, output));
+            await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(earlier, output.ToString());
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);

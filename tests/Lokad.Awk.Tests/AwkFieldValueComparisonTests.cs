@@ -5,7 +5,7 @@ public sealed class AwkFieldValueComparisonTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void TextComparisonDoesNotRetainBorrowedFieldAndNumericComparisonKeepsClassification(bool finite)
+    public async Task TextComparisonDoesNotRetainBorrowedFieldAndNumericComparisonKeepsClassification(bool finite)
     {
         using var memory = State(finite);
         var state = memory.State;
@@ -19,26 +19,29 @@ public sealed class AwkFieldValueComparisonTests
         state.AssignVariableValue(leftName, left);
         state.AssignVariableValue(AwkVariableName.FromText("result"), AwkValue.FromNumber(0));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         var allocations = counters[AwkCounter.TextAllocations];
-        Assert.True(Compare(region, storage, state));
+        Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         AwkTestHarness.PublishBufferedRecord(state, "k bld"u8);
         AwkTestHarness.PublishBufferedRecord(state, "k bld"u8);
         Assert.True(original.Span.EndsWith("bld"u8));
-        Assert.False(Compare(region, storage, state));
+        Assert.False(await CompareAsync(region, storage, state, regionOutput, regionIo));
         state.SetCurrentRecord(AwkText.FromString("k 007"));
         state.AssignVariableValue(leftName, AwkValue.FromNumber(7));
-        Assert.True(Compare(region, storage, state));
+        Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
         Assert.True(state.GetFieldValue(2).IsNumericStringValue);
         state.AssignFieldValue(2, AwkValue.FromText("old"));
         state.AssignVariableValue(leftName, left);
-        Assert.True(Compare(region, storage, state));
+        Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
-    public void ComparisonRefusalPreservesRecordAndAdmission()
+    public async Task ComparisonRefusalPreservesRecordAndAdmission()
     {
         using var memory = State(true);
         var state = memory.State;
@@ -47,19 +50,22 @@ public sealed class AwkFieldValueComparisonTests
         state.AssignVariableValue(AwkVariableName.FromText("left"), AwkValue.FromText("old"));
         state.AssignVariableValue(AwkVariableName.FromText("result"), AwkValue.FromNumber(0));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         using var held = state.MemoryAccounting.ReserveTransient((1 << 20) - state.MemoryAccounting.CurrentCommittedBytes - 16);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        Assert.Throws<AwkRuntimeException>(() => Compare(region, storage, state));
+        await Assert.ThrowsAsync<AwkRuntimeException>(async () => await CompareAsync(region, storage, state, regionOutput, regionIo));
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal("k old", state.CurrentRecordByteText.AsString());
         held.Dispose();
-        Assert.True(Compare(region, storage, state));
+        Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
     }
 
     [Fact]
-    public void CancellationPreservesSplitRecordAndAdmission()
+    public async Task CancellationPreservesSplitRecordAndAdmission()
     {
         using var cancellation = new CancellationTokenSource();
         using var memory = State(true, cancellation: cancellation.Token);
@@ -71,10 +77,13 @@ public sealed class AwkFieldValueComparisonTests
         state.AssignVariableValue(AwkVariableName.FromText("left"), AwkValue.FromText(text));
         state.AssignVariableValue(AwkVariableName.FromText("result"), AwkValue.FromNumber(0));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
-        Assert.Throws<OperationCanceledException>(() => Compare(region, storage, state));
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await CompareAsync(region, storage, state, regionOutput, regionIo));
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -260,7 +269,7 @@ public sealed class AwkFieldValueComparisonTests
     }
 
     [Fact]
-    public void ColdComparisonCacheRefusalPrecedesLaterOperandMutation()
+    public async Task ColdComparisonCacheRefusalPrecedesLaterOperandMutation()
     {
         using var memory = State(true);
         var state = memory.State;
@@ -270,13 +279,16 @@ public sealed class AwkFieldValueComparisonTests
         _ = state.ResolvePreparedGlobalValue(name, 0);
         state.SetCurrentRecord(AwkText.FromString("0007 old"));
         _ = state.FieldCount;
-        var syntax = AwkParser.Parse("$1==later++{}");
+        var syntax = AwkParser.Parse("BEGIN{if($1==later++){}}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         using var pressure = state.MemoryAccounting.ReserveTransient(
             (1 << 20) - state.MemoryAccounting.CurrentCommittedBytes - 16);
-        var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal(0, state.ResolveVariableValue(name).AsNumber());
         Assert.Equal("0007 old", state.CurrentRecordByteText.AsString());
@@ -285,7 +297,7 @@ public sealed class AwkFieldValueComparisonTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void DeferredInputConversionFailureFollowsTheLaterOperandEffect(bool reverse)
+    public async Task DeferredInputConversionFailureFollowsTheLaterOperandEffect(bool reverse)
     {
         using var memory = State(true, profile: AwkCompatibilityProfile.Default.WithNonDecimalData());
         var state = memory.State;
@@ -294,10 +306,13 @@ public sealed class AwkFieldValueComparisonTests
         state.AssignVariableValue(name, AwkValue.FromNumber(0));
         _ = state.ResolvePreparedGlobalValue(name, 0);
         state.SetCurrentRecord(AwkText.FromString("0x1.1 rest"));
-        var syntax = AwkParser.Parse((reverse ? "later++==$1" : "$1==later++") + "{}");
+        var syntax = AwkParser.Parse("BEGIN{if(" + (reverse ? "later++==$1" : "$1==later++") + "){}}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
-        var error = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: hexadecimal floating point constants require an exponent\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(1, state.ResolveVariableValue(name).AsNumber());
         Assert.Equal("0x1.1 rest", state.CurrentRecordByteText.AsString());
@@ -361,9 +376,10 @@ public sealed class AwkFieldValueComparisonTests
         }
     }
 
-    private static bool Compare(AwkRegion region, AwkRegionStorage storage, AwkRuntimeState state)
+    private static async ValueTask<bool> CompareAsync(AwkRegion region, AwkRegionStorage storage, AwkRuntimeState state,
+        AwkOutputSink regionOutput, AwkIo regionIo)
     {
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         return state.ResolveVariableValue(AwkVariableName.FromText("result")).IsTruthy();
     }
 

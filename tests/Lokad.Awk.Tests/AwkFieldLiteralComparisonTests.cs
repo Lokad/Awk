@@ -5,7 +5,7 @@ public sealed class AwkFieldLiteralComparisonTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ComparisonConsumesBorrowedBytesWithoutCachingOrRetainingThem(bool finite)
+    public async Task ComparisonConsumesBorrowedBytesWithoutCachingOrRetainingThem(bool finite)
     {
         using var memory = State(finite);
         var state = memory.State;
@@ -15,21 +15,24 @@ public sealed class AwkFieldLiteralComparisonTests
         _ = state.FieldCount;
         var region = Bind(state, "first");
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         var allocations = counters[AwkCounter.TextAllocations];
-        Assert.True(Compare(region, storage, state));
+        Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         AwkTestHarness.PublishBufferedRecord(state, "XXXXX XXXXXX"u8);
         AwkTestHarness.PublishBufferedRecord(state, "XXXXX XXXXXX"u8);
         Assert.True(original.Span.StartsWith("XXXXX"u8));
-        Assert.False(Compare(region, storage, state));
+        Assert.False(await CompareAsync(region, storage, state, regionOutput, regionIo));
         state.SetCurrentRecord(AwkText.FromString("first next"));
-        Assert.True(Compare(region, storage, state));
+        Assert.True(await CompareAsync(region, storage, state, regionOutput, regionIo));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
-    public void CallerCancellationPreservesAlreadySplitRecordAndAdmission()
+    public async Task CallerCancellationPreservesAlreadySplitRecordAndAdmission()
     {
         using var cancellation = new CancellationTokenSource();
         using var memory = State(true, cancellation: cancellation.Token);
@@ -39,10 +42,13 @@ public sealed class AwkFieldLiteralComparisonTests
         _ = state.FieldCount;
         var region = Bind(state, new string('a', 16_384));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
-        Assert.Throws<OperationCanceledException>(() => Compare(region, storage, state));
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await CompareAsync(region, storage, state, regionOutput, regionIo));
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(text, state.CurrentRecordByteText.AsString());
@@ -53,7 +59,7 @@ public sealed class AwkFieldLiteralComparisonTests
     [InlineData(AwkRuntimeLimits.CancellationCheckBytes - 1)]
     [InlineData(AwkRuntimeLimits.CancellationCheckBytes)]
     [InlineData(AwkRuntimeLimits.CancellationCheckBytes + 1)]
-    public void LiteralLengthsPreserveRecordAndAdmission(int length)
+    public async Task LiteralLengthsPreserveRecordAndAdmission(int length)
     {
         using var memory = State(true);
         var state = memory.State;
@@ -61,9 +67,12 @@ public sealed class AwkFieldLiteralComparisonTests
         _ = state.FieldCount;
         var region = Bind(state, new string('1', length));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        Assert.False(Compare(region, storage, state));
+        Assert.False(await CompareAsync(region, storage, state, regionOutput, regionIo));
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal("x", state.CurrentRecordByteText.AsString());
@@ -80,9 +89,10 @@ public sealed class AwkFieldLiteralComparisonTests
         return Assert.Single(program.BeginActions);
     }
 
-    private static bool Compare(AwkRegion region, AwkRegionStorage storage, AwkRuntimeState state)
+    private static async ValueTask<bool> CompareAsync(AwkRegion region, AwkRegionStorage storage, AwkRuntimeState state,
+        AwkOutputSink regionOutput, AwkIo regionIo)
     {
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         return state.ResolveVariableValue(AwkVariableName.FromText("result")).IsTruthy();
     }
 

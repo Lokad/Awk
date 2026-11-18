@@ -51,7 +51,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
             changed = true;
         };
 
-        Assert.Equal(AwkStatementFlow.Continue, execution.Region.Execute(execution.State, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await execution.ExecuteAsync(storage));
 
         Assert.True(changed);
         Assert.Equal(5, execution.State.GetArrayAwkValue(AwkArrayName.FromText("a"), new AwkArrayKey("key")).AsNumber());
@@ -63,10 +63,10 @@ public sealed partial class AwkArrayCompoundUpdateTests
     {
         await using var execution = new NativeArrayExecution("BEGIN{a[\"r\"][\"n\"]++}", true);
         using var storage = new AwkRegionStorage(execution.State);
-        Assert.Equal(AwkStatementFlow.Continue, execution.Region.Execute(execution.State, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await execution.ExecuteAsync(storage));
         execution.Memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
 
-        Assert.Equal(AwkStatementFlow.Continue, execution.Region.Execute(execution.State, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await execution.ExecuteAsync(storage));
 
         var child = execution.State.GetSubarray(AwkArrayName.FromText("a"), new AwkArrayKey("r"), default);
         Assert.Equal(2, execution.State.GetArrayNumber(child, new AwkArrayKey("n")));

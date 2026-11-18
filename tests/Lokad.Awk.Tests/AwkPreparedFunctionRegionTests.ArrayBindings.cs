@@ -5,7 +5,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
-    public void StandaloneArrayRootsKeepVisibleBindingsAtFullBudget(bool governed, bool hidden)
+    public async Task StandaloneArrayRootsKeepVisibleBindingsAtFullBudget(bool governed, bool hidden)
     {
         using var memory = new CooperativeTestMemory(4 << 20, enabled: governed);
         memory.Initialize(State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(), owner: memory.Owner));
@@ -26,6 +26,9 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.PushFunctionFrame(function.LocalLayout,
             [AwkFunctionLocalSlot.ArrayAlias(local), AwkFunctionLocalSlot.PreparedKey(new("key"))]);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         Assert.True(memory.Budget.TryReserve(memory.Budget.Limit - memory.Budget.Reserved, out var pressure));
         using (pressure)
@@ -35,15 +38,16 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 if (hidden)
                 {
                     using var bindings = state.EnterGlobalBindings();
-                    region.Execute(state, storage);
+                    await region.ExecuteAsync(state, storage, regionOutput, regionIo);
                 }
-                else region.Execute(state, storage);
+                else await region.ExecuteAsync(state, storage, regionOutput, regionIo);
                 Assert.Equal(hidden ? 9 : 7, state.ResolveVariableValue(x).AsNumber());
                 Assert.Equal(0, memory.Budget.Refusals);
             }
             finally { state.PopFunctionFrame(); }
         }
         storage.Dispose();
+        regionOutput.Dispose();
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
         Assert.Equal(memory.Budget.ScopesCreated, memory.Budget.ScopesDisposed);

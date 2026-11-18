@@ -23,9 +23,9 @@ to enforcing tests.
 | Preparation boundaries | [AwkFusionBoundaryTests](AwkFusionBoundaryTests.cs) | Canonical results/effects under inert filler shapes and pending-output controls, without opcode/route expectations. |
 | Native comparisons | AwkDifferentialTests, AwkDifferentialFilesTests, AwkDifferentialComparisonTests | Live reference stdout, declared output files, diagnostic class and status; explicit opt-in below. |
 
-Goldens run through public command execution. Focused internal preparation/ownership
-fixtures are not a public compilation API; their planned migration must preserve
-independent contracts. Source-level checks cover additional parser/binder behavior.
+Goldens run through public command execution. Focused execution tests use the production
+async phase entry or the main-input scheduler. State-only tests can exercise publication
+directly to isolate admission. Source-level checks cover additional parser/binder behavior.
 
 Initialize a CooperativeTestMemory runtime before using its accounting view. That view
 is the runtime's ledger; a standalone fixture instead creates its own ledger on first use.

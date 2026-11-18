@@ -4,16 +4,20 @@ internal partial struct AwkRegionMachine
 {
     private bool IsProcessingMainRecord => _hasRecordPhase;
 
+    private AwkInputScheduler MainInput => _mainInput ??
+        throw new InvalidOperationException("A main-input instruction requires the input scheduler.");
+
     // Ordinary completed reads stay inside the prepared instruction loop.
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private bool ReadMainRecord()
     {
         EndMainRecord();
-        if (_mainInput is not { } input || _state.ExitRequested)
+        if (_state.ExitRequested)
         {
             _finished = true;
             return true;
         }
+        var input = MainInput;
         var status = input.ReadForProcessing(ref _mainRead);
         if (status == AwkRecordReadStatus.Pending)
         {
@@ -34,12 +38,11 @@ internal partial struct AwkRegionMachine
         _mainRead = default;
         _pending = Pending.None;
         if (!hasRecord) { _finished = true; return; }
-        var input = _mainInput ?? throw new InvalidOperationException("A completed main read requires input.");
-        input.TakeRecord(out var record);
+        MainInput.TakeRecord(out var record);
         BeginMainRecord(in record);
     }
 
-    internal void BeginMainRecord(in AwkInputRecordResult input)
+    private void BeginMainRecord(in AwkInputRecordResult input)
     {
         _previousRecordPhase = _phaseControl.SwitchPhase(AwkActionPhase.Main);
         _hasRecordPhase = true;
@@ -84,16 +87,11 @@ internal partial struct AwkRegionMachine
         _hostFlow = default;
         _pendingValue = default;
         EndMainRecord();
-        if (_mainInput is not { } input)
-        {
-            Flow = flow == AwkStatementFlow.NextRecord ? AwkStatementFlow.Continue : flow;
-            _finished = true;
-        }
-        else if (flow is AwkStatementFlow.NextFile or AwkStatementFlow.ExitProgram)
+        if (flow is AwkStatementFlow.NextFile or AwkStatementFlow.ExitProgram)
         {
             Flow = flow;
             _pending = Pending.MainClose;
-            _hostFlow = input.CompleteActionAsync(flow);
+            _hostFlow = MainInput.CompleteActionAsync(flow);
         }
     }
 }

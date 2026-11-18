@@ -31,8 +31,9 @@ public sealed class AwkPrintfFieldArgumentTests
         var binding = AwkBinder.Bind(AwkParser.Parse(source));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
-        using var executor = new AwkRecordTestExecution(program, state);
-        var run = executor.ProcessRecordAsync(state, io, AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("before 7"), AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary)).AsTask();
+        using var executor = new AwkRuntimeActionExecutor(program, state);
+        var input = AwkTestHarness.BindRegionInput(source, executor, state, io, host, cancellation.Token);
+        var run = input.ProcessRemainingInputAsync();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -50,12 +51,13 @@ public sealed class AwkPrintfFieldArgumentTests
             }
             host.Release.TrySetResult(AwkAppendResult.Accepted());
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
-            else Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+            else await run.WaitAsync(TimeSpan.FromSeconds(10));
         }
         finally
         {
             host.Release.TrySetResult(AwkAppendResult.Accepted());
             try { await run; } catch (OperationCanceledException) when (cancel) { }
+            await input.CloseRemainingDescriptorsForCleanupAsync();
             await io.CloseAsync();
             executor.Dispose();
             await owner.DisposeAsync();
@@ -82,6 +84,7 @@ public sealed class AwkPrintfFieldArgumentTests
     private sealed class PendingHost : IAwkHost
     {
         private readonly MockFileSystem _files = new();
+        public PendingHost() => _files.SetStandardInput("before 7\n");
         public ReadOnlyMemory<byte> Bytes { get; private set; }
         public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<AwkAppendResult> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

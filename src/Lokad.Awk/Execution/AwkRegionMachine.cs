@@ -6,8 +6,8 @@ internal partial struct AwkRegionMachine
 {
     private readonly AwkRuntimeState _state;
     private readonly AwkExecutionControlRuntime _phaseControl;
-    private readonly AwkOutputSink? _output;
-    private readonly AwkIo? _io;
+    private readonly AwkOutputSink _output;
+    private readonly AwkIo _io;
     private readonly AwkRegionStorage _rootStorage;
     private readonly AwkRegion _rootRegion;
     private AwkRegion _region;
@@ -31,7 +31,7 @@ internal partial struct AwkRegionMachine
     internal AwkStatementFlow Flow { get; private set; }
 
     internal AwkRegionMachine(AwkRuntimeState state, AwkRegion region, AwkRegionStorage storage,
-        AwkOutputSink? output, AwkIo? io, AwkInputScheduler? input = null)
+        AwkOutputSink output, AwkIo io, AwkInputScheduler? input = null)
     {
         _state = state;
         _phaseControl = state.ExecutionControl;
@@ -42,31 +42,19 @@ internal partial struct AwkRegionMachine
         _mainInput = input;
         _region = region;
         _storage = storage;
-        _position = input is null && region.MainBodyStart >= 0 ? region.MainBodyStart : 0;
         _hostCompletion = Task.CompletedTask;
     }
 
-    private AwkEvaluationContext Context => _output is { } output && _io is { } io
-        ? new(_state, output, io) : new(_state);
+    private AwkEvaluationContext Context => new(_state, _output, _io);
 
     internal void Initialize()
     {
         _storage.Initialize(_region);
         // Standalone execution has not crossed activation or record publication.
-        if (_region.Kind == AwkRegionKind.Function ||
-            _mainInput is null && _region.MainBodyStart >= 0)
+        if (_region.Kind == AwkRegionKind.Function)
         {
             _state.ThrowIfCancellationRequested();
             if (_region.EntryFieldDemand > 0) _state.PrepareAdmittedFields(_region.EntryFieldDemand);
-        }
-        if (_state.Counters.IsEnabled)
-        {
-            switch (_region.Kind)
-            {
-                case AwkRegionKind.Function: break;
-                case AwkRegionKind.Phase: break;
-                default: break;
-            }
         }
     }
 
@@ -154,20 +142,18 @@ internal partial struct AwkRegionMachine
 
     private void BeginWrite(AwkRegionOutput output, int payloadStart = 0)
     {
-        if (_io is not { } io) throw new InvalidOperationException("Redirection requires a host context.");
         var storage = _storage;
         var target = storage.PreparedOutputTarget(output);
         _state.ThrowIfCancellationRequested();
         _destination = output.Value;
         _pending = Pending.Output;
-        _hostCompletion = io.WriteAsync(new(target.Path, target.Kind, storage.Builders[0].Buffer.AsMemory()[payloadStart..]));
+        _hostCompletion = _io.WriteAsync(new(target.Path, target.Kind, storage.Builders[0].Buffer.AsMemory()[payloadStart..]));
     }
 
-    private bool TryFlush(AwkOutputSink output, int resumePosition, int fieldDemand = 0)
+    private bool TryFlush(int resumePosition, int fieldDemand = 0)
     {
-        if (_io is not { } io) throw new InvalidOperationException("Flush requires a host context.");
         _position = resumePosition;
-        return TryCompleteFlush(output.FlushAsync(io), fieldDemand);
+        return TryCompleteFlush(_output.FlushAsync(_io), fieldDemand);
     }
 
     private bool TryCompleteFlush(Task completion, int fieldDemand = 0)
@@ -304,7 +290,7 @@ internal partial struct AwkRegionMachine
                 RestoreCaller(region, storage, resumePoint.Position, callerFrame);
                 _state.ThrowIfCancellationRequested();
 
-                if (_output is { HasPendingOutput: true } output && !TryFlush(output, _position + 1))
+                if (_output.HasPendingOutput && !TryFlush(_position + 1))
                 {
                     _returningNumber = number;
                     _pending = Pending.NumberReturn;

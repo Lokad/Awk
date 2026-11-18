@@ -10,7 +10,6 @@ internal sealed partial class AwkRegionCompiler
         private int _site;
         private int _source;
         private int _result;
-        private int _boundary;
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
         {
@@ -24,8 +23,9 @@ internal sealed partial class AwkRegionCompiler
                         var number = compiler._numbers++;
                         _result = compiler.Operand(AwkRegionOperandKind.NumberTemporary, number);
                         _source = parts.HasRedirection ? compiler._values++ : -1;
-                        compiler._getlines.Add(new(_site, _source, parts.SourceKind, number, isExpression));
-                        _boundary = compiler.Emit(new(AwkRegionInstructionKind.GetlineBoundary, Left: _site));
+                        compiler._getlines.Add(new(_site, _source, parts.SourceKind, number));
+                        if (!parts.HasRedirection || isExpression)
+                            compiler.Emit(new(AwkRegionInstructionKind.GetlineBoundary, Left: _site));
                         _stage = 2;
                         if (parts.HasRedirection)
                         {
@@ -58,7 +58,7 @@ internal sealed partial class AwkRegionCompiler
                         break;
                     default:
                         compiler.Emit(new(AwkRegionInstructionKind.Getline, Left: _site));
-                        compiler.Patch(_boundary, compiler.Label());
+                        compiler.Label();
                         return Complete(_result);
                 }
             }

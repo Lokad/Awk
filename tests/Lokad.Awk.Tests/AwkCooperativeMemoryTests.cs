@@ -252,23 +252,15 @@ public sealed class AwkCooperativeMemoryTests
         state.RecordNumber = 4;
         state.FileRecordNumber = 3;
         state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
-        var host = new MockFileSystem();
-        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, CancellationToken.None,             state.Limits, state, static _ => []);
-        var binding = AwkBinder.Bind(AwkParser.Parse("{print \"unreachable\"}"));
-        Assert.True(binding.Success);
-        var program = binding.Program.Program;
-        using var executor = new AwkRecordTestExecution(program, state);
         var previousCharge = budget.Reserved;
         Assert.True(budget.TryReserve(limit - previousCharge, out var otherConsumer));
         using (otherConsumer)
         {
-            var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-                await executor.ProcessRecordAsync(state, io, AwkInputRecordResult.Record(
+            var error = Assert.Throws<AwkRuntimeException>(() =>
+                state.PublishInputRecord(AwkInputRecordResult.Record(
                     AwkText.FromSourceLiteralString(new string('x', 8_192)), AwkRecordTerminator.NewLine,
-                    AwkRecordFieldSplittingMode.Ordinary)));
+                    AwkRecordFieldSplittingMode.Ordinary), readsMainInput: true));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("keep", state.CurrentRecordByteText.AsString());
             Assert.Equal(4, state.RecordNumber);
             Assert.Equal(3, state.FileRecordNumber);

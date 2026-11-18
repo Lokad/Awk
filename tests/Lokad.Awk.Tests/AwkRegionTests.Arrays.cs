@@ -4,7 +4,7 @@ public sealed partial class AwkRegionTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void NumericMissingReadAdmissionPrecedesInsertionAndLaterEffects(bool cancel)
+    public async Task NumericMissingReadAdmissionPrecedesInsertionAndLaterEffects(bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, true);
@@ -14,39 +14,47 @@ public sealed partial class AwkRegionTests
         state.SetArrayAwkValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
         state.AssignVariableValue(AwkVariableName.FromText("i"), AwkValue.FromNumber(1));
         using var storage = new AwkRegionStorage(state);
-        region.Execute(state, storage);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        await region.ExecuteAsync(state, storage, regionOutput, regionIo);
         state.AssignVariableValue(AwkVariableName.FromText("i"), AwkValue.FromNumber(2));
         state.AssignVariableValue(AwkVariableName.FromText("later"), AwkValue.FromNumber(0));
         var owner = state.ResolveOrdinaryArray(name);
         var held = fixture.Budget.Reserved;
         if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
-        else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
+        else await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Single(owner);
         Assert.False(owner.ContainsKey(AwkArrayKey.FromOrdinal(2)));
         Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("later")).AsNumber());
         Assert.Equal(held, fixture.Budget.Reserved);
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void PreparedOwnersDistinguishNamesWithoutIndexedBindings(bool governed)
+    public async Task PreparedOwnersDistinguishNamesWithoutIndexedBindings(bool governed)
     {
         using var fixture = State(CancellationToken.None, governed);
         var state = fixture.State;
-        var parsed = AwkParser.Parse("{k=\"first\";j=\"second\";a[k][\"v\"]++;a[j][\"v\"]++;left=a[k][\"v\"];right=a[j][\"v\"]}");
+        var parsed = AwkParser.Parse("BEGIN{k=\"first\";j=\"second\";a[k][\"v\"]++;a[j][\"v\"]++;left=a[k][\"v\"];right=a[j][\"v\"]}");
         Assert.True(parsed.Success);
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules),
             AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
-        region.Execute(state, storage);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        await region.ExecuteAsync(state, storage, regionOutput, regionIo);
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("left")).AsNumber());
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("right")).AsNumber());
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -55,7 +63,7 @@ public sealed partial class AwkRegionTests
     [InlineData("split", false)] [InlineData("split", true)]
     [InlineData("patsplit", false)] [InlineData("patsplit", true)]
     [InlineData("match", false)] [InlineData("match", true)]
-    public void ArrayArgumentCaptureAdmissionPrecedesMissingReadAndLaterEffects(string builtin, bool cancel)
+    public async Task ArrayArgumentCaptureAdmissionPrecedesMissingReadAndLaterEffects(string builtin, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, true);
@@ -68,37 +76,45 @@ public sealed partial class AwkRegionTests
         state.SetArrayAwkValue(name, new("existing"), AwkValue.FromNumber(7));
         var owner = state.ResolveOrdinaryArray(name, default);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Prepare(region.Layout);
         var held = fixture.Budget.Reserved;
         if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
-        else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
+        else await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Single(owner);
         Assert.False(owner.ContainsKey(new("missing")));
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
         Assert.Equal(held, fixture.Budget.Reserved);
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void ArrayArgumentStorageKeepsBoundedFundingWhenAnOriginIsPromoted(bool governed)
+    public async Task ArrayArgumentStorageKeepsBoundedFundingWhenAnOriginIsPromoted(bool governed)
     {
         using var fixture = State(CancellationToken.None, governed);
         var state = fixture.State;
         var region = Compile("split(\"left right\",a[1],(a[1][9]=1)?\" \":\"x\");delete a", state);
         using var storage = new AwkRegionStorage(state);
-        region.Execute(state, storage);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        await region.ExecuteAsync(state, storage, regionOutput, regionIo);
         var held = fixture.Budget.Reserved;
         for (var iteration = 0; iteration < 32; iteration++)
         {
-            region.Execute(state, storage);
+            await region.ExecuteAsync(state, storage, regionOutput, regionIo);
             Assert.Equal(held, fixture.Budget.Reserved);
         }
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -106,7 +122,7 @@ public sealed partial class AwkRegionTests
     [Theory]
     [InlineData("isarray", false)] [InlineData("isarray", true)]
     [InlineData("typeof", false)] [InlineData("typeof", true)]
-    public void IntrospectionAdmissionFailureDoesNotInsertOrRunLaterEffects(string builtin, bool cancel)
+    public async Task IntrospectionAdmissionFailureDoesNotInsertOrRunLaterEffects(string builtin, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, true);
@@ -116,18 +132,22 @@ public sealed partial class AwkRegionTests
         state.SetArrayAwkValue(name, new("existing"), AwkValue.FromNumber(7));
         var owner = state.ResolveOrdinaryArray(name, default);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Prepare(region.Layout);
         var held = fixture.Budget.Reserved;
         if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
-        else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
+        else await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Single(owner);
         Assert.False(owner.ContainsKey(new("missing")));
         Assert.False(state.HasScalar(AwkVariableName.FromText("kind")));
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
         Assert.Equal(held, fixture.Budget.Reserved);
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -135,7 +155,7 @@ public sealed partial class AwkRegionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void NestedArrayUpdatesKeepCapturedPriorAndRefundScratch(bool governed)
+    public async Task NestedArrayUpdatesKeepCapturedPriorAndRefundScratch(bool governed)
     {
         using var fixture = State(CancellationToken.None, governed);
         var state = fixture.State;
@@ -144,12 +164,16 @@ public sealed partial class AwkRegionTests
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayAwkValue(array, key, AwkValue.FromNumber(5));
         using var storage = new AwkRegionStorage(state);
-        region.Execute(state, storage);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        await region.ExecuteAsync(state, storage, regionOutput, regionIo);
         Assert.Equal(13, state.ResolveVariableValue(AwkVariableName.FromText("prior")).AsNumber());
         Assert.Equal(14, state.ResolveVariableValue(AwkVariableName.FromText("after")).AsNumber());
         Assert.Equal(14, state.GetArrayAwkValue(array, key).AsNumber());
         Assert.All(storage.Targets, target => Assert.Null(target.Array));
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -157,7 +181,7 @@ public sealed partial class AwkRegionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ExistingTargetAdmissionFailurePrecedesRhsAndCommit(bool cancel)
+    public async Task ExistingTargetAdmissionFailurePrecedesRhsAndCommit(bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, true);
@@ -168,24 +192,28 @@ public sealed partial class AwkRegionTests
         var key = new AwkArrayKey(spelling);
         state.SetArrayAwkValue(array, key, AwkValue.FromNumber(5));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Prepare(region.Layout);
         var before = fixture.Budget.Reserved;
         if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
-        else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
+        else await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
         Assert.Equal(5, state.GetArrayAwkValue(array, key).AsNumber());
         Assert.All(storage.Targets, target => Assert.Null(target.Array));
         Assert.Equal(before, fixture.Budget.Reserved);
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void RepeatedCompleteStorageAdmissionPrecedesEffects(bool cancel)
+    public async Task RepeatedCompleteStorageAdmissionPrecedesEffects(bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, true);
@@ -195,16 +223,20 @@ public sealed partial class AwkRegionTests
         var key = new AwkArrayKey("k");
         state.SetArrayAwkValue(array, key, AwkValue.FromNumber(5));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         var before = fixture.Budget.Reserved;
         if (cancel) fixture.Budget.OnGrowth = _ => cancellation.Cancel();
         else fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        if (cancel) Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
-        else Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
+        else await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.False(state.HasScalar(AwkVariableName.FromText("later")));
         Assert.Equal(5, state.GetArrayAwkValue(array, key).AsNumber());
         Assert.All(storage.Targets, target => Assert.Null(target.Array));
         Assert.Equal(before, fixture.Budget.Reserved);
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -237,7 +269,7 @@ public sealed partial class AwkRegionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ArrayCaptureRetiresBeforeNextInvocationAndOnRhsFailure(bool fail)
+    public async Task ArrayCaptureRetiresBeforeNextInvocationAndOnRhsFailure(bool fail)
     {
         using var fixture = State(CancellationToken.None, true);
         var state = fixture.State;
@@ -247,15 +279,19 @@ public sealed partial class AwkRegionTests
         state.SetArrayAwkValue(array, key, AwkValue.FromNumber(5));
         state.SetCurrentRecord(AwkText.FromString("0007"));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Prepare(region.Layout);
         for (var i = 0; i < 20; i++)
         {
-            if (fail) Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
-            else region.Execute(state, storage);
+            if (fail) await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
+            else await region.ExecuteAsync(state, storage, regionOutput, regionIo);
             Assert.All(storage.Targets, target => Assert.Null(target.Array));
         }
         Assert.Equal(fail ? 5 : 25, state.GetArrayAwkValue(array, key).AsNumber());
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }

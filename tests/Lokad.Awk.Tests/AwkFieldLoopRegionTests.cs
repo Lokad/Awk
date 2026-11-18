@@ -2,7 +2,7 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkFieldLoopRegionTests
 {
-    private const string Script = "{for(i=1;i<=NF;i++){nonempty+=($i!=\"\");chars+=length($i)}}";
+    private const string Script = "BEGIN{for(i=1;i<=NF;i++){nonempty+=($i!=\"\");chars+=length($i)}}";
 
     [Theory]
     [InlineData(false)]
@@ -57,7 +57,7 @@ public sealed class AwkFieldLoopRegionTests
         var state = State(counters, AwkRuntimeLimits.CreateDefault(), owner, cancellation.Token);
         var value = compare ? "($(index_value())==\"bb\")" : "length($(index_value()))";
         var binding = AwkBinder.Bind(AwkParser.Parse("function index_value(v){getline v<\"/side\";return v}" +
-            "{for(i=1;i<2;i++)total+=" + value + "}"));
+            "BEGIN{for(i=1;i<2;i++)total+=" + value + "}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
@@ -81,7 +81,7 @@ public sealed class AwkFieldLoopRegionTests
         };
         var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
-        var run = program.MainProgram.ExecuteAsync(state, io, output).AsTask();
+        var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -133,7 +133,7 @@ public sealed class AwkFieldLoopRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         var error = "";
-        try { await program.MainProgram.ExecuteAsync(state, io, output); }
+        try { await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         var result = new Result(state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(),

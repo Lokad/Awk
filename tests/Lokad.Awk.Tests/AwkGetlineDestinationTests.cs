@@ -153,13 +153,13 @@ public sealed class AwkGetlineDestinationTests
 
     private static AwkRegion Bind(AwkRuntimeState state, string body)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("{" + body + "}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{" + body + "}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
-        return program.MainProgram;
+        return Assert.Single(program.BeginActions);
     }
 
     private static AwkRuntimeOptions CreateOptions(AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>

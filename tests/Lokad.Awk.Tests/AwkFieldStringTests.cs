@@ -9,7 +9,7 @@ public sealed class AwkFieldStringTests
     [InlineData(true, false)]
     [InlineData(false, true)]
     [InlineData(true, true)]
-    public void SubstringEscapesRecordStorageWithOriginalUtf8(bool governed, bool whole)
+    public async Task SubstringEscapesRecordStorageWithOriginalUtf8(bool governed, bool whole)
     {
         using var memory = State(governed);
         var state = memory.State;
@@ -17,7 +17,10 @@ public sealed class AwkFieldStringTests
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         var region = Bind(whole ? "substr($2,1)" : "substr($2,1,2)");
         using var storage = new AwkRegionStorage(state);
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         var result = state.ResolveVariableValue(AwkVariableName.FromText("target"));
         AwkTestHarness.PublishBufferedRecord(state, "other record"u8);
         AwkTestHarness.PublishBufferedRecord(state, "other record"u8);
@@ -35,7 +38,7 @@ public sealed class AwkFieldStringTests
     [InlineData("cached")]
     [InlineData("owned")]
     [InlineData("variable")]
-    public void FieldStringOperationsDoNotDependOnLiteralShape(string shape)
+    public async Task FieldStringOperationsDoNotDependOnLiteralShape(string shape)
     {
         using var memory = State(false);
         var state = memory.State;
@@ -46,7 +49,10 @@ public sealed class AwkFieldStringTests
         state.AssignVariableValue(AwkVariableName.FromText("start"), AwkValue.FromNumber(1));
         var region = Bind("substr($2," + (shape == "variable" ? "start" : "1") + ",2)");
         using var storage = new AwkRegionStorage(state);
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(ascii ? "aa" : "ré", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
     }
 
@@ -54,7 +60,7 @@ public sealed class AwkFieldStringTests
     [InlineData(false, 1, "é")]
     [InlineData(true, 2, "é")]
     [InlineData(true, 1, null)]
-    public void SubstringPreservesScalarCoordinatesAndStrictByteBoundaries(bool bytes, int length, string? expected)
+    public async Task SubstringPreservesScalarCoordinatesAndStrictByteBoundaries(bool bytes, int length, string? expected)
     {
         using var memory = State(false, bytes: bytes);
         var state = memory.State;
@@ -63,15 +69,18 @@ public sealed class AwkFieldStringTests
         state.AssignVariableValue(AwkVariableName.FromText("target"), AwkValue.FromText("keep"));
         var region = Bind("substr($2,1," + length + ")");
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         if (expected is null)
         {
-            var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+            var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
             Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         }
         else
         {
-            Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+            Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
             Assert.Equal(expected, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         }
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
@@ -83,7 +92,7 @@ public sealed class AwkFieldStringTests
     [InlineData(true, false, 8)]
     [InlineData(false, true, 6)]
     [InlineData(true, true, 8)]
-    public void SearchPreservesCaseAndCoordinatesAndReusesCachedValues(bool bytes, bool ignoreCase, int expected)
+    public async Task SearchPreservesCaseAndCoordinatesAndReusesCachedValues(bool bytes, bool ignoreCase, int expected)
     {
         using var memory = State(false, bytes: bytes);
         var state = memory.State;
@@ -91,23 +100,26 @@ public sealed class AwkFieldStringTests
         if (ignoreCase) state.AssignVariableValue(AwkVariableName.FromText("IGNORECASE"), AwkValue.FromNumber(1));
         var region = Bind("index($2,needle)");
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         state.AssignVariableValue(AwkVariableName.FromText("needle"), AwkValue.FromText("timeout"));
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(expected, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
         var allocations = state.Counters[AwkCounter.TextAllocations];
         for (var index = 0; index < 10; index++)
-            Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+            Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(allocations, state.Counters[AwkCounter.TextAllocations]);
         state.AssignVariableValue(AwkVariableName.FromText("needle"), AwkValue.FromText("😀"));
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(bytes ? 15 : 13, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("id 007"));
         state.AssignVariableValue(AwkVariableName.FromText("needle"), AwkValue.FromText("00"));
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("id"));
         state.AssignVariableValue(AwkVariableName.FromText("needle"), AwkValue.FromText(""));
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
     }
 
@@ -116,7 +128,7 @@ public sealed class AwkFieldStringTests
     [InlineData("substr($0,1,1)")]
     [InlineData("tolower(\"ABC\")")]
     [InlineData("toupper(\"abc\")")]
-    public void RefusedResultPreservesTargetAndRecordWithoutRetry(string expression)
+    public async Task RefusedResultPreservesTargetAndRecordWithoutRetry(string expression)
     {
         using var memory = State(true);
         var state = memory.State;
@@ -126,9 +138,12 @@ public sealed class AwkFieldStringTests
         state.AssignVariableValue(AwkVariableName.FromText("target"), AwkValue.FromText("keep"));
         var region = Bind(expression);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
-        var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));
@@ -139,7 +154,7 @@ public sealed class AwkFieldStringTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void SearchRequiresAdmissionForUnparsedFields(bool parsed)
+    public async Task SearchRequiresAdmissionForUnparsedFields(bool parsed)
     {
         using var memory = State(true);
         var state = memory.State;
@@ -149,16 +164,19 @@ public sealed class AwkFieldStringTests
         if (parsed) _ = state.GetFieldValue(2);
         var region = Bind("index($2,\"timeout\")");
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
         if (parsed)
         {
-            Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+            Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
             Assert.Equal(6, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
         }
         else
         {
-            var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+            var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.Equal(0, state.ResolveVariableValue(AwkVariableName.FromText("target")).AsNumber());
         }
@@ -169,7 +187,7 @@ public sealed class AwkFieldStringTests
     [Theory]
     [InlineData("substr($2,1,2)")]
     [InlineData("index($2,\"timeout\")")]
-    public void CancellationBeforeEntryPreservesTarget(string expression)
+    public async Task CancellationBeforeEntryPreservesTarget(string expression)
     {
         using var cancellation = new CancellationTokenSource();
         using var memory = State(false, token: cancellation.Token);
@@ -178,8 +196,11 @@ public sealed class AwkFieldStringTests
         state.AssignVariableValue(AwkVariableName.FromText("target"), AwkValue.FromText("keep"));
         var region = Bind(expression);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         cancellation.Cancel();
-        var failure = Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
+        var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -188,7 +209,7 @@ public sealed class AwkFieldStringTests
     [Theory]
     [InlineData("tolower($2)")]
     [InlineData("toupper($2)")]
-    public void RefusedUnicodeSourceOwnershipPreservesRecordAndTarget(string expression)
+    public async Task RefusedUnicodeSourceOwnershipPreservesRecordAndTarget(string expression)
     {
         using var memory = State(true);
         var state = memory.State;
@@ -198,10 +219,13 @@ public sealed class AwkFieldStringTests
         state.AssignVariableValue(AwkVariableName.FromText("target"), AwkValue.FromText("keep"));
         var region = Bind(expression);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         var textAllocations = state.Counters[AwkCounter.TextAllocations];
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
-        var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         Assert.True(record.HasSameStorage(state.CurrentRecordByteText));

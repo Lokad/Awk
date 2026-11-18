@@ -946,7 +946,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Awk_RecordPlanMemoryFailurePrecedesCounterAndTerminatorMutation(bool paragraph)
+    public void Awk_RecordPlanMemoryFailurePrecedesCounterAndTerminatorMutation(bool paragraph)
     {
         using var memoryForState = CreateGovernedState(1 << 20);
         var state = memoryForState.State;
@@ -957,26 +957,14 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldSeparator,
             AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 300))));
-        var host = new MockFileSystem();
-        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, CancellationToken.None,             state.Limits, state, static _ => []);
-        var binding = AwkBinder.Bind(AwkParser.Parse("{print \"unreachable\"}"));
-        Assert.True(binding.Success);
-        var program = binding.Program.Program;
-        using var executor = new AwkRecordTestExecution(program, state);
         var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
+        var record = AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("new"), AwkRecordTerminator.NewLine,
+            paragraph ? AwkRecordFieldSplittingMode.Paragraph : AwkRecordFieldSplittingMode.Ordinary);
 
         memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-        {
-            var record = AwkText.FromSourceLiteralString("new");
-            var terminator = AwkRecordTerminator.NewLine;
-            await executor.ProcessRecordAsync(state, io, AwkInputRecordResult.Record(record, terminator,
-                paragraph ? AwkRecordFieldSplittingMode.Paragraph : AwkRecordFieldSplittingMode.Ordinary));
-        });
+        var exception = Assert.Throws<AwkRuntimeException>(() => state.PublishInputRecord(record, readsMainInput: true));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("keep", state.CurrentRecordByteText.AsString());
         Assert.Equal(4, state.RecordNumber);
         Assert.Equal(3, state.FileRecordNumber);
@@ -988,7 +976,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public async Task Awk_CancellationDuringRecordHeaderAdmissionPreservesPublishedState()
+    public void Awk_CancellationDuringRecordHeaderAdmissionPreservesPublishedState()
     {
         using var memory = new CooperativeTestMemory(1 << 20);
         using var cancellation = new CancellationTokenSource();
@@ -1004,29 +992,19 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldSeparator,
             AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 300))));
-        var host = new MockFileSystem();
-        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, cancellation.Token,             state.Limits, state, static _ => []);
-        var binding = AwkBinder.Bind(AwkParser.Parse("{print \"unreachable\"}"));
-        Assert.True(binding.Success);
-        var program = binding.Program.Program;
-        using var executor = new AwkRecordTestExecution(program, state);
+        var record = AwkInputRecordResult.Record(AwkText.FromSourceLiteralString("new"),
+            AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary);
         var reserved = memory.Budget.Reserved;
         memory.Budget.OnGrowth = _ => cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-            await executor.ProcessRecordAsync(state, io, AwkInputRecordResult.Record(
-                AwkText.FromSourceLiteralString("new"), AwkRecordTerminator.NewLine,
-                AwkRecordFieldSplittingMode.Ordinary)));
+        Assert.ThrowsAny<OperationCanceledException>(() => state.PublishInputRecord(record, readsMainInput: true));
         memory.Budget.OnGrowth = null;
         Assert.Equal("keep", state.CurrentRecordByteText.AsString());
         Assert.Equal(4, state.RecordNumber);
         Assert.Equal(3, state.FileRecordNumber);
         Assert.Equal(",", state.ResolveSpecialVariableText(AwkSpecialVariableId.RecordTerminator).AsString());
-        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(1, state.FieldCount);
         Assert.Equal(reserved, memory.Budget.Reserved);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        await io.CloseForCleanupAsync();
     }
 
     [Fact]

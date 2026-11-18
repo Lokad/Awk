@@ -50,13 +50,13 @@ public sealed class AwkFlushTests
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, cancellation.Token, limits, state, static _ => []);
         using var output = new AwkOutputSink(state.MemoryAccounting);
-        var binding = AwkBinder.Bind(AwkParser.Parse("{print \"held bytes\";continued=1}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print \"held bytes\";continued=1}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var continued = AwkVariableName.FromText("continued");
-        var pending = program.MainProgram.ExecuteAsync(state, io, output).AsTask();
+        var pending = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));

@@ -42,7 +42,7 @@ public sealed class AwkProgramTests
     }
 
     [Fact]
-    public void PreparedConcatenationReusesTemporaryStorage()
+    public async Task PreparedConcatenationReusesTemporaryStorage()
     {
         var source = "BEGIN{result=" + string.Join(' ', Enumerable.Repeat("s", 32)) + "}";
         var binding = AwkBinder.Bind(AwkParser.Parse(source));
@@ -55,14 +55,17 @@ public sealed class AwkProgramTests
         var result = AwkVariableName.FromText("result");
         var region = Assert.Single(program.BeginActions);
         using var storage = new AwkRegionStorage(state);
-        region.Execute(state, storage);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        await region.ExecuteAsync(state, storage, regionOutput, regionIo);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 10_000; index++)
         {
-            region.Execute(state, storage);
+            await region.ExecuteAsync(state, storage, regionOutput, regionIo);
             if (state.ResolveVariableValue(result).ByteText.ByteLength != 32)
                 throw new InvalidOperationException("Concatenation returned an unexpected value.");
         }

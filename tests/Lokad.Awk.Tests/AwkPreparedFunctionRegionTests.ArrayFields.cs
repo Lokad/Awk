@@ -26,9 +26,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
             var syntax = AwkParser.Parse("BEGIN{" + body + "}");
             Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
             using var storage = new AwkRegionStorage(state);
+            using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+            var regionIo = AwkTestHarness.CreateRegionIo(state);
+            using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
             storage.Initialize(region);
             budget.RefuseNextAdmissionMinimumGrowth = 1;
-            var error = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+            var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.True(budget.Refusals > 0);
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
@@ -46,7 +49,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var program = Bind("{total+=a[$1]+b[$1]}");
+        var program = Bind("BEGIN{total+=a[$1]+b[$1]}");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var state = State(counters, limits, owner: owner);
@@ -61,7 +64,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         _ = state.GetFieldValue(1); // Ensure the refused growth belongs to the array read.
         var host = new MockFileSystem(); var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
-        var region = program.MainProgram;
+        var region = Assert.Single(program.BeginActions);
         using var scratch = new AwkRegionStorage(state);
         scratch.Prepare(region.Layout);
         using var execution = state.PushExecutionContext(output, io);
@@ -87,7 +90,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData("captured-regex")]
     public async Task FieldArrayActionsKeepOriginalPolicyAndFieldBoundaries(string boundary)
     {
-        var program = Bind("{total+=a[$1]+b[$(1+0)]}");
+        var program = Bind("BEGIN{total+=a[$1]+b[$(1+0)]}");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
@@ -103,7 +106,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
-        await program.MainProgram.ExecuteAsync(state, io, output);
+        await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output);
         Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
 
         Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -126,8 +129,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     private static async Task<FieldArrayResult> RunFieldArrayAction(bool missing)
     {
-        var program = Bind("{total+=a[$1]+b[$1]}");
-        var action = program.MainProgram;
+        var program = Bind("BEGIN{total+=a[$1]+b[$1]}");
+        var action = Assert.Single(program.BeginActions);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var state = State(counters, limits);
@@ -154,7 +157,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var program = Bind("{total+=a[$1]+b[$1]}");
+        var program = Bind("BEGIN{total+=a[$1]+b[$1]}");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var state = State(counters, limits, owner: owner);
@@ -170,7 +173,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting);
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-            await program.MainProgram.ExecuteAsync(state, io, output));
+            await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(4, state.ResolveVariableValue(total).AsNumber());
         Assert.Equal(7, state.GetArrayAwkValue(a, new("hit")).AsNumber());

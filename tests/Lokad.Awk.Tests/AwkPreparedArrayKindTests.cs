@@ -3,15 +3,18 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPreparedArrayKindTests
 {
     [Fact]
-    public void FunctionGlobalArrayOperationsReuseTheirExecutionOwnedBinding()
+    public async Task FunctionGlobalArrayOperationsReuseTheirExecutionOwnedBinding()
     {
         var state = State(slots: false);
         var region = Bind(state, "function probe(){return map[\"hit\"]+(\"hit\" in map)}" +
             "BEGIN{sum=0;map[\"hit\"]=7;for(i=0;i<32;i++)sum+=probe()}");
         using var storage = new AwkRegionStorage(state);
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
 
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(256, state.ResolveVariableValue(AwkVariableName.FromText("sum")).AsNumber());
 
     }
@@ -264,7 +267,7 @@ public sealed class AwkPreparedArrayKindTests
     }
 
     [Fact]
-    public void NativeNumericReadRefusalDoesNotInsertTheMissingElement()
+    public async Task NativeNumericReadRefusalDoesNotInsertTheMissingElement()
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
@@ -272,9 +275,12 @@ public sealed class AwkPreparedArrayKindTests
         var region = Bind(state, "BEGIN{result=+a[\"missing\"]}");
         state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7));
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         storage.Initialize(region);
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.False(state.ContainsArrayValue(Array, new("missing")));
         Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
@@ -282,6 +288,7 @@ public sealed class AwkPreparedArrayKindTests
         Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         storage.Dispose();
+        regionOutput.Dispose();
         memory.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
     }

@@ -188,7 +188,7 @@ public sealed class AwkPreparedCompoundUpdateTests
     [InlineData("value+=rhs()")]
     [InlineData("++value")]
     [InlineData("value++")]
-    public void ExistingArrayTypeFailureStopsRightEffectsAndPreservesEntries(string expression)
+    public async Task ExistingArrayTypeFailureStopsRightEffectsAndPreservesEntries(string expression)
     {
         using var memory = State(true);
         var state = memory.State;
@@ -197,7 +197,10 @@ public sealed class AwkPreparedCompoundUpdateTests
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayString(array, key, "kept");
         using var storage = new AwkRegionStorage(state);
-        var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: attempt to use array `value' in a scalar context\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.False(state.HasScalar(Value));
         Assert.False(state.HasScalar(Result));
@@ -209,14 +212,17 @@ public sealed class AwkPreparedCompoundUpdateTests
     [Theory]
     [InlineData("=")]
     [InlineData("+=")]
-    public void StorageRefusalPrecedesRightEffectsAndTargetBinding(string operation)
+    public async Task StorageRefusalPrecedesRightEffectsAndTargetBinding(string operation)
     {
         using var memory = State(true);
         var state = memory.State;
         var region = Bind(state, "function rhs(){effects++;return 3}BEGIN{result=(value" + operation + "rhs())}");
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
-        var failure = Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.False(state.HasScalar(Value));
         Assert.False(state.HasScalar(Result));

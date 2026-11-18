@@ -12,7 +12,7 @@ public sealed class AwkConcatAllocationTests
     [InlineData(true, 5)]
     [InlineData(true, 8)]
     [InlineData(true, 9)]
-    public void RepeatedConcatenationDoesNotAllocateArgumentStorage(bool governed, int arity)
+    public async Task RepeatedConcatenationDoesNotAllocateArgumentStorage(bool governed, int arity)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -30,15 +30,18 @@ public sealed class AwkConcatAllocationTests
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var region = Assert.Single(program.BeginActions);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         var result = AwkVariableName.FromText("result");
         for (var index = 0; index < 100; index++)
-            if (region.Execute(state, storage) != AwkStatementFlow.Continue)
+            if (await region.ExecuteAsync(state, storage, regionOutput, regionIo) != AwkStatementFlow.Continue)
                 throw new InvalidOperationException("Unexpected concat control flow.");
         var before = GC.GetAllocatedBytesForCurrentThread();
         var bytes = 0;
         for (var index = 0; index < 1_000; index++)
         {
-            if (region.Execute(state, storage) != AwkStatementFlow.Continue)
+            if (await region.ExecuteAsync(state, storage, regionOutput, regionIo) != AwkStatementFlow.Continue)
                 throw new InvalidOperationException("Unexpected concat control flow.");
             bytes += state.ResolveVariableValue(result).ByteText.ByteLength;
         }

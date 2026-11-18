@@ -101,7 +101,7 @@ internal partial struct AwkRegionMachine
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-        internal int ExecuteSubstring(in AwkRegionInstruction instruction, AwkOutputSink? output)
+        internal int ExecuteSubstring(in AwkRegionInstruction instruction, AwkOutputSink output)
         {
             var operation = region.Strings[instruction.Left];
             CaptureTextArgument(operation.First, out var first);
@@ -119,7 +119,7 @@ internal partial struct AwkRegionMachine
                     source, field, second, third, instruction.Detail);
                 return 0;
             }
-            return storage.PrintSubstring(output ?? throw new InvalidOperationException("Print requires an output sink."),
+            return storage.PrintSubstring(output,
                 region.Prints[destination.PrintIndex], source, field, second, third, instruction.Detail);
         }
 

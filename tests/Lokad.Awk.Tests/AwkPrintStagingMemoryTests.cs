@@ -342,13 +342,13 @@ public sealed partial class AwkPrintStagingMemoryTests
 
     private static AwkRegion BindPrint(AwkRuntimeState state, string body)
     {
-        var result = AwkBinder.Bind(AwkParser.Parse("{" + body + "}"));
+        var result = AwkBinder.Bind(AwkParser.Parse("BEGIN{" + body + "}"));
         Assert.True(result.Success);
         var program = result.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
-        return program.MainProgram;
+        return Assert.Single(program.BeginActions);
     }
 
     private static string PrintNumbers(string format, bool printf)

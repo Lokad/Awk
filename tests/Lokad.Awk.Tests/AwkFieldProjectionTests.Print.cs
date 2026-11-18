@@ -71,12 +71,12 @@ public sealed partial class AwkFieldProjectionTests
         var bytes = "before 007 café"u8.ToArray();
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         var host = new MockFileSystem();
-        var binding = AwkBinder.Bind(AwkParser.Parse("{print $1,$3,$2}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print $1,$3,$2}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
-        var region = program.MainProgram;
+        var region = Assert.Single(program.BeginActions);
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, state.Limits, state, static _ => []);
         var allocations = counters[AwkCounter.TextAllocations];

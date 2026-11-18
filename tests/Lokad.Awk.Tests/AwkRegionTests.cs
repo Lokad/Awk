@@ -48,7 +48,7 @@ public sealed partial class AwkRegionTests
     [Theory]
     [InlineData(512)]
     [InlineData(2048)]
-    public void DeepSyntacticBlocksPrepareAndExecuteWithoutRecursiveBlockEmission(int depth)
+    public async Task DeepSyntacticBlocksPrepareAndExecuteWithoutRecursiveBlockEmission(int depth)
     {
         var source = "BEGIN{" + new string('{', depth) + "value=7" + new string('}', depth + 1);
         var parsed = AwkParser.Parse(source, depth + 8);
@@ -56,9 +56,13 @@ public sealed partial class AwkRegionTests
         Assert.True(AwkTestHarness.TryPrepareRule(parsed.Syntax.Rules[0], AwkLoweringScope.Global, -1, out var region));
         using var fixture = State(CancellationToken.None, true);
         using var storage = new AwkRegionStorage(fixture.State);
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(fixture.State, storage));
+        using var regionOutput = new AwkOutputSink(fixture.State.MemoryAccounting, fixture.State.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(fixture.State);
+        using var regionContext = fixture.State.PushExecutionContext(regionOutput, regionIo);
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(fixture.State, storage, regionOutput, regionIo));
         Assert.Equal(7, fixture.State.ResolveVariableValue(AwkVariableName.FromText("value")).AsNumber());
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -84,7 +88,7 @@ public sealed partial class AwkRegionTests
 
     [Theory]
     [MemberData(nameof(ComputationCases))]
-    public void ComputationPreservesValuesAndOrder(string body, string record, string[] names, string[] expected, bool governed)
+    public async Task ComputationPreservesValuesAndOrder(string body, string record, string[] names, string[] expected, bool governed)
     {
         using var fixture = State(CancellationToken.None, governed);
         var state = fixture.State;
@@ -92,11 +96,15 @@ public sealed partial class AwkRegionTests
         state.SetCurrentRecord(AwkText.FromString(record));
         state.AssignVariableValue(AwkVariableName.FromText("text"), AwkValue.FromText("20"));
         using var storage = new AwkRegionStorage(state);
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         for (var i = 0; i < names.Length; i++)
             Assert.Equal(expected[i], state.ResolveVariableValue(AwkVariableName.FromText(names[i])).AsString());
         Assert.All(storage.Values, value => Assert.Equal(0, value.RetainedTextMemoryBytes));
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -104,51 +112,62 @@ public sealed partial class AwkRegionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void WarmCapturesReleasePayloadAndKeepBoundedScratch(bool governed)
+    public async Task WarmCapturesReleasePayloadAndKeepBoundedScratch(bool governed)
     {
         using var fixture = State(CancellationToken.None, governed);
         var state = fixture.State;
         var region = Compile("result=(source<3)", state);
         state.AssignVariableValue(AwkVariableName.FromText("source"), AwkValue.FromText(new string('x', 4096)));
         using var storage = new AwkRegionStorage(state);
-        region.Execute(state, storage);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        await region.ExecuteAsync(state, storage, regionOutput, regionIo);
         var warm = fixture.Budget.Reserved;
         for (var i = 0; i < 50; i++)
         {
-            region.Execute(state, storage);
+            await region.ExecuteAsync(state, storage, regionOutput, regionIo);
             Assert.Equal(warm, fixture.Budget.Reserved);
         }
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
 
     [Fact]
-    public void RefusedScratchAdmissionPrecedesEffects()
+    public async Task RefusedScratchAdmissionPrecedesEffects()
     {
         using var fixture = State(CancellationToken.None, true);
         var state = fixture.State;
         var region = Compile(string.Concat(Enumerable.Repeat("effect+=1;", 512)), state);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         var before = fixture.Budget.Reserved;
         fixture.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        Assert.Throws<AwkRuntimeException>(() => region.Execute(state, storage));
+        await Assert.ThrowsAsync<AwkRuntimeException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.False(state.HasScalar(AwkVariableName.FromText("effect")));
         Assert.Equal(before, fixture.Budget.Reserved);
     }
 
     [Fact]
-    public void CancellationRequestedByScratchAdmissionPrecedesEffects()
+    public async Task CancellationRequestedByScratchAdmissionPrecedesEffects()
     {
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, true);
         var state = fixture.State;
         var region = Compile("effect+=1", state);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         fixture.Budget.OnGrowth = _ => cancellation.Cancel();
-        Assert.ThrowsAny<OperationCanceledException>(() => region.Execute(state, storage));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.False(state.HasScalar(AwkVariableName.FromText("effect")));
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -175,12 +194,15 @@ public sealed partial class AwkRegionTests
         fixture.State.InitializeFunctions(program.Functions);
         var region = Assert.Single(program.BeginActions);
         using var storage = new AwkRegionStorage(fixture.State);
+        using var regionOutput = new AwkOutputSink(fixture.State.MemoryAccounting, fixture.State.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(fixture.State);
+        using var regionContext = fixture.State.PushExecutionContext(regionOutput, regionIo);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         // This intentionally CPU-bound loop must not occupy a worker needed to
         // schedule its cancellation test on a small, busy CI runner.
         var execution = Task.Factory.StartNew(
-            () => { started.TrySetResult(); return region.Execute(fixture.State, storage); },
-            CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            async () => { started.TrySetResult(); return await region.ExecuteAsync(fixture.State, storage, regionOutput, regionIo); },
+            CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
         try
         {
             await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -197,6 +219,7 @@ public sealed partial class AwkRegionTests
         Assert.False(fixture.State.IsInsideFunction);
         Assert.Equal(0, fixture.State.MemoryAccounting.CurrentReservedBytes);
         storage.Dispose();
+        regionOutput.Dispose();
         fixture.Dispose();
         Assert.Equal(0, fixture.Budget.Reserved);
     }
@@ -211,12 +234,15 @@ public sealed partial class AwkRegionTests
     }
 
     [Fact]
-    public void UnaryNegationPreservesSignedZero()
+    public async Task UnaryNegationPreservesSignedZero()
     {
         using var fixture = State(CancellationToken.None, false);
         var region = Compile("negative=-0;positive=-negative", fixture.State);
         using var storage = new AwkRegionStorage(fixture.State);
-        region.Execute(fixture.State, storage);
+        using var regionOutput = new AwkOutputSink(fixture.State.MemoryAccounting, fixture.State.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(fixture.State);
+        using var regionContext = fixture.State.PushExecutionContext(regionOutput, regionIo);
+        await region.ExecuteAsync(fixture.State, storage, regionOutput, regionIo);
         Assert.Equal(long.MinValue, BitConverter.DoubleToInt64Bits(fixture.State.ResolveVariableValue(AwkVariableName.FromText("negative")).AsNumber()));
         Assert.Equal(0, BitConverter.DoubleToInt64Bits(fixture.State.ResolveVariableValue(AwkVariableName.FromText("positive")).AsNumber()));
     }

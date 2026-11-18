@@ -152,7 +152,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         if (missing)
         {
             execution.Memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-            var error = Assert.Throws<AwkRuntimeException>(() => execution.Region.Execute(state, storage));
+            var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await execution.ExecuteAsync(storage));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.False(state.HasScalar(AwkVariableName.FromText("effects")));
             Assert.False(state.HasScalar(AwkVariableName.FromText("result")));
@@ -160,7 +160,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         }
         else
         {
-            Assert.Equal(AwkStatementFlow.Continue, execution.Region.Execute(state, storage));
+            Assert.Equal(AwkStatementFlow.Continue, await execution.ExecuteAsync(storage));
             Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
             Assert.Equal(1, state.ResolveVariableValue(AwkVariableName.FromText("effects")).AsNumber());
         }

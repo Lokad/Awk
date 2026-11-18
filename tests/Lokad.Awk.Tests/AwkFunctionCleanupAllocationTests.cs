@@ -4,7 +4,7 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionCleanupAllocationTests
 {
     [Fact]
-    public void RepeatedPreparedCallsDoNotAllocateArgumentArrays()
+    public async Task RepeatedPreparedCallsDoNotAllocateArgumentArrays()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
@@ -18,12 +18,15 @@ public sealed class AwkFunctionCleanupAllocationTests
         state.InitializeFunctions(program.Functions);
         var region = Assert.Single(program.BeginActions);
         using var storage = new AwkRegionStorage(state);
-        for (var index = 0; index < 4; index++) region.Execute(state, storage);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        for (var index = 0; index < 4; index++) await region.ExecuteAsync(state, storage, regionOutput, regionIo);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
         var before = GC.GetAllocatedBytesForCurrentThread();
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated < 1024, "Allocated bytes: " + allocated);
         Assert.Equal(420000, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());

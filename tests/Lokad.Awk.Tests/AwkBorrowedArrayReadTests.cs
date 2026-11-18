@@ -569,7 +569,7 @@ public sealed class AwkBorrowedArrayReadTests
     }
 
     [Fact]
-    public void NativeTargetHitUpdatesAndMissingAdmissionPrecedesRightEffects()
+    public async Task NativeTargetHitUpdatesAndMissingAdmissionPrecedesRightEffects()
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var state = memory.Initialize(() => State(memory.Owner, AwkRuntimeCounters.CreateEnabled())).State;
@@ -582,13 +582,16 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.True(AwkTestHarness.TryPrepareRule(parsed.Syntax.Rules[0], AwkLoweringScope.Global, -1, out var first));
         Assert.True(AwkTestHarness.TryPrepareRule(parsed.Syntax.Rules[1], AwkLoweringScope.Global, -1, out var missing));
         using var storage = new AwkRegionStorage(state);
-        Assert.Equal(AwkStatementFlow.Continue, first.Execute(state, storage));
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        Assert.Equal(AwkStatementFlow.Continue, await first.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(8, state.GetArrayAwkValue(name, key).AsNumber());
         var count = AwkVariableName.FromText("count");
         state.AssignVariableValue(count, AwkValue.FromNumber(0));
         storage.Initialize(missing);
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
-        var failure = Assert.Throws<AwkRuntimeException>(() => missing.Execute(state, storage));
+        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await missing.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal(0, state.ResolveVariableValue(count).AsNumber());
         Assert.Equal(8, state.GetArrayAwkValue(name, key).AsNumber());

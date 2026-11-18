@@ -27,7 +27,7 @@ public sealed class AwkPreparedNumberReadTests
     }
 
     [Fact]
-    public void ComputedFieldCountRetainsItsLiveValueInPreparedExecution()
+    public async Task ComputedFieldCountRetainsItsLiveValueInPreparedExecution()
     {
         using var memoryForState = State();
         var state = memoryForState.State;
@@ -37,13 +37,16 @@ public sealed class AwkPreparedNumberReadTests
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         var action = Assert.Single(program.BeginActions);
         var result = AwkVariableName.FromText("result");
         state.SetCurrentRecord(AwkText.FromString("old tail"));
-        Assert.Equal(AwkStatementFlow.Continue, action.Execute(state, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await action.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(2, state.ResolveVariableValue(result).AsNumber());
         state.SetCurrentRecord(AwkText.FromString("next has three"));
-        Assert.Equal(AwkStatementFlow.Continue, action.Execute(state, storage));
+        Assert.Equal(AwkStatementFlow.Continue, await action.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(3, state.ResolveVariableValue(result).AsNumber());
 
     }

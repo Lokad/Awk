@@ -29,7 +29,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var limits = AwkRuntimeLimits.CreateDefault();
         if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
         var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
-        var program = Bind("function choose(x){if(x<3)return x+2;return x-2}{total=choose(7)}");
+        var program = Bind("function choose(x){if(x<3)return x+2;return x-2} BEGIN{total=choose(7)}");
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
@@ -39,7 +39,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         try
         {
-            await program.MainProgram.ExecuteAsync(state, io, output);
+            await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output);
             var value = state.ResolveVariableValue(AwkVariableName.FromText("total"));
             Assert.Equal(5, value.AsNumber());
 

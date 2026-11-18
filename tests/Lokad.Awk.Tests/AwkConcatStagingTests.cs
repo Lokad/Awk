@@ -11,14 +11,17 @@ public sealed class AwkConcatStagingTests
 
     [Theory]
     [MemberData(nameof(CompletedCases))]
-    public void NativeCompletedOperandsKeepOrderAndUtf8(bool governed, int arity)
+    public async Task NativeCompletedOperandsKeepOrderAndUtf8(bool governed, int arity)
     {
         using var memory = State(governed);
         var state = memory.State;
         var region = Bind(state, Source(arity, pendingIndex: -1, "success"));
         SetParts(state, arity, largePrefix: false);
         using var storage = new AwkRegionStorage(state);
-        Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
+        Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
         Assert.Equal(Expected(arity, false), state.ResolveVariableValue(AwkVariableName.FromText("target")).AsString());
         Assert.Equal(string.Concat(Enumerable.Range(0, arity)), state.ResolveVariableValue(AwkVariableName.FromText("order")).AsString());
         Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);

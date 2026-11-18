@@ -3,7 +3,7 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkBoundScalarLengthTests
 {
     [Fact]
-    public void HiddenLocalLengthUsesTheVisibleNameThenRestoresTheLocal()
+    public async Task HiddenLocalLengthUsesTheVisibleNameThenRestoresTheLocal()
     {
         using var memory = State();
         var state = memory.State;
@@ -17,16 +17,19 @@ public sealed partial class AwkBoundScalarLengthTests
             state.SetArrayString(global, AwkArrayKey.FromOrdinal(index), "kept");
         state.PushFunctionFrame(layout, [AwkFunctionLocalSlot.Scalar(AwkValue.FromText("é😀"))]);
         using var storage = new AwkRegionStorage(state);
+        using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+        var regionIo = AwkTestHarness.CreateRegionIo(state);
+        using var regionContext = state.PushExecutionContext(regionOutput, regionIo);
         try
         {
-            Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+            Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
             Assert.Equal(2, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
             using (state.EnterGlobalBindings())
             {
-                Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+                Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
                 Assert.Equal(3, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
             }
-            Assert.Equal(AwkStatementFlow.Continue, region.Execute(state, storage));
+            Assert.Equal(AwkStatementFlow.Continue, await region.ExecuteAsync(state, storage, regionOutput, regionIo));
             Assert.Equal(2, state.ResolveVariableValue(AwkVariableName.FromText("result")).AsNumber());
 
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

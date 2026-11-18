@@ -15,7 +15,8 @@ public sealed class AwkFunctionFlowTests
         using var cancellation = new CancellationTokenSource();
         await using (var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, cancellation.Token))
         {
-            var binding = AwkBinder.Bind(AwkParser.Parse("function f(){print \"body\";next}{f();print \"bad\"}"));
+            const string source = "function f(){print \"body\";next}{f();print \"bad\"}";
+            var binding = AwkBinder.Bind(AwkParser.Parse(source));
             Assert.True(binding.Success);
             var program = binding.Program.Program;
             var counters = AwkRuntimeCounters.CreateEnabled();
@@ -42,15 +43,16 @@ public sealed class AwkFunctionFlowTests
                     return AwkAppendResult.Accepted();
                 }
             };
+            host.EnqueueReadBuffer(AwkReadBuffer.FromContent("row\n"u8.ToArray(),
+                AwkReadCompletion.EndOfFile, static _ => { }));
             var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
                 AwkFileDescriptor.StdErr, cancellation.Token, limits, state, static _ => []);
-            using var executor = new AwkRecordTestExecution(program, state);
+            using var executor = new AwkRuntimeActionExecutor(program, state);
+            var input = AwkTestHarness.BindRegionInput(source, executor, state, io, host, cancellation.Token);
             using (state.EnterActionPhase(AwkActionPhase.BeginFile))
             {
                 Assert.Throws<AwkRuntimeException>(() => state.ValidateFunctionFlow(AwkStatementFlow.NextRecord));
-                var record = AwkInputRecordResult.Record(AwkText.FromString("row"),
-                    AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary);
-                var pending = executor.ProcessRecordAsync(state, io, record).AsTask();
+                var pending = input.ProcessRemainingInputAsync();
                 try
                 {
                     await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -62,7 +64,7 @@ public sealed class AwkFunctionFlowTests
                     state.ValidateFunctionFlow(AwkStatementFlow.NextRecord);
                     release.TrySetResult();
                     if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
-                    else Assert.Equal(AwkStatementFlow.Continue, await pending);
+                    else await pending;
                     Assert.False(state.IsInsideFunction);
                     Assert.Throws<AwkRuntimeException>(() => state.ValidateFunctionFlow(AwkStatementFlow.NextRecord));
                     state.ValidateFunctionFlow(AwkStatementFlow.NextFile);
@@ -72,6 +74,7 @@ public sealed class AwkFunctionFlowTests
                     release.TrySetResult();
                     try { await pending; }
                     catch (OperationCanceledException) when (cancel) { }
+                    await input.CloseRemainingDescriptorsForCleanupAsync();
                     await io.CloseForCleanupAsync();
                 }
             }
@@ -86,8 +89,10 @@ public sealed class AwkFunctionFlowTests
     public async Task RepeatedFlowUnwindsFunctionLeases(bool skipFile)
     {
         var keyword = skipFile ? "nextfile" : "next";
-        var binding = AwkBinder.Bind(AwkParser.Parse("function leaf(a){a[1]=\"local\";" + keyword + "} " +
-            "function outer(v){return leaf()+v} {x=outer(1);print \"bad\"}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var source = "function leaf(a){a[1]=\"local\";" + keyword + "} " +
+            "function outer(v){return leaf()+v} {x=outer(1);print \"bad\"}";
+        var binding = AwkBinder.Bind(AwkParser.Parse(source,
+            new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -95,30 +100,38 @@ public sealed class AwkFunctionFlowTests
             .WithMaxFunctionCallDepth(2);
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.InitializeFunctions(program.Functions);
         var host = new MockFileSystem();
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, CancellationToken.None, limits, state, static _ => []);
-        using var executor = new AwkRecordTestExecution(program, state);
-        var record = AwkInputRecordResult.Record(AwkText.FromString("row"), AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary);
-        var expectedFlow = skipFile ? AwkStatementFlow.NextFile : AwkStatementFlow.Continue;
+        using var executor = new AwkRuntimeActionExecutor(program, state);
+        state.RecordNumber = 0;
 
-        Assert.Equal(expectedFlow, await executor.ProcessRecordAsync(state, io, record));
+        await ProcessAsync();
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         for (var index = 1; index < 256; index++)
         {
-            Assert.Equal(expectedFlow, await executor.ProcessRecordAsync(state, io, record));
+            await ProcessAsync();
             Assert.False(state.IsInsideFunction);
             Assert.False(state.TryGetExecutionContext(out _));
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         }
+        Assert.Equal(skipFile ? 256 : 512, state.RecordNumber);
         var error = Assert.Throws<AwkRuntimeException>(() => state.ValidateFunctionFlow(AwkStatementFlow.NextRecord));
         Assert.Equal("awk: next used outside input action\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         await io.CloseAsync();
+
+        async Task ProcessAsync()
+        {
+            host.SetStandardInput("row\nextra\n");
+            var input = AwkTestHarness.BindRegionInput(source, executor, state, io, host);
+            try { await input.ProcessRemainingInputAsync(); }
+            finally { await input.CloseRemainingDescriptorsForCleanupAsync(); }
+        }
     }
 
     [Fact]
