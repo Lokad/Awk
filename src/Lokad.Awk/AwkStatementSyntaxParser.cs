@@ -8,10 +8,10 @@ internal sealed class AwkStatementSyntaxParser
 {
     private readonly IReadOnlyList<AwkToken> _originalTokens;
 
-    private readonly AwkParsingSource? _source;
+    private readonly AwkParsingSource _source;
     private readonly Action? _checkpoint;
 
-    private AwkStatementSyntaxParser(AwkParsingSource? source, IReadOnlyList<AwkToken> originalTokens, Action? checkpoint)
+    private AwkStatementSyntaxParser(AwkParsingSource source, IReadOnlyList<AwkToken> originalTokens, Action? checkpoint)
         : base(AwkTokenNamer.Instance)
     {
         _source = source;
@@ -20,16 +20,14 @@ internal sealed class AwkStatementSyntaxParser
     }
 
     private static AwkStatementParseResult ParseCore(
-        AwkParsingSource? source,
+        AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
         Action? checkpoint)
     {
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         var parser = new AwkStatementSyntaxParser(source, tokens, checkpoint);
-        parser.Tokens = source == null
-            ? AwkParsingSupport.ToLexerResult(tokens, checkpoint)
-            : AwkParsingSupport.ToLexerResultWithEndOfFile(source, tokens, checkpoint);
+        parser.Tokens = AwkParsingSupport.ToLexerResultWithEndOfFile(source, tokens, checkpoint);
         try
         {
             checkpoint?.Invoke();
@@ -61,25 +59,6 @@ internal sealed class AwkStatementSyntaxParser
         Action? checkpoint = null)
     {
         var result = ParseCore(source, tokens, checkpoint);
-        if (result is AwkStatementParseResult.Parsed parsed)
-        {
-            checkpoint?.Invoke();
-            diagnostics.AddRange(parsed.Diagnostics);
-            checkpoint?.Invoke();
-            return parsed.Statements;
-        }
-
-        AddInvalidStatementDiagnostic(tokens, diagnostics, invalidMessage, checkpoint);
-        return [];
-    }
-
-    public static IReadOnlyList<AwkStatementSyntax> ParseStatements(
-        IReadOnlyList<AwkToken> tokens,
-        List<AwkDiagnostic> diagnostics,
-        string invalidMessage,
-        Action? checkpoint = null)
-    {
-        var result = ParseCore(null, tokens, checkpoint);
         if (result is AwkStatementParseResult.Parsed parsed)
         {
             checkpoint?.Invoke();
@@ -1670,14 +1649,10 @@ internal sealed class AwkStatementSyntaxParser
         Flatten(separators.Select(separator => separator.Tokens));
 
     private AwkExpressionSyntax? ParseExpression(IReadOnlyList<AwkToken> tokens) =>
-        _source == null
-            ? AwkExpressionSyntaxParser.Parse(tokens, _checkpoint)
-            : AwkExpressionSyntaxParser.Parse(_source, tokens, _checkpoint);
+        AwkExpressionSyntaxParser.Parse(_source, tokens, _checkpoint);
 
     private AwkExpressionSyntax? ParseExpressionList(IReadOnlyList<AwkToken> tokens) =>
-        _source == null
-            ? AwkExpressionSyntaxParser.ParseList(tokens, _checkpoint)
-            : AwkExpressionSyntaxParser.ParseList(_source, tokens, _checkpoint);
+        AwkExpressionSyntaxParser.ParseList(_source, tokens, _checkpoint);
 
     private AwkToken ToToken(AwkTokenKind kind, Pos<string> token) =>
         AwkParsingSupport.ToToken(kind, token, checkpoint: _checkpoint);

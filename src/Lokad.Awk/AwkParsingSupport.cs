@@ -71,46 +71,6 @@ internal static class AwkParsingSupport
         return ToLexerResult(source, withEnd, checkpoint);
     }
 
-    public static LexerResult<AwkTokenKind> ToLexerResult(IReadOnlyList<AwkToken> tokens, Action? checkpoint = null)
-    {
-        checkpoint?.Invoke();
-        var tokenList = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
-        var end = 0;
-        for (var index = 0; index < tokenList.Count; index++)
-        {
-            checkpoint?.Invoke();
-            end = Math.Max(end, tokenList[index].Span.End);
-        }
-        var buffer = new char[end];
-        for (var offset = 0; offset < buffer.Length; offset += Math.Min(1024, buffer.Length - offset))
-        {
-            checkpoint?.Invoke();
-            buffer.AsSpan(offset, Math.Min(1024, buffer.Length - offset)).Fill(' ');
-        }
-        for (var index = 0; index < tokenList.Count; index++)
-        {
-            checkpoint?.Invoke();
-            var token = tokenList[index];
-            for (var offset = 0; offset < token.Span.Length; offset += Math.Min(1024, token.Span.Length - offset))
-            {
-                checkpoint?.Invoke();
-                var length = Math.Min(1024, token.Span.Length - offset);
-                token.TextSpan.Slice(offset, length).CopyTo(buffer.AsSpan(token.Span.Start + offset, length));
-            }
-        }
-
-        var withEnd = new AwkToken[tokenList.Count + 1];
-        for (var index = 0; index < tokenList.Count; index++)
-        {
-            checkpoint?.Invoke();
-            withEnd[index] = tokenList[index];
-        }
-        withEnd[^1] = new AwkToken(AwkTokenKind.EndOfFile, string.Empty, new AwkTextSpan(end, 0));
-        checkpoint?.Invoke();
-        var source = AwkParsingSource.Create(new string(buffer), checkpoint);
-        return ToLexerResult(source, withEnd, checkpoint);
-    }
-
     public static AwkToken ToToken(AwkTokenKind kind, Pos<string> value, Action? checkpoint = null)
     {
         checkpoint?.Invoke();

@@ -144,31 +144,6 @@ public sealed class AwkGrammarCancellationTests
         Assert.Equal(8, calls);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void DetachedLexerReconstructionChecksLongGapsAndTokenCopies(bool longToken)
-    {
-        var text = longToken ? new string('1', 12_000) : "1";
-        AwkToken[] tokens = [new(AwkTokenKind.Number, text,
-            new AwkTextSpan(longToken ? 0 : 12_000, text.Length))];
-        using var cancellation = new CancellationTokenSource();
-        var calls = 0;
-        void Checkpoint()
-        {
-            if (++calls == 8)
-                cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        var failure = Assert.Throws<OperationCanceledException>(() =>
-            AwkParsingSupport.ToLexerResult(tokens, Checkpoint));
-        Assert.Equal(cancellation.Token, failure.CancellationToken);
-        var restored = AwkParsingSupport.ToLexerResult(tokens);
-        Assert.Equal(new string(' ', tokens[0].Span.Start) + text, restored.Buffer);
-        Assert.Equal(tokens[0].Span.Start, restored.Tokens[0].Start);
-        Assert.Equal(tokens[0].Span.Length, restored.Tokens[0].Length);
-    }
-
     [Fact]
     public void ContinuationMapSliceObservesCancellationWithoutMutatingInput()
     {
@@ -299,12 +274,10 @@ public sealed class AwkGrammarCancellationTests
     }
 
     [Theory]
-    [InlineData("top-level", false)]
-    [InlineData("statements", false)]
-    [InlineData("statements", true)]
-    [InlineData("expression", false)]
-    [InlineData("expression", true)]
-    public void GrammarWrappersPropagateCancellationAndReturnReusableSyntax(string grammar, bool detached)
+    [InlineData("top-level")]
+    [InlineData("statements")]
+    [InlineData("expression")]
+    public void GrammarWrappersPropagateCancellationAndReturnReusableSyntax(string grammar)
     {
         var text = grammar switch
         {
@@ -324,16 +297,12 @@ public sealed class AwkGrammarCancellationTests
             if (grammar == "statements")
             {
                 var diagnostics = new List<AwkDiagnostic>();
-                var result = detached
-                    ? AwkStatementSyntaxParser.ParseStatements(tokens, diagnostics, "invalid", checkpoint)
-                    : AwkStatementSyntaxParser.ParseStatements(source, tokens, diagnostics, "invalid", checkpoint);
+                var result = AwkStatementSyntaxParser.ParseStatements(source, tokens, diagnostics, "invalid", checkpoint);
                 Assert.Empty(diagnostics);
                 Assert.Equal(64, result.Count);
                 return result;
             }
-            return Assert.IsType<AwkExpressionSyntax>(detached
-                ? AwkExpressionSyntaxParser.Parse(tokens, checkpoint)
-                : AwkExpressionSyntaxParser.Parse(source, tokens, checkpoint));
+            return Assert.IsType<AwkExpressionSyntax>(AwkExpressionSyntaxParser.Parse(source, tokens, checkpoint));
         }
         var total = 0;
         Parse(() => total++);

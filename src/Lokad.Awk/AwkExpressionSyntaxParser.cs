@@ -19,16 +19,10 @@ internal sealed class AwkExpressionSyntaxParser
     public static AwkExpressionSyntax? Parse(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
         SingleExpressionOrNull(ParseCore(source, tokens, checkpoint));
 
-    public static AwkExpressionSyntax? Parse(IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
-        SingleExpressionOrNull(ParseCore(null, tokens, checkpoint));
-
     public static AwkExpressionSyntax? ParseList(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
         ParsedExpressionOrNull(ParseCore(source, tokens, checkpoint));
 
-    public static AwkExpressionSyntax? ParseList(IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
-        ParsedExpressionOrNull(ParseCore(null, tokens, checkpoint));
-
-    private static AwkExpressionParseResult ParseCore(AwkParsingSource? source, IReadOnlyList<AwkToken> tokens, Action? checkpoint)
+    private static AwkExpressionParseResult ParseCore(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint)
     {
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
@@ -110,38 +104,10 @@ internal sealed class AwkExpressionSyntaxParser
             return true;
         }
 
-        if (source != null)
-        {
-            if (!TryCreateLexerResult(source, tokens, out var lexerResult, checkpoint))
-                return AwkExpressionParseResult.EmptyResult;
+        if (!TryCreateLexerResult(source, tokens, out var lexerResult, checkpoint))
+            return AwkExpressionParseResult.EmptyResult;
 
-            parser.Tokens = lexerResult;
-        }
-        else
-        {
-            var significant = new List<AwkToken>(tokens.Count);
-            for (var index = 0; index < tokens.Count; index++)
-            {
-                checkpoint?.Invoke();
-                if (tokens[index].Kind is not AwkTokenKind.Comment and not AwkTokenKind.NewLine and not AwkTokenKind.Semicolon)
-                    significant.Add(tokens[index]);
-            }
-            checkpoint?.Invoke();
-            var significantTokens = significant.ToArray();
-            if (significantTokens.Length == 0)
-                return AwkExpressionParseResult.EmptyResult;
-
-            for (var index = 0; index < significantTokens.Length; index++)
-            {
-                checkpoint?.Invoke();
-                var token = significantTokens[index];
-                var kind = ResolveExpressionTokenKind(significantTokens, index, checkpoint);
-                if (kind != token.Kind)
-                    significantTokens[index] = new AwkToken(kind, token.Text, token.Span);
-            }
-
-            parser.Tokens = AwkParsingSupport.ToLexerResult(significantTokens, checkpoint);
-        }
+        parser.Tokens = lexerResult;
         try
         {
             checkpoint?.Invoke();
