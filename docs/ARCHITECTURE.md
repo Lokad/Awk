@@ -142,6 +142,8 @@ evaluation, suspension or admission callbacks; validate/re-locate the current lo
 owner before commit. Detached nested owners and aliases retain their language behavior.
 The runtime owns key text copying, admission and conversion observations. A compact
 key can be constructed directly from a bounded byte span.
+The array runtime owns field-key access. Field and composite keys share borrowed
+update preparation, with the evaluated key's origin retained through capture.
 Staged and complete updates share target preparation. A cached location must still
 match the evaluated key and attached owner. Each update reads the current number
 while that location is valid.

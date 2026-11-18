@@ -101,6 +101,56 @@ internal sealed partial class AwkArrayRuntime
         return _variables.FindSubarray(ResolveOrdinaryArray(name, binding), key);
     }
 
+    public AwkValue GetFieldValue(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
+    {
+        if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
+            TryGetBorrowedAwkValue(name, bytes, out var value, binding, input: true))
+            return value;
+        return GetAwkValue(name, _state.ToArrayKey(_state.RecordFields.GetFieldValue(index)), binding);
+    }
+
+    internal double GetFieldNumber(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding)
+    {
+        if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
+            TryGetBorrowedNumber(name, bytes, out var number, binding, input: true))
+            return number;
+        return GetNumber(name, _state.ToArrayKey(_state.RecordFields.GetFieldValue(index)), binding);
+    }
+
+    public AwkArrayKey ResolveFieldKey(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
+    {
+        if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
+            TryGetBorrowedKey(name, bytes, out var key, binding))
+            return key.WithInputOrigin(true);
+        return _state.ToArrayKey(_state.RecordFields.GetFieldValue(index));
+    }
+
+    internal void SetFieldValue(AwkArrayName name, AwkFieldIndex index, AwkValue value, AwkArrayBinding binding)
+    {
+        if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
+            TrySetBorrowedAwkValue(name, bytes, value, binding, input: true)) return;
+        var key = _state.ToArrayKey(_state.RecordFields.GetFieldValue(index));
+        _state.ThrowIfCancellationRequested();
+        SetAwkValue(name, key, value, binding);
+    }
+
+    internal AwkArrayUpdateTarget PrepareFieldUpdate(in AwkArrayName name, AwkFieldIndex index,
+        AwkArrayBinding binding = default, in AwkArrayUpdateTarget previous = default)
+    {
+        if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
+            TryPrepareBorrowedUpdate(in name, bytes, binding, in previous, out var target, input: true))
+            return target;
+        return PrepareUpdate(name, _state.ToArrayKey(_state.RecordFields.GetFieldValue(index)), binding, in previous);
+    }
+
+    public bool ContainsField(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
+    {
+        // The dictionary consumes the borrowed bytes before this synchronous call returns.
+        if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
+            return ContainsValue(name, bytes, binding);
+        return ContainsValue(name, _state.ToArrayKey(_state.RecordFields.GetFieldValue(index)), binding);
+    }
+
     public AwkValue GetAwkValue(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
         _state.TryGetBoundArray(name, binding, out var array)
             ? _variables.GetArrayValue(array, index)
@@ -194,11 +244,16 @@ internal sealed partial class AwkArrayRuntime
         return found;
     }
 
-    internal bool TryPrepareUnboundBorrowedUpdate(AwkArrayName name, ReadOnlySpan<byte> index,
-        out AwkArrayUpdateTarget target, AwkArrayBinding binding, bool input = false)
+    private bool TryPrepareBorrowedUpdate(in AwkArrayName name, ReadOnlySpan<byte> index,
+        AwkArrayBinding binding, in AwkArrayUpdateTarget previous, out AwkArrayUpdateTarget target, bool input = false)
     {
+        if (_state.TryGetBoundArray(in name, binding, out var array))
+        {
+            target = _variables.PrepareArrayUpdate(array, index, in previous, input: input);
+            return true;
+        }
         var resolved = _variableRuntime.ResolveArrayReadName(name);
-        if (_variables.TryGetOrdinaryArray(resolved, out var array))
+        if (_variables.TryGetOrdinaryArray(resolved, out array))
         {
             target = _variables.PrepareArrayUpdate(array, index, input: input);
             _state.BindGlobalArray(binding, resolved);
@@ -277,10 +332,7 @@ internal sealed partial class AwkArrayRuntime
     public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding,
         in AwkArrayUpdateTarget previous = default)
     {
-        var bytes = builder.AsSpan();
-        if (_state.TryGetBoundArray(name, binding, out var array))
-            return _variables.PrepareArrayUpdate(array, bytes, in previous);
-        return TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding)
+        return TryPrepareBorrowedUpdate(in name, builder.AsSpan(), binding, in previous, out var target)
             ? target : PrepareUpdate(name, CopyKey(builder), binding, in previous);
     }
 

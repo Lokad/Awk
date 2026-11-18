@@ -164,6 +164,7 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     internal AwkVariables Variables => _variables;
+    internal AwkArrayRuntime Arrays => _arrayRuntime;
     internal AwkFieldFrame RecordFields => _recordFields;
     internal AwkFieldSplitter FieldSplitter => _fieldSplitter;
     internal AwkText ResolveOutputFieldSeparator() =>
@@ -1579,30 +1580,6 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void SetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key, AwkValue value) =>
         _variables.SetArrayValue(array, key, value);
 
-    public AwkValue GetArrayFieldValue(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
-    {
-        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
-            _arrayRuntime.TryGetBorrowedAwkValue(name, bytes, out var value, binding, input: true))
-            return value;
-        return GetArrayAwkValue(name, ToArrayKey(_recordFields.GetFieldValue(index)), binding);
-    }
-
-    internal double GetArrayFieldNumber(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding)
-    {
-        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
-            _arrayRuntime.TryGetBorrowedNumber(name, bytes, out var number, binding, input: true))
-            return number;
-        return GetArrayNumber(name, ToArrayKey(_recordFields.GetFieldValue(index)), binding);
-    }
-
-    public AwkArrayKey GetArrayFieldKey(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
-    {
-        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
-            _arrayRuntime.TryGetBorrowedKey(name, bytes, out var key, binding))
-            return key.WithInputOrigin(true);
-        return ToArrayKey(_recordFields.GetFieldValue(index));
-    }
-
     internal AwkArrayKey CaptureFieldKey(AwkFieldIndex index)
     {
         if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
@@ -1611,30 +1588,8 @@ internal sealed class AwkRuntimeState : IDisposable
         return ToArrayKey(_recordFields.GetFieldValue(index));
     }
 
-    internal void SetArrayFieldValue(AwkArrayName name, AwkFieldIndex index, AwkValue value, AwkArrayBinding binding)
-    {
-        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
-            _arrayRuntime.TrySetBorrowedAwkValue(name, bytes, value, binding, input: true)) return;
-        var key = ToArrayKey(_recordFields.GetFieldValue(index));
-        ThrowIfCancellationRequested();
-        _arrayRuntime.SetAwkValue(name, key, value, binding);
-    }
-
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
         _arrayRuntime.GetElementRuntimeKind(name, index, binding);
-
-    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(in AwkArrayName name, AwkFieldIndex index,
-        AwkArrayBinding binding = default, in AwkArrayUpdateTarget previous = default)
-    {
-        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
-        {
-            if (TryGetBoundArray(in name, binding, out var array))
-                return _variables.PrepareArrayUpdate(array, bytes, in previous, input: true);
-            if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding, input: true))
-                return target;
-        }
-        return PrepareArrayUpdate(name, ToArrayKey(_recordFields.GetFieldValue(index)), binding, in previous);
-    }
 
     internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
         _arrayRuntime.ResolveKey(name, builder, binding);
@@ -1686,14 +1641,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal bool ContainsArrayValue(AwkArrayName name, ReadOnlySpan<byte> index, AwkArrayBinding binding) =>
         _arrayRuntime.ContainsValue(name, index, binding);
-
-    public bool ContainsArrayField(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
-    {
-        // The dictionary consumes the borrowed bytes before this synchronous call returns.
-        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
-            return _arrayRuntime.ContainsValue(name, bytes, binding);
-        return ContainsArrayValue(name, ToArrayKey(_recordFields.GetFieldValue(index)), binding);
-    }
 
     public bool TryGetArgumentVectorByteText(AwkArgvIndex index, out AwkText text)
     {

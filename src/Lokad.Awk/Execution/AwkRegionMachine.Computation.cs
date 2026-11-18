@@ -328,7 +328,7 @@ internal partial struct AwkRegionMachine
 
         internal AwkArrayKey Key(AwkRegionArrayAccess access) => operands[access.Key] switch
         {
-            { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldKey(access.Name, FieldIndex(field), access.Binding),
+            { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.Arrays.ResolveFieldKey(access.Name, FieldIndex(field), access.Binding),
             { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.ResolveArrayKey(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
             _ => ReadKey(access.Key)
         };
@@ -580,7 +580,7 @@ internal partial struct AwkRegionMachine
                     : state.GetArrayAwkValue(access.Name, locatedKey, access.Binding);
             return operands[access.Key] switch
             {
-                { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldValue(access.Name, FieldIndex(field), access.Binding),
+                { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.Arrays.GetFieldValue(access.Name, FieldIndex(field), access.Binding),
                 { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayAwkValue(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
                 _ => state.GetArrayAwkValue(access.Name, Key(access), access.Binding)
             };
@@ -608,7 +608,7 @@ internal partial struct AwkRegionMachine
                     : state.GetArrayNumber(access.Name, locatedKey, access.Binding);
             return operands[access.Key] switch
             {
-                { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.GetArrayFieldNumber(access.Name, FieldIndex(field), access.Binding),
+                { Kind: AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField } field => state.Arrays.GetFieldNumber(access.Name, FieldIndex(field), access.Binding),
                 { Kind: AwkRegionOperandKind.KeyBuilder } builder => state.GetArrayNumber(access.Name, storage.Builders[builder.Index].Buffer, access.Binding),
                 _ => state.GetArrayNumber(access.Name, ReadKey(access.Key), access.Binding)
             };
@@ -654,7 +654,7 @@ internal partial struct AwkRegionMachine
             {
                 case AwkRegionOperandKind.Field:
                 case AwkRegionOperandKind.DynamicField:
-                    target = state.PrepareArrayFieldUpdate(in access.Name, FieldIndex(in key), access.Binding, in previous);
+                    target = state.Arrays.PrepareFieldUpdate(in access.Name, FieldIndex(in key), access.Binding, in previous);
                     break;
                 case AwkRegionOperandKind.KeyBuilder:
                     target = state.PrepareArrayUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding, in previous);

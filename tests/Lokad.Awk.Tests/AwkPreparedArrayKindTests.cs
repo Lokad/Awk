@@ -36,8 +36,8 @@ public sealed class AwkPreparedArrayKindTests
         Assert.Equal(7, state.GetArrayAwkValue(Array, Key, AwkArrayBinding.Global(0)).AsNumber());
         Assert.True(state.ContainsArrayValue(Array, Key, AwkArrayBinding.Global(0)));
         state.SetCurrentRecord(AwkText.FromString("k tail"));
-        Assert.Equal(7, state.GetArrayFieldValue(Array, new(1), AwkArrayBinding.Global(0)).AsNumber());
-        Assert.True(state.ContainsArrayField(Array, new(1), AwkArrayBinding.Global(0)));
+        Assert.Equal(7, state.Arrays.GetFieldValue(Array, new(1), AwkArrayBinding.Global(0)).AsNumber());
+        Assert.True(state.Arrays.ContainsField(Array, new(1), AwkArrayBinding.Global(0)));
 
     }
 

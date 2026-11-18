@@ -107,7 +107,7 @@ internal partial struct AwkRegionMachine
                     var found = keyOperand.Kind == AwkRegionOperandKind.KeyBuilder
                         ? computationView.State.ContainsArrayValue(membership.Name, computationView.Storage.Builders[keyOperand.Index].Buffer.AsMemory().Span, membership.Binding)
                         : AwkRegionComputation.IsField(keyOperand)
-                            ? computationView.State.ContainsArrayField(membership.Name, computationView.FieldIndex(keyOperand), membership.Binding)
+                            ? computationView.State.Arrays.ContainsField(membership.Name, computationView.FieldIndex(keyOperand), membership.Binding)
                             : computationView.State.ContainsArrayValue(membership.Name, computationView.ReadKey(membership.Key), membership.Binding);
                     computationView.Numbers[instruction.Target] = found ? 1 : 0;
                     break;
@@ -461,7 +461,7 @@ internal partial struct AwkRegionMachine
                             computationView.State.SetArrayNumericValue(assigned.Name, assignedNumber, assignedValue, assigned.Binding);
                         }
                         else if (AwkRegionComputation.IsField(assignedOperand))
-                            computationView.State.SetArrayFieldValue(assigned.Name, computationView.FieldIndex(assignedOperand), assignedValue, assigned.Binding);
+                            computationView.State.Arrays.SetFieldValue(assigned.Name, computationView.FieldIndex(assignedOperand), assignedValue, assigned.Binding);
                         else if (assignedOperand.Kind == AwkRegionOperandKind.KeyBuilder)
                             computationView.State.SetArrayBuilderValue(assigned.Name, computationView.Storage.Builders[assignedOperand.Index].Buffer, assignedValue, assigned.Binding);
                         else
