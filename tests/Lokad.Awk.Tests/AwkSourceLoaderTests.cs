@@ -440,7 +440,7 @@ public sealed class AwkSourceLoaderTests
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal(program, source.Text);
-        var binding = AwkBinder.Bind(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.DoesNotContain(
             binding.Diagnostics,
             diagnostic => diagnostic.Id == AwkDiagnosticId.UnsupportedPolicy);
@@ -465,7 +465,7 @@ public sealed class AwkSourceLoaderTests
         var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
-        var binding = AwkBinder.Bind(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.Equal(AwkDiagnosticId.UnsupportedPolicy, diagnostic.Id);
         Assert.Equal(expectedError, AwkUtf8Codec.Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
@@ -516,7 +516,7 @@ public sealed class AwkSourceLoaderTests
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{print _ \"text\"}", source.Text);
-        var binding = AwkBinder.Bind(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.Empty(binding.Diagnostics);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }

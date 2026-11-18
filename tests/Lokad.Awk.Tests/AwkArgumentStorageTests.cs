@@ -46,7 +46,7 @@ public sealed class AwkArgumentStorageTests
             "function target(a,b,c,d,e){return length(a)+b+c+d+e}" +
             "function caller(x){result=target(arg(0,payload),arg(1,1),delayed(),arg(3,3),arg(4,4));observed=x}" +
             "BEGIN{caller(42)}";
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

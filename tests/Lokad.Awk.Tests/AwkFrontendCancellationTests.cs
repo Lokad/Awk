@@ -157,7 +157,7 @@ public sealed class AwkFrontendCancellationTests
         Assert.True(parsed.Success);
         var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out var globals);
         var model = AwkSemanticModel.Create(symbols);
-        var binding = AwkBinder.Bind(parsed);
+        var binding = AwkTestHarness.BindDefaultProfile(parsed);
         Assert.True(binding.PhaseResult.Success);
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
@@ -195,7 +195,7 @@ public sealed class AwkFrontendCancellationTests
         var failure = Assert.Throws<OperationCanceledException>(Run);
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal(4, calls);
-        Assert.True(AwkBinder.Bind(parsed).PhaseResult.Success);
+        Assert.True(AwkTestHarness.BindDefaultProfile(parsed).PhaseResult.Success);
     }
 
     [Theory]
@@ -243,7 +243,7 @@ public sealed class AwkFrontendCancellationTests
     {
         var mode = (AwkCompatibilityMode)compatibilityMode;
         var source = "\"" + new string('x', 12_000) + "\"";
-        var tokens = AwkLexer.Tokenize(source);
+        var tokens = AwkTestHarness.TokenizeSource(source);
         var diagnostics = new List<AwkDiagnostic>();
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
@@ -289,7 +289,7 @@ public sealed class AwkFrontendCancellationTests
     public void SyntaxDepthAuditsObserveTraversalCancellation(bool tree)
     {
         var parsed = AwkParser.Parse("BEGIN{" + string.Concat(Enumerable.Repeat("x++;", 128)) + "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
-        var tokens = AwkLexer.Tokenize(parsed.Syntax.SourceText);
+        var tokens = AwkTestHarness.TokenizeSource(parsed.Syntax.SourceText);
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
         void Checkpoint()
@@ -316,7 +316,7 @@ public sealed class AwkFrontendCancellationTests
     public void FunctionParameterBindingAndLayoutObserveCancellation(bool layout)
     {
         var names = Enumerable.Range(0, 128).Select(index => "p" + index).ToArray();
-        var tokens = AwkLexer.Tokenize(string.Join(",", names))
+        var tokens = AwkTestHarness.TokenizeSource(string.Join(",", names))
             .Where(token => token.Kind != AwkTokenKind.EndOfFile).ToArray();
         var binding = AwkFunctionParameters.Bind(tokens);
         Assert.True(binding.Success);

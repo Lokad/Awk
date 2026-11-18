@@ -10,7 +10,7 @@ public sealed class AwkFunctionCleanupAllocationTests
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
-        var binding = AwkBinder.Bind(AwkParser.Parse("function f(x){return x}BEGIN{total=0;for(i=0;i<10000;i++)total+=f(42)}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function f(x){return x}BEGIN{total=0;for(i=0;i<10000;i++)total+=f(42)}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

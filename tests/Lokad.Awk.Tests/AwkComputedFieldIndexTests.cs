@@ -130,7 +130,7 @@ public sealed class AwkComputedFieldIndexTests
             CancellationToken.None, memory.Configure(AwkTestHarness.CreateRuntimeOptions()))).State;
         var record = AwkText.FromSourceLiteralString("kept record");
         state.SetCurrentRecord(record);
-        var binding = AwkBinder.Bind(AwkParser.Parse("function index_value(v){effects++;getline v<\"/side\";return bad}" +
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function index_value(v){effects++;getline v<\"/side\";return bad}" +
             "BEGIN{$(index_value())=7}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;

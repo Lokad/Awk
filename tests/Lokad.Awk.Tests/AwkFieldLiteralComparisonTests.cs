@@ -80,7 +80,7 @@ public sealed class AwkFieldLiteralComparisonTests
 
     private static AwkRegion Bind(AwkRuntimeState state, string literal)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{result=($1==\"" + literal + "\")}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{result=($1==\"" + literal + "\")}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

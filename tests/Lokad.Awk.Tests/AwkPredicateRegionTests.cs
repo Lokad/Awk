@@ -53,7 +53,7 @@ public sealed class AwkPredicateRegionTests
 
     private static AwkRegion Bind(string body)
     {
-        var parsed = AwkParser.Parse("BEGIN{" + body + "}");
+        var parsed = AwkTestHarness.ParseSource("BEGIN{" + body + "}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         return region;
     }

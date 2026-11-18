@@ -17,7 +17,7 @@ public sealed class AwkGrammarCancellationTests
             _ => string.Join('+', Enumerable.Repeat("1", 128))
         };
         var source = AwkParsingSource.Create(text);
-        var tokens = AwkLexer.Tokenize(text);
+        var tokens = AwkTestHarness.TokenizeSource(text);
         var lexer = AwkParsingSupport.ToLexerResult(source, tokens);
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
@@ -254,7 +254,7 @@ public sealed class AwkGrammarCancellationTests
     public void DirectiveArgumentTraversalObservesCancellation()
     {
         var source = "@include " + string.Join(' ', Enumerable.Repeat("\"x\"", 256));
-        var tokens = AwkLexer.Tokenize(source);
+        var tokens = AwkTestHarness.TokenizeSource(source);
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
         void Checkpoint()
@@ -313,7 +313,7 @@ public sealed class AwkGrammarCancellationTests
             _ => string.Join('+', Enumerable.Repeat("1", 64))
         };
         var source = AwkParsingSource.Create(text);
-        var tokens = AwkLexer.Tokenize(text);
+        var tokens = AwkTestHarness.TokenizeSource(text);
         object Parse(Action checkpoint)
         {
             if (grammar == "top-level")

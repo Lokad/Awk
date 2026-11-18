@@ -140,7 +140,7 @@ public sealed class AwkFieldLengthTests
         var state = memory.State;
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("before"));
         state.AssignVariableValue(AwkVariableName.FromText("target"), AwkValue.FromText("keep"));
-        var binding = AwkBinder.Bind(AwkParser.Parse("function field(v){getline v<\"/side\";return " +
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function field(v){getline v<\"/side\";return " +
             (outcome == "fault" ? "1/0" : "v") + "}BEGIN{target=length($(field()))}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;

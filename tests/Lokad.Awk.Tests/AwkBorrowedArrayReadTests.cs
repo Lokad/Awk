@@ -468,7 +468,7 @@ public sealed class AwkBorrowedArrayReadTests
         var source = "function selected(v){effects++;getline v<\"/side\";return " +
             (fail ? "1/0" : "v") + "}BEGIN{result=" +
             (membership ? "($(selected()) in a)" : "a[$(selected())]") + "}";
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
@@ -578,7 +578,7 @@ public sealed class AwkBorrowedArrayReadTests
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
         var record = AwkText.FromSourceLiteralString("hit missing");
         state.SetCurrentRecord(record);
-        var parsed = AwkParser.Parse("BEGIN{++a[$1]}BEGIN{a[$2]+=++count}");
+        var parsed = AwkTestHarness.ParseSource("BEGIN{++a[$1]}BEGIN{a[$2]+=++count}");
         Assert.True(AwkTestHarness.TryPrepareRule(parsed.Syntax.Rules[0], AwkLoweringScope.Global, -1, out var first));
         Assert.True(AwkTestHarness.TryPrepareRule(parsed.Syntax.Rules[1], AwkLoweringScope.Global, -1, out var missing));
         using var storage = new AwkRegionStorage(state);

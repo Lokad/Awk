@@ -31,7 +31,7 @@ public sealed class AwkPreparedNumberReadTests
     {
         using var memoryForState = State();
         var state = memoryForState.State;
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{result=+NF}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{result=+NF}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

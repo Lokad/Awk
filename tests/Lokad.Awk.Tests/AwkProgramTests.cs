@@ -11,7 +11,7 @@ public sealed class AwkProgramTests
     [Fact]
     public void AwkProgram_CopiesCallerOwnedCollections()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{}"));
         Assert.True(binding.Success);
         var beginActions = new List<AwkRegion> { Assert.Single(binding.Program.Program.BeginActions) };
         var firstFunctionName = AwkFunctionName.FromText("first");
@@ -45,7 +45,7 @@ public sealed class AwkProgramTests
     public async Task PreparedConcatenationReusesTemporaryStorage()
     {
         var source = "BEGIN{result=" + string.Join(' ', Enumerable.Repeat("s", 32)) + "}";
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);

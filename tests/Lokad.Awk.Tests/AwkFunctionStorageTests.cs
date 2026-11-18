@@ -169,7 +169,7 @@ public sealed partial class AwkFunctionStorageTests
         {
             [name] = new(name, layout)
         };
-        var parsed = AwkParser.Parse("BEGIN{value=score(" + string.Join(',', Enumerable.Repeat("1", count)) + ")}");
+        var parsed = AwkTestHarness.ParseSource("BEGIN{value=score(" + string.Join(',', Enumerable.Repeat("1", count)) + ")}");
         Assert.True(parsed.Success);
         var scope = AwkLoweringScope.GlobalFor(AwkCompatibilityMode.GnuDefault, checkpoint: () =>
         {

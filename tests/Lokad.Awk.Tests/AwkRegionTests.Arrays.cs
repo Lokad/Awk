@@ -42,7 +42,7 @@ public sealed partial class AwkRegionTests
     {
         using var fixture = State(CancellationToken.None, governed);
         var state = fixture.State;
-        var parsed = AwkParser.Parse("BEGIN{k=\"first\";j=\"second\";a[k][\"v\"]++;a[j][\"v\"]++;left=a[k][\"v\"];right=a[j][\"v\"]}");
+        var parsed = AwkTestHarness.ParseSource("BEGIN{k=\"first\";j=\"second\";a[k][\"v\"]++;a[j][\"v\"]++;left=a[k][\"v\"];right=a[j][\"v\"]}");
         Assert.True(parsed.Success);
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules),
             AwkLoweringScope.Global, -1, out var region));

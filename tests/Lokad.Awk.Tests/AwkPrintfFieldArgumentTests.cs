@@ -28,7 +28,7 @@ public sealed class AwkPrintfFieldArgumentTests
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, limits, state, static _ => []);
         var source = fieldList ? "{print $1,$2}" : "{printf \"%s:%04d\\n\",$1,$2}";
         var expected = fieldList ? "before 7\n" : "before:0007\n";
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         using var executor = new AwkRuntimeActionExecutor(program, state);

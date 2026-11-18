@@ -17,7 +17,7 @@ public sealed class AwkLexerTests
     [InlineData("$f(x y)/=2")]
     public void FieldIndexPowerKeepsDivisionAssignment(string source)
     {
-        var tokens = AwkLexer.Tokenize(source);
+        var tokens = AwkTestHarness.TokenizeSource(source);
         var assignment = Assert.Single(tokens, token => token.Kind == AwkTokenKind.SlashEqual);
         Assert.Equal(new AwkTextSpan(source.IndexOf("/=", StringComparison.Ordinal), 2), assignment.Span);
         Assert.DoesNotContain(tokens, token => token.Kind == AwkTokenKind.Regex);
@@ -31,7 +31,7 @@ public sealed class AwkLexerTests
     [InlineData("x (y z) /=b/", "/=b/")]
     public void ConcatenatedLeadingEqualsPatternPreservesSourceSpan(string source, string pattern)
     {
-        var tokens = AwkLexer.Tokenize(source);
+        var tokens = AwkTestHarness.TokenizeSource(source);
         var regex = Assert.Single(tokens, token => token.Kind == AwkTokenKind.Regex);
         Assert.Equal(pattern, regex.Text);
         Assert.Equal(new AwkTextSpan(source.IndexOf(pattern, StringComparison.Ordinal), pattern.Length), regex.Span);
@@ -46,7 +46,7 @@ public sealed class AwkLexerTests
     public void ControlHeaderStartsARegexBodyWithoutChangingDivision(string header)
     {
         var source = "BEGIN{" + header + @" /[/]/ && (x=1);print f(8)/2,(8)/2}";
-        var tokens = AwkLexer.Tokenize(source);
+        var tokens = AwkTestHarness.TokenizeSource(source);
         var regex = Assert.Single(tokens, token => token.Kind == AwkTokenKind.Regex);
         Assert.Equal("/[/]/", regex.Text);
         Assert.Equal(new AwkTextSpan(source.IndexOf("/[/]/", StringComparison.Ordinal), 5), regex.Span);
@@ -58,7 +58,7 @@ public sealed class AwkLexerTests
     public void PowerAliasesPreserveOperatorTextAndSourceSpans()
     {
         const string source = "x**=2**3*x^=2^3";
-        var tokens = AwkLexer.Tokenize(source)
+        var tokens = AwkTestHarness.TokenizeSource(source)
             .Where(token => token.Kind is AwkTokenKind.Caret or AwkTokenKind.CaretEqual)
             .ToArray();
         Assert.Equal(new[] { "**=", "**", "^=", "^" }, tokens.Select(token => token.Text));
@@ -244,7 +244,7 @@ public sealed class AwkLexerTests
     {
         Assert.False(string.IsNullOrEmpty(label));
         var expectedKinds = Assert.IsType<AwkTokenKind[]>(expectedKindsObject);
-        var tokens = AwkLexer.Tokenize(source);
+        var tokens = AwkTestHarness.TokenizeSource(source);
         var actualKinds = tokens
             .Where(token => token.Kind != AwkTokenKind.EndOfFile)
             .Select(token => token.Kind)
@@ -270,7 +270,7 @@ public sealed class AwkLexerTests
     [Fact]
     public void AwkLexer_TokenizesBeginRegexActionAndComment()
     {
-        var tokens = AwkLexer.Tokenize("BEGIN{print \"x\"} /foo\\/bar/ {print NR \":\" $0 # comment\n}");
+        var tokens = AwkTestHarness.TokenizeSource("BEGIN{print \"x\"} /foo\\/bar/ {print NR \":\" $0 # comment\n}");
 
         Assert.Equal(
             [
@@ -300,7 +300,7 @@ public sealed class AwkLexerTests
     [Fact]
     public void AwkLexer_DistinguishesDivisionFromRegexAfterMatchOperator()
     {
-        var tokens = AwkLexer.Tokenize("x=a/b; $2 ~ /^a/ {print $1}");
+        var tokens = AwkTestHarness.TokenizeSource("x=a/b; $2 ~ /^a/ {print $1}");
 
         Assert.Contains(tokens, token => token.Kind == AwkTokenKind.Slash && token.Text == "/");
         Assert.Contains(tokens, token => token.Kind == AwkTokenKind.Regex && token.Text == "/^a/");
@@ -309,7 +309,7 @@ public sealed class AwkLexerTests
     [Fact]
     public void AwkLexer_TracksTokenSpans()
     {
-        var tokens = AwkLexer.Tokenize("  NR>=2");
+        var tokens = AwkTestHarness.TokenizeSource("  NR>=2");
 
         Assert.Equal(AwkTokenKind.Identifier, tokens[0].Kind);
         Assert.Equal("NR", tokens[0].Text);
@@ -322,7 +322,7 @@ public sealed class AwkLexerTests
     [Fact]
     public void AwkLexer_SourceBackedTokenSpansAvoidTextMaterialization()
     {
-        var tokens = AwkLexer.Tokenize("BEGIN{total += $1}");
+        var tokens = AwkTestHarness.TokenizeSource("BEGIN{total += $1}");
         var token = Assert.Single(tokens, token => token.Kind == AwkTokenKind.PlusEqual);
         Assert.Equal("+=", token.Text);
 
@@ -344,7 +344,7 @@ public sealed class AwkLexerTests
     [Fact]
     public void AwkLexer_TokenizesAwkKeywordsAndCompoundOperators()
     {
-        var tokens = AwkLexer.Tokenize("for(i=1;i<=NF;i++){a[$1]++; if(i in a) nextfile}");
+        var tokens = AwkTestHarness.TokenizeSource("for(i=1;i<=NF;i++){a[$1]++; if(i in a) nextfile}");
 
         Assert.Contains(tokens, token => token.Kind == AwkTokenKind.For);
         Assert.Contains(tokens, token => token.Kind == AwkTokenKind.LessEqual);
@@ -356,7 +356,7 @@ public sealed class AwkLexerTests
     [Fact]
     public void AwkLexer_MarksUnterminatedStringAsBadToken()
     {
-        var tokens = AwkLexer.Tokenize("{print \"unterminated\n}");
+        var tokens = AwkTestHarness.TokenizeSource("{print \"unterminated\n}");
 
         Assert.Contains(tokens, token => token.Kind == AwkTokenKind.BadToken && token.Text == "\"unterminated\n");
     }
@@ -364,7 +364,7 @@ public sealed class AwkLexerTests
     [Fact]
     public void AwkLexer_TokenizesGnuStringAndRegexMarkers()
     {
-        var tokens = AwkLexer.Tokenize("BEGIN{print _\"sku\"; r=@/[[:digit:]]+/}");
+        var tokens = AwkTestHarness.TokenizeSource("BEGIN{print _\"sku\"; r=@/[[:digit:]]+/}");
 
         Assert.Contains(tokens, token => token.Kind == AwkTokenKind.InternationalizedString && token.Text == "_\"sku\"");
         Assert.Contains(tokens, token => token.Kind == AwkTokenKind.StrongRegex && token.Text == "@/[[:digit:]]+/");
@@ -373,7 +373,7 @@ public sealed class AwkLexerTests
     [Fact]
     public void AwkLexer_TokenizesEscapedQuotesInQuotedStrings()
     {
-        var tokens = AwkLexer.Tokenize("BEGIN{print \"a\\\"b\", _\"c\\\"d\"}");
+        var tokens = AwkTestHarness.TokenizeSource("BEGIN{print \"a\\\"b\", _\"c\\\"d\"}");
 
         Assert.Contains(tokens, token => token.Kind == AwkTokenKind.String && token.Text == "\"a\\\"b\"");
         Assert.Contains(tokens, token => token.Kind == AwkTokenKind.InternationalizedString && token.Text == "_\"c\\\"d\"");
@@ -382,7 +382,7 @@ public sealed class AwkLexerTests
     [Fact]
     public void AwkLexer_TokenizesNumericLiteralForms()
     {
-        var tokens = AwkLexer.Tokenize("BEGIN{print .5, 1., 0x10, 0Xf, 010.5, 1e-2}");
+        var tokens = AwkTestHarness.TokenizeSource("BEGIN{print .5, 1., 0x10, 0Xf, 010.5, 1e-2}");
 
         string[] expected = [".5", "1.", "0x10", "0Xf", "010.5", "1e-2"];
         Assert.Equal(expected, tokens.Where(token => token.Kind == AwkTokenKind.Number).Select(token => token.Text).ToArray());

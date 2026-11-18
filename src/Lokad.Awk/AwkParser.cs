@@ -2,15 +2,6 @@ namespace Lokad.Awk;
 
 internal static class AwkParser
 {
-    public static AwkParseResult Parse(string source)
-        => Parse(source, int.MaxValue);
-
-    public static AwkParseResult Parse(string source, int maxSyntaxNestingDepth)
-        => Parse(
-            source,
-            new AwkFrontendBudget(maxSyntaxNestingDepth),
-            CancellationToken.None);
-
     public static AwkParseResult Parse(
         string source,
         AwkFrontendBudget budget,

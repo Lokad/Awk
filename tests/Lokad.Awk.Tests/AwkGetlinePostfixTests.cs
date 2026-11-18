@@ -49,7 +49,7 @@ public sealed class AwkGetlinePostfixTests
     [InlineData("function unused(){getline $0++}BEGIN{print \"before\"}")]
     public void InvalidDestinationIsRejectedInUnreachableCode(string script)
     {
-        var program = AwkBinder.Bind(AwkParser.Parse(script, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var program = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(script, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.Contains(program.Diagnostics, diagnostic => diagnostic.Message ==
             "Postfix field mutation is not a getline destination; put index mutations inside $(...).");

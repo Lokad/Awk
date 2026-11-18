@@ -23,7 +23,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 3 => "--a[\"missing\"]",
                 _ => "a[\"missing\"]=99"
             };
-            var syntax = AwkParser.Parse("BEGIN{" + body + "}");
+            var syntax = AwkTestHarness.ParseSource("BEGIN{" + body + "}");
             Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
             using var storage = new AwkRegionStorage(state);
             using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);

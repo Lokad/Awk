@@ -677,7 +677,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     private static AwkProgram Bind(string source)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.True(binding.Success);
         Assert.True(binding.Program.HasProgram);
         return binding.Program.Program;

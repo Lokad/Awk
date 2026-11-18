@@ -254,7 +254,7 @@ public sealed class AwkControlRegionTests
 
     private static AwkProgram Bind(string body)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{" + body + "}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{" + body + "}"));
         Assert.True(binding.Success);
         return binding.Program.Program;
     }

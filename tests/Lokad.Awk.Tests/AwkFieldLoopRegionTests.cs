@@ -56,7 +56,7 @@ public sealed class AwkFieldLoopRegionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = State(counters, AwkRuntimeLimits.CreateDefault(), owner, cancellation.Token);
         var value = compare ? "($(index_value())==\"bb\")" : "length($(index_value()))";
-        var binding = AwkBinder.Bind(AwkParser.Parse("function index_value(v){getline v<\"/side\";return v}" +
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function index_value(v){getline v<\"/side\";return v}" +
             "BEGIN{for(i=1;i<2;i++)total+=" + value + "}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
@@ -121,7 +121,7 @@ public sealed class AwkFieldLoopRegionTests
         await using var owner = governed ? AwkExecutionMemoryOwner.Create(budget, CancellationToken.None) : AwkExecutionMemoryOwner.Disabled;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = State(counters, limits, owner, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
-        var binding = AwkBinder.Bind(AwkParser.Parse(Script));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(Script));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

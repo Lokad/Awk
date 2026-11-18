@@ -53,7 +53,7 @@ public sealed class AwkParserTests
     [Fact]
     public void AwkBinder_ReturnsLoweringDiagnosticsWithoutExecutableProgram()
     {
-        var result = AwkBinder.Bind(AwkParser.Parse("BEGIN{print \"x\" >}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var result = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("BEGIN{print \"x\" >}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.False(result.Success);
         Assert.False(result.PhaseResult.Success);
@@ -66,7 +66,7 @@ public sealed class AwkParserTests
     [Fact]
     public async Task AwkParser_PreservesParseDiagnosticsIntoShellFacingMessage()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("BEGIN{print", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.Equal(AwkDiagnosticId.ParseSyntax, diagnostic.Id);
@@ -88,7 +88,7 @@ public sealed class AwkParserTests
     [Fact]
     public async Task AwkParser_PreservesBinderDiagnosticsIntoShellFacingMessage()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{break}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("BEGIN{break}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
@@ -110,7 +110,7 @@ public sealed class AwkParserTests
     [InlineData("BEGIN{split($0, 1)}", "Argument 2 of `split' must be an array name.")]
     public void AwkBinder_ReturnsPreciseLoweringDiagnostics(string source, string expectedMessage)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);

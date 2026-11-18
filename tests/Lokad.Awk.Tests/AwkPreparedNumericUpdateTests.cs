@@ -218,7 +218,7 @@ public sealed class AwkPreparedNumericUpdateTests
 
     private static AwkRegion Bind(AwkRuntimeState state, string expression, string prefix = "")
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{" + prefix + "result=(" + expression + ")}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{" + prefix + "result=(" + expression + ")}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

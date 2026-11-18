@@ -2,9 +2,6 @@ namespace Lokad.Awk;
 
 internal static class AwkBinder
 {
-    public static AwkBindingResult Bind(AwkParseResult parseResult) =>
-        Bind(parseResult, AwkCompatibilityProfile.Default);
-
     public static AwkBindingResult Bind(
         AwkParseResult parseResult,
         AwkCompatibilityProfile compatibilityProfile,

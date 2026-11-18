@@ -7,7 +7,7 @@ public sealed class AwkSingleCallArgumentTests
     {
         using var memory = State(1);
         var state = memory.State;
-        var binding = AwkBinder.Bind(AwkParser.Parse("function inner(x){print \"inner\"}" +
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function inner(x){print \"inner\"}" +
             "function caller(x){print \"before\",x;total=inner(observed=x+0*++effects);print \"after\"}BEGIN{caller(42)}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;

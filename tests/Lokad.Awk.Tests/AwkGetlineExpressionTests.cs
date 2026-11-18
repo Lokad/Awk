@@ -100,7 +100,7 @@ public sealed class AwkGetlineExpressionTests
     public void RedirectionSyntaxRetainsTheWholeExpressionSpanAndSourceKind(
         string text, string operation, bool hasTarget)
     {
-        var expression = AwkExpressionSyntaxParser.Parse(AwkLexer.Tokenize(text));
+        var expression = AwkExpressionSyntaxParser.Parse(AwkTestHarness.TokenizeSource(text));
         Assert.NotNull(expression);
         Assert.Equal(AwkExpressionKind.FunctionCall, expression.Kind);
         Assert.Equal(0, expression.Span.Start);
@@ -114,6 +114,6 @@ public sealed class AwkGetlineExpressionTests
         Assert.True(parts.Source.HasValue);
         Assert.Equal(operation == "|" ? AwkGetlineSourceKind.InputPipe : AwkGetlineSourceKind.RedirectedFile,
             parts.SourceKind);
-        Assert.True(AwkBinder.Bind(AwkParser.Parse("BEGIN{value=(" + text + ")}")).Success);
+        Assert.True(AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{value=(" + text + ")}")).Success);
     }
 }

@@ -15,7 +15,7 @@ public sealed class AwkBinaryNumericTests
         AwkTestHarness.PublishBufferedRecord(state, bytes);
         _ = state.FieldCount;
         var allocations = counters[AwkCounter.TextAllocations];
-        var parsed = AwkParser.Parse("BEGIN{result=$1*2+$2}");
+        var parsed = AwkTestHarness.ParseSource("BEGIN{result=$1*2+$2}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         var io = AwkTestHarness.CreateRegionIo(state, new MockFileSystem());
         using (var storage = new AwkRegionStorage(state))

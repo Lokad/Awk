@@ -56,7 +56,7 @@ public sealed class AwkFieldTargetAllocationTests
         var key = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{values[$1]+=1}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{values[$1]+=1}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

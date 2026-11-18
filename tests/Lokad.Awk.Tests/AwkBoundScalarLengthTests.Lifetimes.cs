@@ -9,7 +9,7 @@ public sealed partial class AwkBoundScalarLengthTests
         var state = memory.State;
         var name = AwkVariableName.FromText("p");
         var layout = new AwkFunctionLocalLayout([name]);
-        var parsed = AwkParser.Parse("BEGIN{result=length(p)}");
+        var parsed = AwkTestHarness.ParseSource("BEGIN{result=length(p)}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules),
             AwkLoweringScope.Function(layout), -1, out var region));
         var global = new AwkArrayName(name.Identifier);

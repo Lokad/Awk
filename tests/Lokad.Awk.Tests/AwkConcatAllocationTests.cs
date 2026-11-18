@@ -23,7 +23,7 @@ public sealed class AwkConcatAllocationTests
             AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options))).State;
         var source = "BEGIN{result=" + string.Join(' ', Enumerable.Range(0, arity)
             .Select(index => index == arity / 2 ? "\"café\"" : "\"\"")) + "}";
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

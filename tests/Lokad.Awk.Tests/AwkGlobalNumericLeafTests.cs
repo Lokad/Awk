@@ -153,13 +153,13 @@ public sealed class AwkGlobalNumericLeafTests
 
     private static AwkRegion Bind(AwkRuntimeState state, string name, bool preparedBinding = true)
     {
-        var parsed = AwkParser.Parse("BEGIN{result=+" + name + "}");
+        var parsed = AwkTestHarness.ParseSource("BEGIN{result=+" + name + "}");
         if (!preparedBinding)
         {
             Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
             return region;
         }
-        var binding = AwkBinder.Bind(parsed);
+        var binding = AwkTestHarness.BindDefaultProfile(parsed);
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

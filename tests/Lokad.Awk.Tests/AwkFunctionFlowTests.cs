@@ -16,7 +16,7 @@ public sealed class AwkFunctionFlowTests
         await using (var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, cancellation.Token))
         {
             const string source = "function f(){print \"body\";next}{f();print \"bad\"}";
-            var binding = AwkBinder.Bind(AwkParser.Parse(source));
+            var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
             Assert.True(binding.Success);
             var program = binding.Program.Program;
             var counters = AwkRuntimeCounters.CreateEnabled();
@@ -91,7 +91,7 @@ public sealed class AwkFunctionFlowTests
         var keyword = skipFile ? "nextfile" : "next";
         var source = "function leaf(a){a[1]=\"local\";" + keyword + "} " +
             "function outer(v){return leaf()+v} {x=outer(1);print \"bad\"}";
-        var binding = AwkBinder.Bind(AwkParser.Parse(source,
+        var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source,
             new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.True(binding.Success);
         var program = binding.Program.Program;

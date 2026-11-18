@@ -71,7 +71,7 @@ public sealed partial class AwkFieldProjectionTests
         var bytes = "before 007 café"u8.ToArray();
         var original = AwkTestHarness.PublishBufferedRecord(state, bytes);
         var host = new MockFileSystem();
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print $1,$3,$2}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{print $1,$3,$2}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

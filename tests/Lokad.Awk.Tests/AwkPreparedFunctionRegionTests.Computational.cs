@@ -108,7 +108,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             if (++visits == 100) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         });
-        Assert.ThrowsAny<OperationCanceledException>(() => AwkRegionCompiler.TryCompile(syntax.Functions[0].BodyStatements, scope, out _));
+        Assert.ThrowsAny<OperationCanceledException>(() => AwkRegionCompiler.TryCompile(syntax.Functions[0].BodyStatements, scope, out _, out _));
         Assert.NotNull(Bind(source).Functions[AwkFunctionName.FromText("f")].Region);
     }
 }

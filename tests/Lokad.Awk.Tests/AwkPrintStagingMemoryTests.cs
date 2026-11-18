@@ -342,7 +342,7 @@ public sealed partial class AwkPrintStagingMemoryTests
 
     private static AwkRegion BindPrint(AwkRuntimeState state, string body)
     {
-        var result = AwkBinder.Bind(AwkParser.Parse("BEGIN{" + body + "}"));
+        var result = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{" + body + "}"));
         Assert.True(result.Success);
         var program = result.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

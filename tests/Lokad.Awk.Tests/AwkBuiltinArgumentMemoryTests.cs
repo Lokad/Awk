@@ -114,7 +114,7 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
         var state = memory.State;
         var name = AwkVariableName.FromText("count");
         state.AssignVariableValue(name, AwkValue.FromNumber(0));
-        var parsed = AwkParser.Parse("BEGIN{result=int(++count)}");
+        var parsed = AwkTestHarness.ParseSource("BEGIN{result=int(++count)}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
@@ -130,7 +130,7 @@ public sealed partial class AwkBuiltinArgumentMemoryTests
 
     private static AwkRegion Bind(AwkRuntimeState state, string source)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

@@ -9,6 +9,14 @@ namespace Lokad.Awk.Tests;
 
 internal static class AwkTestHarness
 {
+    public static AwkParseResult ParseSource(string source, int maxSyntaxNestingDepth = int.MaxValue) =>
+        AwkParser.Parse(source, new AwkFrontendBudget(maxSyntaxNestingDepth), CancellationToken.None);
+
+    public static AwkBindingResult BindDefaultProfile(AwkParseResult parsed) =>
+        AwkBinder.Bind(parsed, AwkCompatibilityProfile.Default);
+
+    public static List<AwkToken> TokenizeSource(string source) => AwkLexer.Tokenize(source, CancellationToken.None);
+
     internal static bool TryPrepareRule(AwkRuleSyntax rule, AwkLoweringScope scope, int rangeIndex,
         [NotNullWhen(true)] out AwkRegion? region) => TryPrepareRule(rule, scope, rangeIndex, out region, out _);
 

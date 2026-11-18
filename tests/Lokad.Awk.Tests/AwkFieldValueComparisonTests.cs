@@ -279,7 +279,7 @@ public sealed class AwkFieldValueComparisonTests
         _ = state.ResolvePreparedGlobalValue(name, 0);
         state.SetCurrentRecord(AwkText.FromString("0007 old"));
         _ = state.FieldCount;
-        var syntax = AwkParser.Parse("BEGIN{if($1==later++){}}");
+        var syntax = AwkTestHarness.ParseSource("BEGIN{if($1==later++){}}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
@@ -306,7 +306,7 @@ public sealed class AwkFieldValueComparisonTests
         state.AssignVariableValue(name, AwkValue.FromNumber(0));
         _ = state.ResolvePreparedGlobalValue(name, 0);
         state.SetCurrentRecord(AwkText.FromString("0x1.1 rest"));
-        var syntax = AwkParser.Parse("BEGIN{if(" + (reverse ? "later++==$1" : "$1==later++") + "){}}");
+        var syntax = AwkTestHarness.ParseSource("BEGIN{if(" + (reverse ? "later++==$1" : "$1==later++") + "){}}");
         Assert.True(AwkTestHarness.TryPrepareRule(Assert.Single(syntax.Syntax.Rules), AwkLoweringScope.Global, -1, out var region));
         using var storage = new AwkRegionStorage(state);
         using var regionOutput = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
@@ -385,7 +385,7 @@ public sealed class AwkFieldValueComparisonTests
 
     private static AwkRegion Bind(AwkRuntimeState state, string source)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

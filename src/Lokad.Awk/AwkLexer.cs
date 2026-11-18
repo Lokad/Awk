@@ -4,9 +4,6 @@ namespace Lokad.Awk;
 
 internal static class AwkLexer
 {
-    public static List<AwkToken> Tokenize(string source) =>
-        Tokenize(source, CancellationToken.None);
-
     public static List<AwkToken> Tokenize(
         string source,
         CancellationToken cancellationToken,

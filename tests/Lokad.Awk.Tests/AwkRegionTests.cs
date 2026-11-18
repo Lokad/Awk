@@ -10,7 +10,7 @@ public sealed partial class AwkRegionTests
     [InlineData("missing(){print length(1,2)}", "Invalid number of arguments for length.")]
     public void PreparationFailureKeepsTheEnclosingDiagnosticAndBodyPrecedence(string source, string expected)
     {
-        var parsed = AwkParser.Parse(source);
+        var parsed = AwkTestHarness.ParseSource(source);
         Assert.True(parsed.Success);
         Assert.False(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global,
             -1, out var region, out var diagnostic));
@@ -24,7 +24,7 @@ public sealed partial class AwkRegionTests
     [InlineData("BEGIN{print (getline x < (getline sin))}")]
     public void GetlineFailureRetainsTheFirstInvalidTargetSpan(string source)
     {
-        var parsed = AwkParser.Parse(source);
+        var parsed = AwkTestHarness.ParseSource(source);
         Assert.True(parsed.Success);
         Assert.False(AwkTestHarness.TryPrepareRule(Assert.Single(parsed.Syntax.Rules), AwkLoweringScope.Global,
             -1, out _, out var diagnostic));
@@ -35,7 +35,7 @@ public sealed partial class AwkRegionTests
     [Fact]
     public void DiagnosticSourceWalkObservesCallerCancellation()
     {
-        var parsed = AwkParser.Parse("BEGIN{getline x < (getline sin)}");
+        var parsed = AwkTestHarness.ParseSource("BEGIN{getline x < (getline sin)}");
         Assert.True(parsed.Success);
         var statement = Assert.Single(Assert.Single(parsed.Syntax.Rules).ActionStatements);
         using var cancellation = new CancellationTokenSource();
@@ -51,7 +51,7 @@ public sealed partial class AwkRegionTests
     public async Task DeepSyntacticBlocksPrepareAndExecuteWithoutRecursiveBlockEmission(int depth)
     {
         var source = "BEGIN{" + new string('{', depth) + "value=7" + new string('}', depth + 1);
-        var parsed = AwkParser.Parse(source, depth + 8);
+        var parsed = AwkTestHarness.ParseSource(source, depth + 8);
         Assert.True(parsed.Success);
         Assert.True(AwkTestHarness.TryPrepareRule(parsed.Syntax.Rules[0], AwkLoweringScope.Global, -1, out var region));
         using var fixture = State(CancellationToken.None, true);
@@ -186,7 +186,7 @@ public sealed partial class AwkRegionTests
     {
         using var cancellation = new CancellationTokenSource();
         using var fixture = State(cancellation.Token, governed);
-        var binding = AwkBinder.Bind(AwkParser.Parse("function repeat(){" + body + "}BEGIN{repeat()}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function repeat(){" + body + "}BEGIN{repeat()}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         fixture.State.InitializeGlobalNames(program.GlobalNames);
@@ -249,14 +249,14 @@ public sealed partial class AwkRegionTests
 
     private static AwkRegion Compile(string body, AwkRuntimeState state)
     {
-        var parsed = AwkParser.Parse("{" + body + "}");
+        var parsed = AwkTestHarness.ParseSource("{" + body + "}");
         Assert.Empty(parsed.Errors);
         AwkSymbolCollector.Collect(parsed.Syntax, out var names);
         var reads = new AwkGlobalReadLayout(names, null);
         state.InitializeGlobalNames(names);
         state.InitializeGlobalReadSlots(reads.Count);
         var scope = AwkLoweringScope.GlobalFor(AwkCompatibilityMode.GnuDefault, globalReads: reads);
-        Assert.True(AwkRegionCompiler.TryCompile(parsed.Syntax.Rules[0].ActionStatements, scope, out var region));
+        Assert.True(AwkRegionCompiler.TryCompile(parsed.Syntax.Rules[0].ActionStatements, scope, out var region, out _));
         return region;
     }
 

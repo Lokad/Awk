@@ -159,7 +159,7 @@ public sealed class AwkSyntaxParserTests
     [InlineData(5, null)] [InlineData(int.MaxValue, null)]
     public void AwkTokenNavigation_NextSignificantStartsAtRequestedPosition(int start, string? expected)
     {
-        var tokens = AwkLexer.Tokenize("a # note\n;b")
+        var tokens = AwkTestHarness.TokenizeSource("a # note\n;b")
             .Where(token => token.Kind != AwkTokenKind.EndOfFile).ToArray();
         Assert.Equal(expected, AwkTokenNavigation.FindNextSignificant(tokens, start)?.Text);
         var composite = AwkTokenNavigation.Flatten(tokens.Select(token => (IReadOnlyList<AwkToken>)new[] { token }));
@@ -171,7 +171,7 @@ public sealed class AwkSyntaxParserTests
     {
         const int depth = 2048;
         var source = "BEGIN{" + new string('{', depth) + "print 7" + new string('}', depth + 1);
-        var parsed = AwkParser.Parse(source, depth + 8);
+        var parsed = AwkTestHarness.ParseSource(source, depth + 8);
         Assert.True(parsed.Success);
         Assert.Empty(parsed.Errors);
     }
@@ -228,7 +228,7 @@ public sealed class AwkSyntaxParserTests
             source.Append("else print -1}");
             var text = source.ToString();
             var before = GC.GetAllocatedBytesForCurrentThread();
-            var parsed = AwkParser.Parse(text, int.MaxValue);
+            var parsed = AwkTestHarness.ParseSource(text, int.MaxValue);
             var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
             Assert.True(parsed.Success);
             var current = parsed.Syntax.Rules[0].ActionStatements[1];
@@ -329,7 +329,7 @@ public sealed class AwkSyntaxParserTests
             "$1 == \"sku\" {print $2}\n" +
             "END{print \"done\"}";
 
-        var tokens = AwkLexer.Tokenize(source);
+        var tokens = AwkTestHarness.TokenizeSource(source);
 
         Assert.True(AwkTopLevelSyntaxParser.TryParse(AwkParsingSource.Create(source), tokens, out var parsed));
         Assert.Equal(
@@ -699,8 +699,8 @@ public sealed class AwkSyntaxParserTests
     [InlineData("{x=1}")]
     public void ForClausesDoNotPrepareCompoundStatementBodies(string clause)
     {
-        var parsed = AwkParser.Parse("BEGIN{for(" + clause + ";;)break}");
-        Assert.False(AwkBinder.Bind(parsed).Success);
+        var parsed = AwkTestHarness.ParseSource("BEGIN{for(" + clause + ";;)break}");
+        Assert.False(AwkTestHarness.BindDefaultProfile(parsed).Success);
         if (parsed.Success)
         {
             var statement = Assert.Single(Assert.Single(parsed.Syntax.Rules).ActionStatements);

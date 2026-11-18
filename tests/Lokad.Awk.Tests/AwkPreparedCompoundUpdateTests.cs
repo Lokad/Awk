@@ -233,7 +233,7 @@ public sealed class AwkPreparedCompoundUpdateTests
 
     private static AwkRegion Bind(AwkRuntimeState state, string source)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

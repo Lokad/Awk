@@ -26,7 +26,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeLimits.CreateDefault(),
             state,
             static _ => []);
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{for(i=0;1;i++)x++}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{for(i=0;1;i++)x++}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
@@ -405,7 +405,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         using var cancellation = new CancellationTokenSource();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
-        var binding = AwkBinder.Bind(AwkParser.Parse("function f(){return f()}BEGIN{f()}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function f(){return f()}BEGIN{f()}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

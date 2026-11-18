@@ -112,10 +112,6 @@ internal sealed partial class AwkRegionCompiler
     }
 
     internal static bool TryCompile(IReadOnlyList<AwkStatementSyntax> statements,
-        AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region) =>
-        TryCompile(statements, scope, out region, out _);
-
-    internal static bool TryCompile(IReadOnlyList<AwkStatementSyntax> statements,
         AwkLoweringScope scope, [NotNullWhen(true)] out AwkRegion? region, out AwkDiagnostic diagnostic)
     {
         var compiler = new AwkRegionCompiler(scope, scope.IsFunction ? AwkRegionKind.Function : AwkRegionKind.Record);

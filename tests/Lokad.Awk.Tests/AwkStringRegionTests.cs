@@ -100,7 +100,7 @@ public sealed class AwkStringRegionTests
 
     private static AwkProgram Bind(string source)
     {
-        var result = AwkBinder.Bind(AwkParser.Parse(source));
+        var result = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(result.Success);
         return result.Program.Program;
     }

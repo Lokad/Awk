@@ -8,14 +8,14 @@ namespace Lokad.Awk.Benchmarking;
 public class FrontendLayerBenchmarks
 {
     private string _source = string.Empty;
-    private AwkParseResult _parsed = AwkParser.Parse(string.Empty);
+    private AwkParseResult _parsed = AwkParser.Parse(string.Empty, new AwkFrontendBudget(int.MaxValue), CancellationToken.None);
 
     [GlobalSetup]
     public void Setup()
     {
         _source = ReferenceWorkloads.Create("projection", "large").Program;
         _parsed = AwkParser.Parse(_source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
-        if (!_parsed.Success || !AwkBinder.Bind(_parsed).Success)
+        if (!_parsed.Success || !AwkBinder.Bind(_parsed, AwkCompatibilityProfile.Default).Success)
             throw new InvalidOperationException("Frontend fixture failed.");
     }
 
@@ -23,7 +23,7 @@ public class FrontendLayerBenchmarks
     public void ParseOnly() => _ = AwkParser.Parse(_source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
     [Benchmark]
-    public void BindAndLowerOnly() => _ = AwkBinder.Bind(_parsed);
+    public void BindAndLowerOnly() => _ = AwkBinder.Bind(_parsed, AwkCompatibilityProfile.Default);
 }
 
 [MemoryDiagnoser, MedianColumn]

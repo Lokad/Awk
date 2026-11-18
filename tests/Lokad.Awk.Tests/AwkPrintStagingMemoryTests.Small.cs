@@ -47,7 +47,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes - 131_071);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var io = Io(state, new MockFileSystem());
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print \"" + new string('x', 10_000) + "\",\"" + new string('y', 10_000) + "\"}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{print \"" + new string('x', 10_000) + "\",\"" + new string('y', 10_000) + "\"}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);

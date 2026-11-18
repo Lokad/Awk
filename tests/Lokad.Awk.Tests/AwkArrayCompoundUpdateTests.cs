@@ -189,7 +189,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
             State = Memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
                 _cancellation.Token, Memory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
                     new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault())))).State;
-            var binding = AwkBinder.Bind(AwkParser.Parse(source));
+            var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
             Assert.True(binding.Success);
             var program = binding.Program.Program;
             State.InitializeGlobalNames(program.GlobalNames);

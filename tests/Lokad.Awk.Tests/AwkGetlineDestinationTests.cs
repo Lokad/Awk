@@ -153,7 +153,7 @@ public sealed class AwkGetlineDestinationTests
 
     private static AwkRegion Bind(AwkRuntimeState state, string body)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{" + body + "}"));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{" + body + "}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         state.InitializeGlobalNames(program.GlobalNames);
