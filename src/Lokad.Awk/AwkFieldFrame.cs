@@ -1134,7 +1134,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
                     AwkText.CopyBytes(field, bytes.AsSpan(offset), state.CancellationCheckpoint);
                     offset += field.Length;
                 }
-                recordText = AwkText.FromTrustedOwnedBytes(bytes, state.Counters);
+                recordText = state.AdoptText(bytes);
             }
             state.CancellationCheckpoint?.Invoke();
             ReplaceRetainedMemory(retained);

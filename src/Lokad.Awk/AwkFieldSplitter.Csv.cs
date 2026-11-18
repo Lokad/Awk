@@ -67,7 +67,7 @@ internal sealed partial class AwkFieldSplitter
             i++;
         }
         builder.Append(bytes[start..], state.CancellationCheckpoint);
-        return builder.CopyToAwkText(state.Counters, state.CancellationCheckpoint);
+        return state.AdoptText(builder.CopyToOwnedBytes(state.CancellationCheckpoint));
     }
 
     private readonly record struct CsvField(int Start, int Length, int DecodedLength, bool HasEscapes);

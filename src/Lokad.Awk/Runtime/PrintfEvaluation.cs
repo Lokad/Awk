@@ -706,7 +706,7 @@ internal static class PrintfEvaluation
         public AwkText ToAwkText()
         {
             if (_retainedTextLease is null)
-                return _builder.CopyToAwkText(_state.Counters, _state.CancellationCheckpoint);
+                return _state.AdoptText(_builder.CopyToOwnedBytes(_state.CancellationCheckpoint));
 
             _retainedTextLease.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(_builder.Length));
             return AwkText.CopyTrustedBytes(_builder.AsSpan(), _state.Counters,

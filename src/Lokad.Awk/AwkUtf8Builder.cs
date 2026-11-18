@@ -261,15 +261,15 @@ internal sealed class AwkUtf8Builder : IDisposable
         Length -= length;
     }
 
-    public AwkText CopyToAwkText(AwkRuntimeCounters counters, Action? checkpoint = null)
+    public byte[] CopyToOwnedBytes(Action? checkpoint = null)
     {
         ThrowIfDisposed();
         if (Length == 0)
-            return AwkText.Empty;
+            return [];
 
         var bytes = AwkText.AllocateOwnedBytes(Length, _governor);
         AwkText.CopyBytes(AsSpan(), bytes, checkpoint);
-        return AwkText.FromTrustedOwnedBytes(bytes, counters);
+        return bytes;
     }
 
     public void Dispose()

@@ -178,7 +178,7 @@ internal static class AwkRegexSubstitution
             matchReplacement.Append(input, in match, replacement, occurrenceBuilder, state.CancellationCheckpoint);
             occurrenceBuilder.Append(input.AsSpan(state.CancellationCheckpoint)[(matchIndex + matchLength)..], state.CancellationCheckpoint);
             replacementCount = 1;
-            return occurrenceBuilder.CopyToAwkText(state.Counters, state.CancellationCheckpoint);
+            return state.AdoptText(occurrenceBuilder.CopyToOwnedBytes(state.CancellationCheckpoint));
         }
 
         using var builder = new AwkUtf8Builder(
@@ -203,7 +203,7 @@ internal static class AwkRegexSubstitution
         while (MoveNext(out match));
 
         builder.Append(input.AsSpan(state.CancellationCheckpoint)[position..], state.CancellationCheckpoint);
-        return builder.CopyToAwkText(state.Counters, state.CancellationCheckpoint);
+        return state.AdoptText(builder.CopyToOwnedBytes(state.CancellationCheckpoint));
 
         bool MoveNext(out TMatch next)
         {

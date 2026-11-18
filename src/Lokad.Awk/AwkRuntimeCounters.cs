@@ -26,6 +26,13 @@ internal sealed class AwkRuntimeCounters
     public long this[AwkCounter counter] =>
         _values is { } values ? Volatile.Read(ref values[(int)counter]) : 0;
 
+    internal void ObserveTextAllocation(int byteLength)
+    {
+        if (byteLength == 0) return;
+        Add(AwkCounter.TextAllocations);
+        Add(AwkCounter.TextBytes, byteLength);
+    }
+
     public void Add(AwkCounter counter, long amount = 1)
     {
         if (_values is { } values && amount > 0)

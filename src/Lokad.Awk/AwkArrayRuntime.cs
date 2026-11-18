@@ -289,7 +289,7 @@ internal sealed partial class AwkArrayRuntime
     }
 
     private AwkArrayKey CopyKey(AwkUtf8Builder builder) =>
-        new(builder.CopyToAwkText(_state.Counters, _state.CancellationCheckpoint), _state.CancellationCheckpoint);
+        new(_state.AdoptText(builder.CopyToOwnedBytes(_state.CancellationCheckpoint)), _state.CancellationCheckpoint);
 
     internal AwkArrayUpdateTarget PrepareUpdate(in AwkArrayName name, double index, AwkArrayBinding binding)
     {
@@ -583,7 +583,7 @@ internal sealed partial class AwkArrayRuntime
                 ordinal.AppendTo(builder, _state.CancellationCheckpoint);
                 builder.Append(separator, _state.CancellationCheckpoint);
                 builder.Append(part, _state.CancellationCheckpoint);
-                return new AwkArrayKey(builder.CopyToAwkText(_state.Counters, _state.CancellationCheckpoint),
+                return new AwkArrayKey(_state.AdoptText(builder.CopyToOwnedBytes(_state.CancellationCheckpoint)),
                     _state.CancellationCheckpoint);
             }
 

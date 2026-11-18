@@ -96,7 +96,6 @@ public sealed class AwkReplacementCaptureCancellationTests
             _ => throw new ArgumentOutOfRangeException(nameof(shape))
         };
         var text = AwkText.FromString(replacement);
-        var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var builder = new AwkUtf8Builder(governor, 0);
@@ -136,7 +135,7 @@ public sealed class AwkReplacementCaptureCancellationTests
             "pairs" => new string('G', LongText / 2),
             _ => replacement
         };
-        Assert.Equal("seed" + expected, builder.CopyToAwkText(counters).AsString());
+        Assert.Equal("seed" + expected, AwkUtf8Codec.DecodeRuntimeText(builder.CopyToOwnedBytes()));
         builder.Dispose();
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
@@ -148,7 +147,6 @@ public sealed class AwkReplacementCaptureCancellationTests
     [InlineData("missing-group")]
     public void GensubAppendDoesNotRetainTheParsingCallback(string shape)
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var parsing = new CancellationTokenSource();
@@ -181,7 +179,7 @@ public sealed class AwkReplacementCaptureCancellationTests
             "missing-group" => "",
             _ => throw new ArgumentOutOfRangeException(nameof(shape))
         };
-        Assert.Equal(expected, builder.CopyToAwkText(counters).AsString());
+        Assert.Equal(expected, AwkUtf8Codec.DecodeRuntimeText(builder.CopyToOwnedBytes()));
         builder.Dispose();
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
@@ -192,7 +190,6 @@ public sealed class AwkReplacementCaptureCancellationTests
     [InlineData(true)]
     public void PaddingCancellationDoesNotPublishBuilderLength(bool unaligned)
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var builder = new AwkUtf8Builder(governor, LongText * 2);
@@ -207,7 +204,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         Assert.Equal(4, builder.Length);
         Assert.Equal("seed", AwkUtf8Codec.Decode(builder.AsSpan()));
         builder.Append((byte)'y', 8);
-        Assert.Equal("seedyyyyyyyy", builder.CopyToAwkText(counters).AsString());
+        Assert.Equal("seedyyyyyyyy", AwkUtf8Codec.DecodeRuntimeText(builder.CopyToOwnedBytes()));
         builder.Dispose();
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }

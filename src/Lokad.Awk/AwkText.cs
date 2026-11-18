@@ -172,27 +172,19 @@ internal readonly struct AwkText : IEquatable<AwkText>
             return Empty;
 
         ThrowIfInvalidUtf8(bytes, checkpoint);
-        return FromTrustedOwnedBytes(bytes, counters);
+        counters.ObserveTextAllocation(bytes.Length);
+        return FromTrustedOwnedBytes(bytes);
     }
 
-    internal static AwkText FromTrustedOwnedBytes(byte[] bytes) =>
-        FromTrustedOwnedBytes(bytes, AwkRuntimeCounters.Disabled);
-
-    internal static AwkText FromTrustedOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)
+    // The caller owns valid UTF-8 and can supply an existing ASCII proof.
+    internal static AwkText FromTrustedOwnedBytes(byte[] bytes, bool knownAscii = false)
     {
         if (bytes.Length == 0)
             return Empty;
-
-        return CreateTrustedOwnedBytes(bytes, counters);
-    }
-
-    // The caller has proved that every owned byte is ASCII.
-    internal static AwkText FromTrustedAsciiOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)
-    {
-        if (bytes.Length == 0)
-            return Empty;
-        var text = CreateTrustedOwnedBytes(bytes, counters, knownAscii: true);
-        if (text._backing is TextStorage storage)
+        if (bytes.Length <= CompactAsciiByteLength && (knownAscii || Ascii.IsValid(bytes)))
+            return new AwkText((object)bytes);
+        var text = new AwkText(bytes);
+        if (knownAscii && text._backing is TextStorage storage)
             storage.TextFacts = bytes.Length + 1;
         return text;
     }
@@ -211,7 +203,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         var ownedBytes = destination is null ? AllocateOwnedBytes(bytes.Length, governor) :
             AllocateOwnedBytes(bytes.Length, governor, destination, checkpoint);
         CopyBytes(bytes, ownedBytes, checkpoint);
-        return FromTrustedOwnedBytes(ownedBytes, counters);
+        counters.ObserveTextAllocation(ownedBytes.Length);
+        return FromTrustedOwnedBytes(ownedBytes);
     }
 
     internal static AwkText CopyHostBytes(
@@ -374,7 +367,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         }
 
         counters.Add(AwkCounter.ConcatenationBytesCopied, totalLength);
-        return FromTrustedOwnedBytes(bytes, counters);
+        counters.ObserveTextAllocation(totalLength);
+        return FromTrustedOwnedBytes(bytes);
     }
 
     public AwkText CopyByteSlice(
@@ -495,7 +489,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         var bytes = destination is null ? AllocateOwnedBytes(byteLength, governor) :
             AllocateOwnedBytes(byteLength, governor, destination, checkpoint);
         CopyBytes(text.AsSpan(checkpoint)[byteStart..byteEnd], bytes, checkpoint);
-        return knownAscii ? FromTrustedAsciiOwnedBytes(bytes, counters) : FromTrustedOwnedBytes(bytes, counters);
+        counters.ObserveTextAllocation(byteLength);
+        return FromTrustedOwnedBytes(bytes, knownAscii);
     }
 
     internal ReadOnlySpan<byte> BorrowRuneSlice(int start, int length, AwkMemoryAccounting governor, Action? checkpoint)
@@ -744,7 +739,7 @@ internal readonly struct AwkText : IEquatable<AwkText>
             CopyConcatenationTo(bytes);
             checkpoint?.Invoke();
             concatenation.Counters.Add(AwkCounter.ConcatenationBytesCopied, text.ByteLength);
-            concatenation.Counters.Add(AwkCounter.TextAllocations, text.ByteLength > 0 ? 1 : 0); concatenation.Counters.Add(AwkCounter.TextBytes, text.ByteLength);
+            concatenation.Counters.ObserveTextAllocation(text.ByteLength);
             concatenation.MaterializedBytes = bytes;
             concatenation.LeftPart = Empty;
             concatenation.RightPart = Empty;
@@ -876,14 +871,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
         // Zero is unknown, -1 is non-ASCII with unknown rune count; positive is count + 1.
         internal int TextFacts;
         internal int[]? RuneByteCheckpoints;
-    }
-
-    private static AwkText CreateTrustedOwnedBytes(byte[] bytes, AwkRuntimeCounters counters, bool knownAscii = false)
-    {
-
-        counters.Add(AwkCounter.TextAllocations, bytes.Length > 0 ? 1 : 0); counters.Add(AwkCounter.TextBytes, bytes.Length);
-        return bytes.Length <= CompactAsciiByteLength && (knownAscii || Ascii.IsValid(bytes))
-            ? new AwkText((object)bytes) : new AwkText(bytes);
     }
 
     // The destination retains construction funding through publication or cleanup.

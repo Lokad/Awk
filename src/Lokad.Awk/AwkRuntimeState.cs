@@ -300,7 +300,7 @@ internal sealed class AwkRuntimeState : IDisposable
         var formatted = key.AsSpan(buffer);
         var bytes = AwkText.AllocateOwnedBytes(formatted.Length, allocationAccounting);
         formatted.CopyTo(bytes);
-        return AwkText.FromTrustedOwnedBytes(bytes, Counters);
+        return AdoptText(bytes);
     }
 
     internal AwkArrayKey CopyArrayKey(ReadOnlySpan<byte> bytes)
@@ -344,9 +344,15 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkUtf8Codec.Encode(text, bytes);
         ThrowIfCancellationRequested();
 
-        Counters.Add(AwkCounter.TextAllocations);
-        Counters.Add(AwkCounter.TextBytes, bytes.Length);
+        Counters.ObserveTextAllocation(bytes.Length);
         return AwkText.FromEncodedStringBytes(bytes);
+    }
+
+    // Callers retain their construction funding through publication.
+    internal AwkText AdoptText(byte[] ownedBytes, bool knownAscii = false)
+    {
+        Counters.ObserveTextAllocation(ownedBytes.Length);
+        return AwkText.FromTrustedOwnedBytes(ownedBytes, knownAscii);
     }
 
     internal string DecodeText(AwkText text)

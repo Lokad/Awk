@@ -288,7 +288,6 @@ public sealed class AwkTextCancellationTests
     [Fact]
     public void CanceledBuilderAppendDoesNotExposeAPartialSuffix()
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
         var governor = memoryForGovernor.Accounting;
@@ -300,7 +299,7 @@ public sealed class AwkTextCancellationTests
             Assert.Throws<OperationCanceledException>(() => builder.Append(bytes.AsSpan(), CancelOnCheck(cancellation, 3)));
             Assert.Equal("kept"u8.ToArray(), builder.AsSpan().ToArray());
             builder.Append("!"u8);
-            Assert.Equal("kept!", builder.CopyToAwkText(counters).AsString());
+            Assert.Equal("kept!", AwkUtf8Codec.DecodeRuntimeText(builder.CopyToOwnedBytes()));
         }
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);

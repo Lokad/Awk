@@ -85,7 +85,7 @@ internal sealed class AwkFormattingRuntime(
         var owned = AwkText.AllocateOwnedBytes(bytes.Length,
             retainedTextLease is null ? state.MemoryAccounting : AwkMemoryAccounting.Disabled);
         bytes.CopyTo(owned);
-        return AwkText.FromTrustedOwnedBytes(owned, state.Counters);
+        return state.AdoptText(owned);
     }
 
     private readonly struct NumericFormatArguments(double number, AwkFormattingVariable variable,

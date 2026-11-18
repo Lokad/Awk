@@ -159,9 +159,7 @@ internal static partial class AwkBuiltins
                 index += length;
             }
 
-            result = isAscii
-                ? AwkText.FromTrustedAsciiOwnedBytes(converted, state.Counters)
-                : AwkText.FromTrustedOwnedBytes(converted, state.Counters);
+            result = state.AdoptText(converted, isAscii);
             return true;
         }
 
