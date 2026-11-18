@@ -177,20 +177,14 @@ public sealed class AwkPrintfFormattingTests
     {
         var (sum, allocatedBytes) = await Task.Factory.StartNew(static () =>
         {
-            var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+            using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
             AwkValue[] values = [AwkValue.FromNumber(8), AwkValue.FromNumber(1.5)];
             var arguments = new AwkValueArrayPrintfArguments(values, 2, state);
-            // Measure provider boxing, independently of collection/pool maintenance.
-            Assert.True(GC.TryStartNoGCRegion(16 << 20));
-            try
-            {
-                GC.WaitForPendingFinalizers();
-                _ = ReadSum(arguments, state);
-                var before = GC.GetAllocatedBytesForCurrentThread();
-                var sum = ReadSum(arguments, state);
-                return (sum, GC.GetAllocatedBytesForCurrentThread() - before);
-            }
-            finally { GC.EndNoGCRegion(); }
+            // Measure this provider's warmed thread without process-wide GC controls.
+            _ = ReadSum(arguments, state);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var sum = ReadSum(arguments, state);
+            return (sum, GC.GetAllocatedBytesForCurrentThread() - before);
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         Assert.Equal(15000, sum);
