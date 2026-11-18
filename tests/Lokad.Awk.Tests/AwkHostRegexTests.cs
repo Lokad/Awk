@@ -413,8 +413,10 @@ public sealed class AwkHostRegexTests
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
     }
 
-    [Fact]
-    public void SubjectCopyRefundCancellationPrecedesBooleanProviderEntry()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SubjectCopyRefundCancellationPrecedesProviderEntry(bool search)
     {
         using var cancellation = new CancellationTokenSource();
         using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
@@ -428,10 +430,15 @@ public sealed class AwkHostRegexTests
         var reserved = memory.Budget.Reserved;
         memory.Budget.OnRefund = cancellation.Cancel;
 
-        var error = Assert.Throws<OperationCanceledException>(() => runtime.IsMatch(regex, subject));
+        var error = Assert.Throws<OperationCanceledException>(() =>
+        {
+            if (search) using (runtime.OpenSearch(regex, subject)) { }
+            else _ = runtime.IsMatch(regex, subject);
+        });
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.False(called);
+        Assert.Equal(0, Assert.Single(engine.Patterns).SearchesCreated);
         Assert.Equal(reserved, memory.Budget.Reserved);
     }
 

@@ -151,6 +151,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             // One scoped owner, including its lease and input reference; no subject copy.
             lease = _memoryAccounting.ReserveTransient(128);
             var bytes = input.Materialize(_throwIfCancellationRequested);
+            _cancellationToken.ThrowIfCancellationRequested();
             provider = AwkRegexCallbacks.CreateSearch(owner.Pattern, bytes[inputStart..],
                 _cancellationToken);
             _throwIfCancellationRequested();
