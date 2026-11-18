@@ -671,7 +671,9 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         var poll = cancellable ? state.CancellationCheckpoint : null;
         for (var frame = _current; frame is not null; frame = frame.Parent)
         {
-            for (var index = 0; index < frame.Layout.SlotCount; index++)
+            var end = frame.AliasRepairEnd;
+            if (end == 0) poll?.Invoke();
+            for (var index = 0; index < end; index++)
             {
                 var slot = frame.GetSlot(index);
                 if ((index & 63) == 0) poll?.Invoke();
@@ -692,13 +694,17 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     {
         if (removed.IsScalar) return;
         for (var frame = _current; frame is not null; frame = frame.Parent)
-            for (var index = 0; index < frame.Layout.SlotCount; index++)
+        {
+            var end = frame.AliasRepairEnd;
+            if (end == 0) state.CancellationCheckpoint();
+            for (var index = 0; index < end; index++)
             {
                 if ((index & 63) == 0) state.CancellationCheckpoint();
                 var slot = frame.GetSlot(index);
                 if (slot.Value.TryGetUntypedScalar(out var origin) && ReferenceEquals(origin, removed))
                     ReplaceLocalSlot(frame, new(index), slot, AwkFunctionLocalSlot.MissingScalar());
             }
+        }
     }
 
     public bool TryAssignLocal(AwkVariableName name, string value) =>

@@ -122,6 +122,8 @@ internal sealed class AwkFunctionFrame
     internal int ReconcileEnd { get; private set; }
     internal int PotentialAliasEnd { get; private set; }
     internal int AliasEnd { get; private set; }
+    // Incoming untyped origins can become aliases without replacing the slot.
+    internal int AliasRepairEnd => Math.Max(AliasEnd, ReconcileEnd);
     // Binding/ownership ancestry also includes callers hidden by a global phase;
     // it need not equal the execution continuation's caller frame.
     internal AwkFunctionFrame? Parent { get; set; }

@@ -108,6 +108,8 @@ count reads and writes belong to the record frame.
 Array arguments retain aliases and potential/untyped origins through later argument
 effects; mixed observers must retain the complete value. Retirement clears active
 references without invalidating captured values or pending users.
+Alias repair uses the published slot bounds for aliases and untyped origins.
+It polls while walking active frames, including frames with no eligible slots.
 
 Enforced by [scalar cells](../tests/Lokad.Awk.Tests/AwkFunctionLocalSlotTests.cs),
 [parameter consumption](../tests/Lokad.Awk.Tests/AwkParameterConsumptionTests.cs),
