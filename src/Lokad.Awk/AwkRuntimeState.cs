@@ -173,21 +173,7 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkText ResolveOutputFieldSeparator() =>
         ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator);
 
-    public double RecordNumber
-    {
-        get => ResolveSpecialVariableValue(AwkSpecialVariableId.RecordNumber).AsNumber(CancellationCheckpoint);
-        set => AssignSpecialVariableValue(AwkSpecialVariableId.RecordNumber, AwkValue.FromNumber(value));
-    }
-
-    public double FileRecordNumber
-    {
-        get => ResolveSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber).AsNumber(CancellationCheckpoint);
-        set => AssignSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber, AwkValue.FromNumber(value));
-    }
-
     internal AwkRecordStorage InputRecordStorage => _recordFields.InputRecordStorage;
-
-    public AwkText CurrentRecordByteText => _recordFields.RecordAwkText;
 
     public int FieldCount => _recordFields.GetFieldCount();
 
@@ -826,9 +812,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkValue ResolveVariableValue(AwkSpecialVariableName name) =>
         ResolveSpecialVariableValue(name.Id);
-
-    public AwkValue GetGlobalScalarValue(AwkGlobalSlotId id) =>
-        _variableRuntime.GetGlobalScalarValue(id);
 
     public void InitializeGlobalReadSlots(int count)
     {
@@ -1502,7 +1485,7 @@ internal sealed class AwkRuntimeState : IDisposable
             _recordFields.ResetRecord();
         if (argvIndex.Value > 0)
         {
-            FileRecordNumber = 0;
+            AssignSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber, AwkValue.FromNumber(0));
             SetArgvIndex(argvIndex);
         }
         SetErrno(AwkErrno.None);
@@ -1527,11 +1510,6 @@ internal sealed class AwkRuntimeState : IDisposable
             ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
                 ? AwkRecordFieldSplittingMode.Paragraph : AwkRecordFieldSplittingMode.Ordinary));
 
-    public void AssignField(int index, string value)
-    {
-        AssignFieldValue(index, CreateStringValue(value));
-    }
-
     public void AssignFieldValue(int index, AwkValue value)
     {
         if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
@@ -1550,12 +1528,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void ExtendFieldCountForReference(AwkFieldIndex index) =>
         _recordFields.ExtendFieldCountForReference(index);
-
-    public void AssignFieldCount(int count)
-    {
-        if (count < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        _recordFields.AssignFieldCount(new(count), ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator));
-    }
 
     private void AssignFieldCountValue(AwkValue value)
     {
@@ -1656,9 +1628,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     private AwkVariables.AwkScalarCell GetInitializedSpecialScalarCell(AwkSpecialVariableId id) =>
         _variables.GetSpecialScalarCell(id) ?? throw new InvalidOperationException("The special scalar is not initialized.");
-
-    public AwkText GetArrayByteText(AwkArrayName name, AwkArrayKey index) =>
-        _arrayRuntime.GetByteText(name, index);
 
     public AwkValue GetArrayAwkValue(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
         _arrayRuntime.GetAwkValue(name, index, binding);

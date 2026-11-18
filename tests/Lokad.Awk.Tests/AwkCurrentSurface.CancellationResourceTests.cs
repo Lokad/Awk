@@ -935,7 +935,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var state = memoryForState.State;
         state.SetCurrentRecord(AwkText.FromString("a"));
 
-        var exception = Assert.Throws<AwkRuntimeException>(() => state.AssignFieldCount(30));
+        var exception = Assert.Throws<AwkRuntimeException>(() =>
+            state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldCount, AwkValue.FromNumber(30)));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal("a", state.CurrentRecordByteText.AsString());

@@ -29,7 +29,7 @@ public sealed class AwkNumericFieldResourceTests
         Assert.Equal(1, counters[AwkCounter.FieldSplits]);
         Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
 
-        state.AssignFieldCount(0);
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldCount, AwkValue.FromNumber(0));
         Assert.Empty(state.CurrentRecordByteText.AsSpan().ToArray());
 
     }

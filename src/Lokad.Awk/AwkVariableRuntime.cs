@@ -161,9 +161,6 @@ internal sealed class AwkVariableRuntime(
         return variables.GetOrCreateScalarSlot(name);
     }
 
-    public AwkValue GetGlobalScalarValue(AwkGlobalSlotId id) =>
-        variables.GetScalarValue(id);
-
     public void AssignGlobalScalarValue(AwkGlobalSlotId id, AwkValue value)
     {
         variables.SetScalarValue(id, value);

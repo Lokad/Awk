@@ -62,7 +62,7 @@ public sealed class AwkScalarMemoryModeTests
             if (indexed) variables.SetScalarValue(id, AwkValue.FromNumber(value));
             else variables.SetScalarValue(name, AwkValue.FromNumber(value));
         }
-        Assert.Equal(100, variables.GetScalarValue(id).AsNumber());
+        Assert.Equal(100, variables.GetScalarValue(variables.GetScalarCell(id)).AsNumber());
         Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
         Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
         Assert.Throws<AwkRuntimeException>(() => variables.SetScalarText(name, new string('x', 4096)));
@@ -127,11 +127,11 @@ public sealed class AwkScalarMemoryModeTests
         state.SetCurrentRecord(AwkText.FromString("a b c"));
         variables.SetScalarValue(name, AwkValue.FromNumber(42));
         var nf = variables.GetOrCreateScalarSlot(AwkVariableName.FromText("NF"));
-        Assert.Equal(3, variables.GetScalarValue(nf).AsNumber());
+        Assert.Equal(3, variables.GetScalarValue(variables.GetScalarCell(nf)).AsNumber());
         variables.SetScalarText(ofs, "|");
         variables.SetScalarValue(AwkVariableName.FromText("NF"), AwkValue.FromNumber(2));
         Assert.Equal(2, variables.GetOrCreateScalarValue(AwkVariableName.FromText("NF")).AsNumber());
-        Assert.Equal(2, variables.GetScalarValue(nf).AsNumber());
+        Assert.Equal(2, variables.GetScalarValue(variables.GetScalarCell(nf)).AsNumber());
         Assert.Equal("a|b", state.CurrentRecordByteText.AsString());
         var baselineBytes = accounting.CurrentCommittedBytes;
         var baselineReservation = budget.Reserved;

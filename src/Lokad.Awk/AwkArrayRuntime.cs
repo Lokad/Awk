@@ -50,9 +50,6 @@ internal sealed partial class AwkArrayRuntime
         _fieldSplitter = fieldSplitter;
     }
 
-    public AwkText GetByteText(AwkArrayName name, AwkArrayKey index) =>
-        _state.FormatStringByteText(GetAwkValue(name, index));
-
     internal AwkArrayIdentity ResolveOrdinaryArray(AwkArrayName name, AwkArrayBinding binding)
     {
         if (_state.TryGetBoundArray(name, binding, out var array)) return array;

@@ -472,8 +472,6 @@ internal sealed partial class AwkVariables
 
     }
 
-    public AwkValue GetScalarValue(AwkGlobalSlotId id) => GetScalarValue(GetScalarCell(id));
-
     internal AwkValue GetScalarValue(AwkScalarCell cell)
     {
         if (string.Equals(cell.Name.Text, FieldCountName, StringComparison.Ordinal))
