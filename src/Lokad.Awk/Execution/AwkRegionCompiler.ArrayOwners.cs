@@ -34,14 +34,7 @@ internal sealed partial class AwkRegionCompiler
                 continue;
             }
             if (scalarWrite) { Finish(); continue; }
-            if (instruction.Kind == AwkRegionInstructionKind.StatementBoundary)
-                continue;
-            if (instruction.IsArithmetic || instruction.Kind is AwkRegionInstructionKind.MoveNumber or
-                AwkRegionInstructionKind.Compound or AwkRegionInstructionKind.Negate or
-                AwkRegionInstructionKind.LocalNumber or AwkRegionInstructionKind.GlobalNumber or
-                AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
-                AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or
-                AwkRegionInstructionKind.FieldIndex or AwkRegionInstructionKind.FieldIndexNumber) continue;
+            if ((instruction.Effects & AwkRegionEffects.KeepsArrayOwner) != 0) continue;
             Finish();
         }
         Finish();

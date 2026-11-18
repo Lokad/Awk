@@ -149,7 +149,7 @@ internal enum AwkRegionInstructionKind : byte
     Jump, JumpIfFalse, JumpIfTrue, JumpIfZero, JumpIfNonzero, JumpIfCase, JumpIfRangeActive, SetRangeState, Exit, Flow,
     FieldIndexNumber, CompleteArrayNumberUpdate
 }
-internal readonly record struct AwkRegionInstruction(
+internal readonly partial record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0)
 {
     internal static AwkRegionInstruction Arithmetic(AwkNumericOperation operation, int target, int left, int right) =>
@@ -163,10 +163,6 @@ internal readonly record struct AwkRegionInstruction(
             AwkNumericOperation.Power => AwkRegionInstructionKind.Power,
             _ => throw new ArgumentOutOfRangeException(nameof(operation))
         }, target, left, right);
-
-    internal bool IsArithmetic => Kind is AwkRegionInstructionKind.Add or AwkRegionInstructionKind.Subtract or
-        AwkRegionInstructionKind.Multiply or AwkRegionInstructionKind.Divide or
-        AwkRegionInstructionKind.Modulo or AwkRegionInstructionKind.Power;
 
     internal bool IsNumberRead => Kind is AwkRegionInstructionKind.FieldNumber or AwkRegionInstructionKind.DynamicFieldNumber or AwkRegionInstructionKind.FieldIndexNumber or
         AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or

@@ -69,40 +69,6 @@ internal static class AwkFunctionHostEffects
         }
     }
 
-    private static bool DirectHost(in AwkRegionInstruction instruction) => instruction.Kind switch
-    {
-        _ when instruction.IsArithmetic => false,
-        AwkRegionInstructionKind.Substring when new AwkRegionTextDestination(instruction.Target).IsPrint => true,
-        // General builtins and regex/provider operations may publish diagnostics,
-        // even without an explicit host builtin. Keep their ordinary owned capture.
-        AwkRegionInstructionKind.Builtin => true,
-        AwkRegionInstructionKind.Poll or AwkRegionInstructionKind.StatementBoundary or
-        AwkRegionInstructionKind.MoveNumber or AwkRegionInstructionKind.FieldIndex or AwkRegionInstructionKind.FieldNumber or
-        AwkRegionInstructionKind.DynamicFieldNumber or AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or
-        AwkRegionInstructionKind.TextNumber or AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.LocalNumber or
-        AwkRegionInstructionKind.GlobalNumber or AwkRegionInstructionKind.VariableNumber or AwkRegionInstructionKind.Value or
-        AwkRegionInstructionKind.Length or AwkRegionInstructionKind.InspectVariable or AwkRegionInstructionKind.InspectArray or
-        AwkRegionInstructionKind.InspectValue or AwkRegionInstructionKind.Index or AwkRegionInstructionKind.Substring or
-        AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Compound or
-        AwkRegionInstructionKind.Compare or AwkRegionInstructionKind.CompareText or AwkRegionInstructionKind.Negate or
-        AwkRegionInstructionKind.Not or AwkRegionInstructionKind.Truth or AwkRegionInstructionKind.Discard or
-        AwkRegionInstructionKind.Assign or AwkRegionInstructionKind.AssignNumber or AwkRegionInstructionKind.AssignConsumedScalar or
-        AwkRegionInstructionKind.ScalarUpdate or
-        AwkRegionInstructionKind.AssignField or AwkRegionInstructionKind.CopyField or AwkRegionInstructionKind.ArrayPrepare or
-        AwkRegionInstructionKind.ArrayUpdate or AwkRegionInstructionKind.CompleteArrayNumberUpdate or
-        AwkRegionInstructionKind.ArrayAssign or AwkRegionInstructionKind.ArrayRead or
-        AwkRegionInstructionKind.ArrayContains or AwkRegionInstructionKind.ArrayDelete or AwkRegionInstructionKind.ArrayClear or
-        AwkRegionInstructionKind.ArrayTarget or
-        AwkRegionInstructionKind.NestedContains or AwkRegionInstructionKind.PathDelete or AwkRegionInstructionKind.PathBegin or
-        AwkRegionInstructionKind.PathKey or AwkRegionInstructionKind.PathEnd or AwkRegionInstructionKind.KeyBegin or
-        AwkRegionInstructionKind.KeyAppend or
-        AwkRegionInstructionKind.KeyEnd or AwkRegionInstructionKind.ReleaseValue or AwkRegionInstructionKind.ReleaseValues or
-        AwkRegionInstructionKind.BeginCall or AwkRegionInstructionKind.Arguments or AwkRegionInstructionKind.InputValue or
-        AwkRegionInstructionKind.ConcatArgument or
-        AwkRegionInstructionKind.ConcatValue or AwkRegionInstructionKind.Return or AwkRegionInstructionKind.ReturnNumber or
-        AwkRegionInstructionKind.PrepareString or AwkRegionInstructionKind.PrepareByteText or
-        AwkRegionInstructionKind.Jump or AwkRegionInstructionKind.JumpIfFalse or AwkRegionInstructionKind.JumpIfTrue or
-        AwkRegionInstructionKind.JumpIfZero or AwkRegionInstructionKind.JumpIfNonzero or AwkRegionInstructionKind.JumpIfCase => false,
-        _ => true
-    };
+    private static bool DirectHost(in AwkRegionInstruction instruction) =>
+        (instruction.Effects & AwkRegionEffects.MayInvokeHost) != 0;
 }

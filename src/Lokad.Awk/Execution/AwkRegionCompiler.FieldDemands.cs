@@ -40,13 +40,6 @@ internal sealed partial class AwkRegionCompiler
             }
             var continues = instruction.Kind switch
             {
-                _ when instruction.IsArithmetic => true,
-                AwkRegionInstructionKind.MoveNumber or AwkRegionInstructionKind.Negate or
-                AwkRegionInstructionKind.Compound or
-                AwkRegionInstructionKind.LocalNumber or AwkRegionInstructionKind.GlobalNumber or
-                AwkRegionInstructionKind.LiteralNumber or AwkRegionInstructionKind.ValueNumber or AwkRegionInstructionKind.TextNumber or
-                AwkRegionInstructionKind.KeyBegin or AwkRegionInstructionKind.KeyEnd or AwkRegionInstructionKind.ReleaseValue or
-                AwkRegionInstructionKind.ReleaseValues => true,
                 AwkRegionInstructionKind.FieldNumber => Field(instruction.Left),
                 AwkRegionInstructionKind.Value or AwkRegionInstructionKind.Length or
                 AwkRegionInstructionKind.Truth or AwkRegionInstructionKind.Not or
@@ -68,7 +61,7 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.PrintField => TerminalOperand(instruction.Left),
                 AwkRegionInstructionKind.PrintList => TerminalPrint(_prints[instruction.Left]),
                 AwkRegionInstructionKind.Printf => TerminalFields(_printfs[instruction.Left].Fields),
-                _ => InvalidatingBoundary()
+                _ => (instruction.Effects & AwkRegionEffects.FieldTransparent) != 0 || InvalidatingBoundary()
             };
             if (instruction.CompletesScalarUpdate)
                 continues = false;

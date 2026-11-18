@@ -34,6 +34,9 @@ During preparation, emit the consumer before selecting an adjacent producer for
 fusion. The emitter only replaces a contiguous tail after the last poll. A poll
 inserted between a producer and consumer keeps their operations separate. Boundary
 sweeps check output, status, cleanup and admission against the same source semantics.
+Opcode effects describe host exposure, the field preparation window and array-owner
+reuse together. Each pass still checks operands and runtime-dependent effects where
+needed, including user comparators and pending output.
 
 ## Admission, cancellation and stack safety
 

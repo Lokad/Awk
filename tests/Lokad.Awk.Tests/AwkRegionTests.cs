@@ -3,6 +3,13 @@ namespace Lokad.Awk.Tests;
 // Storage/migration checks. Ordinary behavior belongs to the public golden corpus.
 public sealed partial class AwkRegionTests
 {
+    [Fact]
+    public void EveryInstructionKindDeclaresItsPreparationEffects()
+    {
+        foreach (var kind in Enum.GetValues<AwkRegionInstructionKind>())
+            _ = new AwkRegionInstruction(kind).Effects;
+    }
+
     [Theory]
     [InlineData("BEGIN{print length(1,2)}", "Invalid number of arguments for length.")]
     [InlineData("BEGIN{{print length(1,2)}}", "Invalid number of arguments for length.")]
