@@ -3,10 +3,15 @@ namespace Lokad.Awk;
 // CSV framing belongs to the record cursor; this decoder also serves split(text,array).
 internal sealed partial class AwkFieldSplitter
 {
-    public long EstimateCsvSplitTextMemory(AwkText text)
+    public (int Count, long Bytes) MeasureCsvSplitText(AwkText text)
     {
         var scanner = new CsvScanner(text.AsSpan(state.CancellationCheckpoint), state.CancellationCheckpoint);
         var count = 0;
+        if (!state.MemoryAccounting.IsEnabled)
+        {
+            while (scanner.MoveNext(out _)) count++;
+            return (count, 0);
+        }
         var bytes = 0L;
         while (scanner.MoveNext(out var field))
         {
@@ -14,7 +19,7 @@ internal sealed partial class AwkFieldSplitter
             if (field.Length > 0)
                 bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateTextBytes(field.DecodedLength));
         }
-        return AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateReferenceListBytes(count));
+        return (count, AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateReferenceListBytes(count)));
     }
 
     private void FillCsvRecord(ReadOnlySpan<byte> text, ref AwkRecordFieldWriter writer)
@@ -34,21 +39,15 @@ internal sealed partial class AwkFieldSplitter
         }
     }
 
-    public AwkTextSplitResult SplitCsvText(AwkText text)
+    public AwkTextSplitResult SplitCsvText(AwkText text, int count)
     {
-        var fields = new List<AwkText>(CountCsvFields(text));
-        var scanner = new CsvScanner(text.AsSpan(state.CancellationCheckpoint), state.CancellationCheckpoint);
+        var bytes = text.AsSpan(state.CancellationCheckpoint);
+        state.CancellationCheckpoint();
+        var fields = new List<AwkText>(count);
+        var scanner = new CsvScanner(bytes, state.CancellationCheckpoint);
         while (scanner.MoveNext(out var field))
-            fields.Add(DecodeCsvField(text.AsSpan(state.CancellationCheckpoint), field));
+            fields.Add(DecodeCsvField(bytes, field));
         return new(fields, []);
-    }
-
-    private int CountCsvFields(AwkText text)
-    {
-        var scanner = new CsvScanner(text.AsSpan(state.CancellationCheckpoint), state.CancellationCheckpoint);
-        var count = 0;
-        while (scanner.MoveNext(out _)) count++;
-        return count;
     }
 
     private AwkText DecodeCsvField(ReadOnlySpan<byte> text, CsvField field)

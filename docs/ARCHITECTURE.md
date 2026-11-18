@@ -179,6 +179,8 @@ overlap before publication. Reusable locations carry current values, never stale
 Split and patsplit reuse the measured indexed field size at publication. Separator
 captures use the dictionary's actual capacity at commit. Named and resolved
 single-array destinations share the replacement and refund path.
+CSV split counts fields and measures transient storage in the same scan before
+filling the admitted list.
 Sort selectors share one mode across parsing, projection and comparison. Builtin
 selectors are read as UTF-8, with decoding for function lookup and diagnostics.
 Sort snapshots own their keys/value observations; callbacks cannot mutate that snapshot.
