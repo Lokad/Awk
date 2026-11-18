@@ -334,27 +334,29 @@ public sealed class AwkFieldCancellationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void CanceledFieldWidthPreparationLeavesThePreviousPlanUntouched(bool estimate)
+    public void CanceledFieldWidthPreparationLeavesThePreviousPlanUntouched(bool duringValidation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
         using var memory = Governor().InitializeRuntime(counters, cancellation.Token);
         var governor = memory.Accounting;
         var splitter = memory.State.FieldSplitter;
-        splitter.AssignFieldWidths(splitter.PrepareFieldWidths(AwkText.FromString("2 3")));
+        var initial = AwkText.FromString("2 3");
+        splitter.AssignFieldWidths(splitter.PrepareFieldWidths(initial, splitter.CountFieldWidths(initial)));
         var previous = splitter.CaptureRecordPlan();
         var committed = governor.LiveBytes;
         var pending = AwkText.FromString(new string('0', LongScan) + "1");
+        var count = duringValidation ? 0 : splitter.CountFieldWidths(pending);
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() =>
         {
-            if (estimate) _ = splitter.EstimateFieldWidthsMemory(pending);
-            else _ = splitter.PrepareFieldWidths(pending);
+            if (duringValidation) _ = splitter.CountFieldWidths(pending);
+            else _ = splitter.PrepareFieldWidths(pending, count);
         });
         Assert.Equal(previous, splitter.CaptureRecordPlan());
         Assert.Equal(committed, governor.LiveBytes);
         using var retryContext = new AwkFieldTestContext(counters);
-        var retry = retryContext.Splitter.PrepareFieldWidths(pending);
+        var retry = retryContext.Splitter.PrepareFieldWidths(pending, retryContext.Splitter.CountFieldWidths(pending));
         Assert.Single(retry);
         Assert.Equal(1, retry[0].Width.Value);
     }
@@ -447,7 +449,7 @@ public sealed class AwkFieldCancellationTests
             {
                 switch (operation)
                 {
-                    case "widths": _ = splitter.PrepareFieldWidths(source); break;
+                    case "widths": _ = splitter.CountFieldWidths(source); break;
                     case "separator": splitter.ValidateFieldSeparator(source); break;
                     case "pattern": splitter.ValidateFieldPattern(source); break;
                     case "record": _ = recordContext.Frame.GetFieldCount(); break;

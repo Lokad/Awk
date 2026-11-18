@@ -57,15 +57,15 @@ internal sealed partial class AwkFieldSplitter(AwkRuntimeState state, AwkFieldSe
         _ = state.CreateRegex(pattern, AwkRegexCaseSensitivity.IgnoreCase);
     }
 
-    public long EstimateFieldWidthsMemory(AwkText value)
+    public int CountFieldWidths(AwkText value)
     {
         state.CancellationCheckpoint();
-        return AwkRuntimeMemory.EstimateFieldWidthListBytes(AwkFieldWidthsParser.Parse(value.AsSpan(state.CancellationCheckpoint), null, state.CancellationCheckpoint));
+        return AwkFieldWidthsParser.Parse(value.AsSpan(state.CancellationCheckpoint), null, state.CancellationCheckpoint);
     }
 
-    public List<AwkFieldWidth> PrepareFieldWidths(AwkText value)
+    public List<AwkFieldWidth> PrepareFieldWidths(AwkText value, int count)
     {
-        var count = AwkFieldWidthsParser.Parse(value.AsSpan(state.CancellationCheckpoint), null, state.CancellationCheckpoint);
+        state.CancellationCheckpoint();
         var widths = new List<AwkFieldWidth>(count);
         AwkFieldWidthsParser.Parse(value.AsSpan(state.CancellationCheckpoint), widths, state.CancellationCheckpoint);
         return widths;

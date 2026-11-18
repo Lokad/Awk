@@ -156,7 +156,7 @@ internal sealed class AwkSpecialVariableDispatcher(
             if (id == AwkSpecialVariableId.FieldPattern)
                 fieldSplitter.ValidateFieldPattern(formatting.FormatStringByteText(value));
             else if (id == AwkSpecialVariableId.FieldWidths)
-                _ = fieldSplitter.EstimateFieldWidthsMemory(formatting.FormatStringByteText(value));
+                _ = fieldSplitter.CountFieldWidths(formatting.FormatStringByteText(value));
             StoreScalar(name, value, cell);
             warned = true;
             return;
@@ -166,7 +166,7 @@ internal sealed class AwkSpecialVariableDispatcher(
         var publish = false;
         var text = AwkText.Empty;
         List<AwkFieldWidth>? widths = null;
-        var widthBytes = 0L;
+        var widthCount = 0;
         switch (id)
         {
             case AwkSpecialVariableId.FieldSeparator:
@@ -183,7 +183,7 @@ internal sealed class AwkSpecialVariableDispatcher(
                 break;
             case AwkSpecialVariableId.FieldWidths:
                 text = formatting.FormatStringByteText(value);
-                widthBytes = fieldSplitter.EstimateFieldWidthsMemory(text);
+                widthCount = fieldSplitter.CountFieldWidths(text);
                 parser = FieldParser.Widths;
                 publish = parser != _parser;
                 break;
@@ -212,9 +212,10 @@ internal sealed class AwkSpecialVariableDispatcher(
         if (publish)
             growth = AwkRuntimeMemory.CheckedAdd(growth,
                 variables.EstimateArrayValueMemoryGrowth(ProcInfo, FieldModeKey, fieldMode));
-        using var allocationPeak = memoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(growth, widthBytes));
+        using var allocationPeak = memoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(growth,
+            AwkRuntimeMemory.EstimateFieldWidthListBytes(widthCount)));
         if (id == AwkSpecialVariableId.FieldWidths)
-            widths = fieldSplitter.PrepareFieldWidths(text);
+            widths = fieldSplitter.PrepareFieldWidths(text, widthCount);
 
         // Every check precedes storage, splitter changes, and metadata publication.
         StoreScalar(name, value, cell);
