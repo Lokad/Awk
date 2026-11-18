@@ -31,6 +31,7 @@ The top-level grammar recognizes balanced action and function bodies, parameter
 lists and groups in patterns. Their consumers read ranges of the original tokens.
 The statement grammar uses the same ranges for balanced headers and groups in
 expressions. Expression and redirection consumers still interpret separators.
+Indexed subranges address the same token owner, including when sliced again.
 Validation reads collected symbols in source order. Collection, validation and
 lowering use the same invocation-local function layouts and parameter slots.
 Frontend syntax walks share source-order traversal and cancellation checks.

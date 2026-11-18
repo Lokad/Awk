@@ -170,17 +170,34 @@ internal static class AwkTokenNavigation
         tokens = ForIndexedAccess(tokens, checkpoint);
         var safeStart = System.Math.Max(0, startIndex);
         var safeCount = System.Math.Min(count, tokens.Count - safeStart);
-        if (safeCount <= 0)
-            return [];
+        return SliceIndexed(tokens, safeStart, safeCount);
+    }
 
-        var result = new AwkToken[safeCount];
-        for (var index = 0; index < safeCount; index++)
+    // Callers supply a stable, indexed token sequence and validated bounds.
+    internal static IReadOnlyList<AwkToken> SliceIndexed(IReadOnlyList<AwkToken> tokens, int start, int count)
+    {
+        if (count <= 0) return [];
+        if (start == 0 && count == tokens.Count) return tokens;
+        return tokens is TokenRange range ? range.Slice(start, count) : new TokenRange(tokens, start, count);
+    }
+
+    private sealed class TokenRange(IReadOnlyList<AwkToken> tokens, int start, int count) : IReadOnlyList<AwkToken>
+    {
+        // Subranges always point directly to the indexed owner.
+        internal TokenRange Slice(int offset, int length) => new(tokens, start + offset, length);
+
+        public int Count => count;
+
+        public AwkToken this[int index] => (uint)index < (uint)count
+            ? tokens[start + index] : throw new ArgumentOutOfRangeException(nameof(index));
+
+        public IEnumerator<AwkToken> GetEnumerator()
         {
-            checkpoint?.Invoke();
-            result[index] = tokens[safeStart + index];
+            for (var index = 0; index < count; index++)
+                yield return tokens[start + index];
         }
 
-        return result;
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     public static IReadOnlyList<AwkToken> Flatten(IEnumerable<IReadOnlyList<AwkToken>> groups, Action? checkpoint = null)

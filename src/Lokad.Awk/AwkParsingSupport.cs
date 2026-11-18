@@ -79,29 +79,14 @@ internal static class AwkParsingSupport
             FindOriginalTokenIndex(tokens, close, checkpoint));
     }
 
-    internal readonly struct TokenGroup(IReadOnlyList<AwkToken> tokens, int open, int close)
+    internal readonly struct TokenGroup(IReadOnlyList<AwkToken>? tokens, int open, int close)
     {
-        internal IReadOnlyList<AwkToken> InnerTokens => close == open + 1
-            ? [] : new OriginalTokenRange(tokens, open + 1, close - open - 1);
+        internal IReadOnlyList<AwkToken> InnerTokens => Slice(open + 1, close - open - 1);
 
-        internal IReadOnlyList<AwkToken> FullTokens => new OriginalTokenRange(tokens, open, close - open + 1);
-    }
+        internal IReadOnlyList<AwkToken> FullTokens => Slice(open, close - open + 1);
 
-    // Both grammars use the complete lexer stream for kinds, text and source spans.
-    private sealed class OriginalTokenRange(IReadOnlyList<AwkToken> tokens, int start, int count) : IReadOnlyList<AwkToken>
-    {
-        public int Count => count;
-
-        public AwkToken this[int index] => (uint)index < (uint)count
-            ? tokens[start + index] : throw new ArgumentOutOfRangeException(nameof(index));
-
-        public IEnumerator<AwkToken> GetEnumerator()
-        {
-            for (var index = 0; index < count; index++)
-                yield return tokens[start + index];
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        private IReadOnlyList<AwkToken> Slice(int start, int count) =>
+            tokens is null ? [] : AwkTokenNavigation.SliceIndexed(tokens, start, count);
     }
 
     private static int FindOriginalTokenIndex(IReadOnlyList<AwkToken> tokens, AwkTextSpan span, Action? checkpoint)

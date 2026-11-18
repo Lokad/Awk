@@ -114,7 +114,6 @@ public sealed class AwkGrammarCancellationTests
     [InlineData("next")]
     [InlineData("top-level")]
     [InlineData("split")]
-    [InlineData("slice")]
     public void TokenNavigationObservesCancellationWithinOwnedLoops(string operation)
     {
         var tokens = Tokens(256, AwkTokenKind.Comment);
@@ -136,12 +135,22 @@ public sealed class AwkGrammarCancellationTests
                 case "next": AwkTokenNavigation.FindNextSignificant(tokens, 0, Checkpoint); break;
                 case "top-level": AwkTokenNavigation.FindTopLevel(tokens, AwkTokenKind.Comma, 0, tokens.Length, Checkpoint); break;
                 case "split": AwkTokenNavigation.SplitTopLevel(tokens, AwkTokenKind.Comma, Checkpoint); break;
-                default: AwkTokenNavigation.Slice(tokens, 0, tokens.Length, Checkpoint); break;
             }
         }
         var failure = Assert.Throws<OperationCanceledException>(Run);
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal(8, calls);
+    }
+
+    [Fact]
+    public void TokenSliceChecksCancellationBeforeReturningAView()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var tokens = Tokens(3, AwkTokenKind.Comment);
+        var failure = Assert.Throws<OperationCanceledException>(() =>
+            AwkTokenNavigation.Slice(tokens, 1, 2, cancellation.Token.ThrowIfCancellationRequested));
+        Assert.Equal(cancellation.Token, failure.CancellationToken);
     }
 
     [Fact]
