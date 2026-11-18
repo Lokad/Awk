@@ -2,6 +2,30 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkAdmissionRefusalTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task IterationKeyReplacementRequiresAdmissionBeforeTheNextBody(bool local)
+    {
+        var budget = new CooperativeTestBudget(1 << 20);
+        var host = new MockFileSystem();
+        host.AfterAppend = () =>
+        {
+            if (host.GetOutput(AwkFileDescriptor.StdOut) == "before\n" && budget.Refusals == 0)
+                budget.RefuseNextAdmissionMinimumGrowth = 8;
+        };
+        const string loop = "a[\"one\"]=1;a[\"two\"]=2;for(k in a){if(++n==1)print \"before\";else break}";
+        var source = (local ? "function walk(k){" + loop + "}BEGIN{walk();print \"after\"}"
+            : "BEGIN{" + loop + "print \"after\"}") + "END{print \"end\"}";
+        var tool = AwkTestHarness.ParseAwk(Command(source, budget));
+
+        Assert.Equal(2, (await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None)).Value);
+        Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
     [Fact]
     public async Task InputSliceCopyRefusalStopsLaterAndEndEffectsWithoutRecovery()
     {

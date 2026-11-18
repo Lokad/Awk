@@ -263,9 +263,9 @@ internal sealed partial class AwkArrayRuntime
 
         internal AwkValue GetArgument(int index) => index switch
         {
-            0 => _state.CreateArrayKeyValue(_entries[_source[_left]].Key),
+            0 => _state.ReadProjectedArrayKey(_entries[_source[_left]].Key),
             1 => _entries[_source[_left]].Value,
-            2 => _state.CreateArrayKeyValue(_entries[_source[_right]].Key),
+            2 => _state.ReadProjectedArrayKey(_entries[_source[_right]].Key),
             3 => _entries[_source[_right]].Value,
             _ => throw new ArgumentOutOfRangeException(nameof(index))
         };

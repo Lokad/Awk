@@ -97,6 +97,9 @@ reuses the backing for whole slices. Byte slices must end up as valid UTF-8.
 Adjacent text assignments transfer the producer's existing charge when the scalar
 destination publishes. A bound destination admits any remaining growth. Ordinary
 assignment fallbacks retain a complete capture through their own mutation checks.
+Iteration snapshots retain compact keys. When `for-in` needs a new owning spelling,
+mutation admission covers its construction and assignment even when it replaces text
+of the same size. Sorted snapshots already fund their projected key text.
 Concatenation starts in the runtime. A deferred pair keeps its parts, accounting
 and allocation observations until it can publish a complete copy.
 

@@ -52,6 +52,8 @@ public sealed class AwkOutputOwnershipTests
     [InlineData(true, false, "initializer")] [InlineData(true, true, "initializer")]
     [InlineData(false, false, "step")] [InlineData(false, true, "step")]
     [InlineData(true, false, "step")] [InlineData(true, true, "step")]
+    [InlineData(false, false, "iteration")] [InlineData(false, true, "iteration")]
+    [InlineData(true, false, "iteration")] [InlineData(true, true, "iteration")]
     public async Task PendingOutputStopsFollowingEffectsAcrossStatementPositions(bool governed, bool cancel, string position)
     {
         var budget = new CooperativeTestBudget(4 << 20);
@@ -82,6 +84,8 @@ public sealed class AwkOutputOwnershipTests
         {
             "initializer" => "BEGIN{for(print \"first\";i++<1;){a=4;b=8;print a,b}}",
             "step" => "BEGIN{for(i=0;i<1;print \"first\"){i++}a=4;b=8;print a,b}",
+            "iteration" => "function copy(x){return x} BEGIN{a[\"élan\"]=4;" +
+                "for(k in a){saved=copy(k);n=a[k];delete a;print \"first\";print n,saved,k}}",
             _ => "BEGIN{a=1;b=2;print \"first\";a+=3;b*=4;print a,b}"
         };
         var awk = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [source], []));
@@ -98,7 +102,8 @@ public sealed class AwkOutputOwnershipTests
             release.TrySetResult();
             if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
             else Assert.Equal(0, (await execution).Value);
-            Assert.Equal(cancel ? "first\n" : "first\n4 8\n", stdout);
+            var tail = position == "iteration" ? "4 élan élan\n" : "4 8\n";
+            Assert.Equal(cancel ? "first\n" : "first\n" + tail, stdout);
             Assert.Empty(stderr);
         }
         finally

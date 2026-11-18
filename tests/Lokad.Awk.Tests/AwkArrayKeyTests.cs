@@ -187,7 +187,7 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(7, entries[prepared]);
         Assert.Equal(7, entries.GetAlternateLookup<ReadOnlySpan<byte>>()[AwkUtf8Codec.Encode(spelling).Span]);
         Assert.Equal(spelling, restored.ToString());
-        Assert.Equal(spelling, projectionRuntime.MaterializeArrayKeyText(restored, AwkMemoryAccounting.Disabled).AsString());
+        Assert.Equal(spelling, projectionRuntime.ProjectArrayKeyText(restored).StoredText.AsString());
     }
 
     [Theory]
@@ -283,7 +283,7 @@ public sealed class AwkArrayKeyTests
             key.RetainedTextMemoryBytes);
         Array.Fill(bytes, (byte)'x');
         Assert.Equal(text, key.ToString());
-        Assert.Equal(text, projectionRuntime.MaterializeArrayKeyText(key, AwkMemoryAccounting.Disabled).AsString());
+        Assert.Equal(text, projectionRuntime.ProjectArrayKeyText(key).StoredText.AsString());
         using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled);
         key.AppendTo(builder);
         Assert.Equal(AwkUtf8Codec.Encode(text).ToArray(), builder.AsSpan().ToArray());
@@ -533,7 +533,7 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(text, fromOrdinal.ToString());
         Assert.Equal(
             text,
-            projectionRuntime.MaterializeArrayKeyText(fromOrdinal, AwkMemoryAccounting.Disabled).AsString());
+            projectionRuntime.ProjectArrayKeyText(fromOrdinal).StoredText.AsString());
         Assert.Equal(text.Length, fromOrdinal.ByteLength);
         Assert.Equal(0, fromOrdinal.RetainedTextMemoryBytes);
         Assert.Equal(
@@ -589,7 +589,7 @@ public sealed class AwkArrayKeyTests
     }
 
     [Fact]
-    public void AwkArrayKey_OrdinalMaterializationUsesRuntimeAccounting()
+    public void AwkArrayKey_OrdinalProjectionRecordsOwnedText()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(1024);
@@ -597,11 +597,13 @@ public sealed class AwkArrayKeyTests
             AwkFieldSeparatorSpec.Default, CancellationToken.None,
             memoryForGovernor.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
                 null, counters, AwkRuntimeLimits.CreateDefault()))));
-        var governor = memoryForGovernor.Accounting;
         var baselineAllocations = counters[AwkCounter.TextAllocations];
         var baselineBytes = counters[AwkCounter.TextBytes];
 
-        var text = memoryForGovernor.State.MaterializeArrayKeyText(AwkArrayKey.FromOrdinal(123), governor);
+        var state = memoryForGovernor.State;
+        var key = AwkArrayKey.FromOrdinal(123);
+        using var snapshot = state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateTextBytes(key.ByteLength));
+        var text = state.ProjectArrayKeyText(key).StoredText;
 
         Assert.Equal("123", text.AsString());
         Assert.Equal(baselineAllocations + 1, counters[AwkCounter.TextAllocations]);
@@ -639,6 +641,8 @@ public sealed class AwkArrayKeyTests
         using var keys = AwkArrayStorageTestOperations.Snapshot(state, arrayName);
         var key = Assert.Single(keys);
         Assert.Equal(0, key.RetainedTextMemoryBytes);
-        Assert.Equal("7", state.CreateArrayKeyValue(key).AsString());
+        var name = AwkVariableName.FromText("k");
+        state.AssignIterationKey(new(AwkRegionOperandKind.DynamicVariable, 0, name), key);
+        Assert.Equal("7", state.ResolveVariableValue(name).AsString());
     }
 }

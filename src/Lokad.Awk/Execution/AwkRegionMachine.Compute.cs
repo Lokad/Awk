@@ -295,8 +295,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.IteratorNext:
                     if (computationView.Storage.TryNextKey(instruction.Left, out var nextKey))
-                        computationView.State.AssignScalarOperand(in computationView.Operands[instruction.Right],
-                            computationView.State.CreateArrayKeyValue(nextKey));
+                        computationView.State.AssignIterationKey(in computationView.Operands[instruction.Right], nextKey);
                     else position = instruction.Target - 1;
                     break;
                 case AwkRegionInstructionKind.IteratorEnd:

@@ -259,28 +259,18 @@ internal sealed class AwkRuntimeState : IDisposable
     internal AwkArrayKey FormatArrayKey(AwkValue value) =>
         new AwkArrayKey(FormatStringByteText(value), CancellationCheckpoint).WithInputOrigin(value.HasInputOrigin);
 
-    public AwkValue CreateArrayKeyValue(AwkArrayKey key)
+    internal AwkValue ReadProjectedArrayKey(AwkArrayKey key)
     {
-        var text = MaterializeArrayKeyText(key, MemoryAccounting);
-        return key.HasInputOrigin ? CreateNumericStringValue(text) : CreateStringValue(text);
+        System.Diagnostics.Debug.Assert(!key.RequiresTextMaterialization);
+        return key.HasInputOrigin ? CreateNumericStringValue(key.StoredText) : CreateStringValue(key.StoredText);
     }
 
-    internal AwkArrayKey ProjectArrayKeyText(AwkArrayKey key) =>
-        key.RequiresTextMaterialization
-            // The sort snapshot already funds key text, including overlap with its source.
-            ? key.WithTextProjection(MaterializeArrayKeyText(key, AwkMemoryAccounting.Disabled))
-            : key;
-
-    internal AwkText MaterializeArrayKeyText(AwkArrayKey key, AwkMemoryAccounting allocationAccounting)
+    internal AwkArrayKey ProjectArrayKeyText(AwkArrayKey key)
     {
-        if (!key.RequiresTextMaterialization)
-            return key.StoredText;
-
+        // The sort snapshot already funds key text, including overlap with its source.
+        if (!key.RequiresTextMaterialization) return key;
         Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
-        var formatted = key.AsSpan(buffer);
-        var bytes = AwkText.AllocateOwnedBytes(formatted.Length, allocationAccounting);
-        formatted.CopyTo(bytes);
-        return AdoptText(bytes);
+        return key.WithTextProjection(AdoptText(AwkText.CopyFundedBytes(key.AsSpan(buffer), checkpoint: null)));
     }
 
     internal AwkArrayKey CopyArrayKey(ReadOnlySpan<byte> bytes)
@@ -1176,6 +1166,27 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void AssignScalarOperand(in AwkRegionOperand variable, AwkValue value)
     {
         ThrowIfCancellationRequested();
+        StoreScalarOperand(in variable, value);
+    }
+
+    internal void AssignIterationKey(in AwkRegionOperand variable, AwkArrayKey key)
+    {
+        if (!key.RequiresTextMaterialization)
+        {
+            AssignScalarOperand(in variable, ReadProjectedArrayKey(key));
+            return;
+        }
+
+        // The snapshot owns the compact key. Cover its new spelling until the
+        // scalar publishes, including when replacing an equally sized spelling.
+        Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
+        var spelling = key.AsSpan(buffer);
+        using var admission = MemoryAccounting.IsEnabled
+            ? MemoryAccounting.AdmitMutation(AwkRuntimeMemory.EstimateTextBytes(spelling.Length))
+            : default;
+        ThrowIfCancellationRequested();
+        var text = AdoptText(AwkText.CopyFundedBytes(spelling, checkpoint: null));
+        var value = key.HasInputOrigin ? CreateNumericStringValue(text) : CreateStringValue(text);
         StoreScalarOperand(in variable, value);
     }
 
