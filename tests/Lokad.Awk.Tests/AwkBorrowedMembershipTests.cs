@@ -71,13 +71,13 @@ public sealed class AwkBorrowedMembershipTests
         _ = state.FieldCount;
         var before = state.MemoryAccounting.LiveBytes;
         var allocations = counters[AwkCounter.TextAllocations];
-        Assert.True(state.ContainsArrayField(array, 1));
-        Assert.False(state.ContainsArrayField(array, 2));
-        Assert.False(state.ContainsArrayField(array, 9));
+        Assert.True(state.ContainsArrayField(array, new(1)));
+        Assert.False(state.ContainsArrayField(array, new(2)));
+        Assert.False(state.ContainsArrayField(array, new(9)));
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(before, state.MemoryAccounting.LiveBytes);
         state.SetCurrentRecord(AwkText.FromString("new other"));
-        Assert.False(state.ContainsArrayField(array, 1));
+        Assert.False(state.ContainsArrayField(array, new(1)));
         Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
     }
 

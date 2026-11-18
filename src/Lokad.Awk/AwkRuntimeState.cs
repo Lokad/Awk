@@ -1641,9 +1641,9 @@ internal sealed class AwkRuntimeState : IDisposable
     internal double GetArrayNumber(AwkArrayIdentity array, AwkArrayKey key, in AwkArrayUpdateTarget location) =>
         _variables.GetArrayNumber(array, key, in location);
 
-    internal bool TryCaptureReadyShortFieldKey(int index, out AwkArrayKey key)
+    internal bool TryCaptureReadyShortFieldKey(AwkFieldIndex index, out AwkArrayKey key)
     {
-        if (index > 0 && _recordFields.TryGetReadyShortFieldBytes(new(index), out var bytes))
+        if (index.IsNamedField && _recordFields.TryGetReadyShortFieldBytes(index, out var bytes))
         {
             key = AwkArrayKey.FromInlineBytes(bytes);
             return true;
@@ -1655,49 +1655,41 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void SetArrayAwkValue(AwkArrayIdentity array, AwkArrayKey key, AwkValue value) =>
         _variables.SetArrayValue(array, key, value);
 
-    public AwkValue GetArrayFieldValue(AwkArrayName name, int index, AwkArrayBinding binding = default)
+    public AwkValue GetArrayFieldValue(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
     {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
+        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
             _arrayRuntime.TryGetBorrowedAwkValue(name, bytes, out var value, binding, input: true))
             return value;
         return GetArrayAwkValue(name, ToArrayKey(GetFieldValue(index)), binding);
     }
 
-    internal double GetArrayFieldNumber(AwkArrayName name, int index, AwkArrayBinding binding)
+    internal double GetArrayFieldNumber(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding)
     {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
+        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
             _arrayRuntime.TryGetBorrowedNumber(name, bytes, out var number, binding, input: true))
             return number;
         return GetArrayNumber(name, ToArrayKey(GetFieldValue(index)), binding);
     }
 
-    public AwkArrayKey GetArrayFieldKey(AwkArrayName name, int index, AwkArrayBinding binding = default)
+    public AwkArrayKey GetArrayFieldKey(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
     {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
+        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
             _arrayRuntime.TryGetBorrowedKey(name, bytes, out var key, binding))
             return key.WithInputOrigin(true);
         return ToArrayKey(GetFieldValue(index));
     }
 
-    internal AwkArrayKey CaptureFieldKey(int index)
+    internal AwkArrayKey CaptureFieldKey(AwkFieldIndex index)
     {
-        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
+        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
             return CopyArrayKey(bytes)
                 .WithInputOrigin(true);
         return ToArrayKey(GetFieldValue(index));
     }
 
-    internal void SetArrayFieldValue(AwkArrayName name, int index, AwkValue value, AwkArrayBinding binding)
+    internal void SetArrayFieldValue(AwkArrayName name, AwkFieldIndex index, AwkValue value, AwkArrayBinding binding)
     {
-        if (index < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
+        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
             _arrayRuntime.TrySetBorrowedAwkValue(name, bytes, value, binding, input: true)) return;
         var key = ToArrayKey(GetFieldValue(index));
         ThrowIfCancellationRequested();
@@ -1707,24 +1699,17 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index, AwkArrayBinding binding = default) =>
         _arrayRuntime.GetElementRuntimeKind(name, index, binding);
 
-    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(in AwkArrayName name, int index,
+    internal AwkArrayUpdateTarget PrepareArrayFieldUpdate(in AwkArrayName name, AwkFieldIndex index,
         AwkArrayBinding binding = default, in AwkArrayUpdateTarget previous = default)
     {
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
+        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
         {
             if (TryGetBoundArray(in name, binding, out var array))
                 return _variables.PrepareArrayUpdate(array, bytes, in previous, input: true);
             if (_arrayRuntime.TryPrepareUnboundBorrowedUpdate(name, bytes, out var target, binding, input: true))
                 return target;
         }
-        return PrepareArrayUpdate(name, CaptureArrayFieldKey(index), binding, in previous);
-    }
-
-    private AwkArrayKey CaptureArrayFieldKey(int index)
-    {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        return ToArrayKey(GetFieldValue(index));
+        return PrepareArrayUpdate(name, ToArrayKey(GetFieldValue(index)), binding, in previous);
     }
 
     internal AwkArrayKey ResolveArrayKey(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
@@ -1778,12 +1763,10 @@ internal sealed class AwkRuntimeState : IDisposable
     internal bool ContainsArrayValue(AwkArrayName name, ReadOnlySpan<byte> index, AwkArrayBinding binding) =>
         _arrayRuntime.ContainsValue(name, index, binding);
 
-    public bool ContainsArrayField(AwkArrayName name, int index, AwkArrayBinding binding = default)
+    public bool ContainsArrayField(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
     {
-        if (index < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         // The dictionary consumes the borrowed bytes before this synchronous call returns.
-        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
+        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
             return _arrayRuntime.ContainsValue(name, bytes, binding);
         return ContainsArrayValue(name, ToArrayKey(GetFieldValue(index)), binding);
     }
