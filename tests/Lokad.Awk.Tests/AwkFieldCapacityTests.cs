@@ -164,6 +164,41 @@ public sealed class AwkFieldCapacityTests
         }
         Assert.Equal(0, fieldMemoryBudget.Reserved);
     }
+
+    [Fact]
+    public void WarmRebuildStillAdmitsNewTextAndDropsCapacityForSmallerInput()
+    {
+        using var memory = new CooperativeTestMemory(Limit).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        const int width = 256;
+        using var context = Fields(memory, width);
+        var frame = context.Frame;
+        var cells = Enumerable.Repeat("x", width).ToArray();
+        var field = new AwkFieldIndex(128);
+
+        frame.AssignFieldValue(field, AwkValue.FromText("y"), Space);
+        var escaped = frame.RecordAwkText;
+        cells[127] = "y";
+        var first = string.Join(' ', cells);
+
+        frame.AssignFieldValue(field, AwkValue.FromText("z"), Space);
+        var committed = memory.Accounting.LiveBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        var error = Assert.Throws<AwkRuntimeException>(() => _ = frame.RecordAwkText);
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal(committed, memory.Accounting.LiveBytes);
+        Assert.Equal(committed, memory.Budget.Reserved);
+        Assert.Equal("z", frame.GetFieldValue(field).AsString());
+
+        cells[127] = "z";
+        Assert.Equal(string.Join(' ', cells), frame.RecordAwkText.AsString());
+        Assert.Equal(first, escaped.AsString());
+
+        frame.SetRecordText(AwkText.FromString("narrow"));
+        Assert.InRange(memory.Accounting.LiveBytes, context.BaselineBytes, committed - 1);
+        frame.ResetRecord();
+        AssertRefunded(memory.Accounting, memory.Budget, context.BaselineBytes);
+    }
+
     private static AwkFieldTestContext Fields(CooperativeTestMemory memory, int count) { var context = new AwkFieldTestContext(memory); context.Frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("x", count)))); Assert.Equal(count, context.Frame.GetFieldCount()); return context; }
 
     private static void Grow(AwkFieldFrame frame, string operation, int target)

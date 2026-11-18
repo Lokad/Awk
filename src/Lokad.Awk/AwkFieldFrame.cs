@@ -96,6 +96,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     private AwkValue _recordValue = AwkValue.UnassignedText();
     private AwkValue _fieldCountValue = AwkValue.FromNumber(0);
     private AwkRecordFieldBuffer _fieldTexts = new();
+    private AwkRecordFieldBuffer? _rebuildFields;
     internal readonly struct CachedFieldValue
     {
         private readonly AwkText _spelling;
@@ -1052,11 +1053,17 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     {
         var fieldCount = _fieldTexts.Count;
         var numericCount = _numericFieldCount;
+        var reusable = _rebuildFields is { } spare && FitsRebuildWidth(spare.Capacity, fieldCount) ? spare : null;
+        var fieldCapacity = reusable?.Capacity ?? fieldCount;
+        var recycled = FitsRebuildWidth(_fieldTexts.Capacity, fieldCount) ? _fieldTexts : null;
         var bufferBytes = state.MemoryAccounting.IsEnabled
-            ? AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateRecordFieldListBytes(fieldCount),
+            ? AwkRuntimeMemory.CheckedAdd(reusable is null ? AwkRuntimeMemory.EstimateRecordFieldListBytes(fieldCapacity) : 0,
                 AwkRuntimeMemory.EstimateNumericFieldSpellingArrayBytes(numericCount))
             : 0;
-        using var buffers = state.MemoryAccounting.ReserveTransient(bufferBytes);
+        // A reused array is already funded. The lease still has to admit the new record text.
+        using var buffers = bufferBytes == 0 && reusable is not null
+            ? state.MemoryAccounting.CreateTransientLease()
+            : state.MemoryAccounting.ReserveTransient(bufferBytes);
         if (bufferBytes > 0) state.CancellationCheckpoint?.Invoke();
         var formatted = numericCount == 0 ? [] : new (int FieldIndex, AwkText Text)[numericCount];
         var payloadByteLength = _fieldPayloadByteLength;
@@ -1076,8 +1083,9 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var byteLength = EstimateComposedRecordByteLength(_recompositionSeparator.ByteLength,
             fieldCount, payloadByteLength);
         var retained = EstimateRetainedBytes(AwkRuntimeMemory.EstimateTextBytes(byteLength),
-            fieldCount, fieldCount, _fieldValueCache, _fieldCountValue);
-        var fields = new AwkRecordFieldBuffer(fieldCount);
+            fieldCount, fieldCapacity, recycled?.Capacity ?? 0, _fieldValueCache, _fieldCountValue);
+        var fields = reusable ?? new AwkRecordFieldBuffer(fieldCapacity);
+        var stagedFields = fields.UnpublishedTail(fieldCount);
         var destination = AwkText.AllocateOwnedBytes(byteLength, state.MemoryAccounting, buffers, state.CancellationCheckpoint);
         var separator = byteLength == 0 ? default : _recompositionSeparator.AsSpan(state.CancellationCheckpoint);
         var offset = 0;
@@ -1097,14 +1105,17 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             if (length != 0)
                 AwkText.CopyBytes(field.AsSpan(RecordBytes(), state.CancellationCheckpoint),
                     destination.AsSpan(offset), state.CancellationCheckpoint);
-            fields.Add(AwkRecordField.FromRecordSlice(offset, length).WithCacheFrom(descriptor));
+            stagedFields[index] = AwkRecordField.FromRecordSlice(offset, length).WithCacheFrom(descriptor);
             offset += length;
         }
         var recordText = byteLength == 0 ? AwkText.Empty : state.AdoptText(destination);
         state.CancellationCheckpoint?.Invoke();
+        fields.PublishCount(fieldCount);
         ClearBufferedRecord();
         _recordText = recordText;
         _fieldTexts = fields;
+        recycled?.Clear();
+        _rebuildFields = recycled;
         _recordTextIsCurrent = true;
         _recordWasRecomposed = true;
         _recompositionSeparator = AwkText.Empty;
@@ -1285,7 +1296,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             }
             var retainedBytes = state.MemoryAccounting.IsEnabled ? EstimateRetainedBytes(
                 AwkRuntimeMemory.EstimateTextBytes(_recordText), fieldTexts.Count, fieldTexts.Capacity,
-                writer.Values, default) : 0;
+                _rebuildFields?.Capacity ?? 0, writer.Values, default) : 0;
             state.CancellationCheckpoint?.Invoke();
             _fieldTexts = fieldTexts;
             _fieldValueCache = writer.Values;
@@ -1320,10 +1331,12 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         _fieldCountValue = AwkValue.FromNumber(0);
         var recordByteLength = RecordByteLength;
         // Producers only write unpublished frame-owned destinations.
-        if (!releaseCache && _fieldTexts.Capacity > 0 && ReuseFieldBuffer(recordByteLength))
+        if (!releaseCache && _fieldTexts.Capacity > 0 && ReuseFieldBuffer(_fieldTexts.Capacity, recordByteLength))
             _fieldTexts.Clear();
         else if (_fieldTexts.Capacity != 0)
             _fieldTexts = new();
+        if (releaseCache || !ReuseFieldBuffer(_rebuildFields?.Capacity ?? 0, recordByteLength))
+            _rebuildFields = null;
         if (!releaseCache && ReuseCacheBuffer(recordByteLength))
             _fieldValueCache.Clear();
         else
@@ -1383,19 +1396,22 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         if (!state.MemoryAccounting.IsEnabled) return 0;
         // Retain already-funded capacity, never allocate speculatively. The same
         // incoming length selects storage here and when the owner clears its cells.
-        var buffers = (ReuseFieldBuffer(recordByteLength)
+        var spareCapacity = _rebuildFields?.Capacity ?? 0;
+        var buffers = (ReuseFieldBuffer(_fieldTexts.Capacity, recordByteLength)
             ? AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity) : 0) +
+            (ReuseFieldBuffer(spareCapacity, recordByteLength) ? AwkRuntimeMemory.EstimateRecordFieldListBytes(spareCapacity) : 0) +
             (ReuseCacheBuffer(recordByteLength) ? EstimateFieldCacheBufferBytes(_fieldValueCache.Capacity) : 0);
         return AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.EstimateTextBytes(text), plan.RetainedMemoryBytes), buffers);
     }
 
-    private long EstimateRetainedBytes(long recordTextBytes, int fieldCount, int fieldCapacity,
+    private long EstimateRetainedBytes(long recordTextBytes, int fieldCount, int fieldCapacity, int spareCapacity,
         List<CachedFieldValue> fieldValueCache, AwkValue fieldCountValue)
     {
         if (!state.MemoryAccounting.IsEnabled) return 0;
         var bytes = AwkRuntimeMemory.CheckedAdd(recordTextBytes, fieldCountValue.RetainedTextMemoryBytes);
         bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateRecordFieldListBytes(fieldCapacity));
+        bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateRecordFieldListBytes(spareCapacity));
         bytes = AwkRuntimeMemory.CheckedAdd(bytes, EstimateFieldCacheBufferBytes(fieldValueCache.Capacity));
         for (var index = 0; index < fieldValueCache.Count; index++)
         {
@@ -1411,9 +1427,11 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
 
     // At most one field per byte plus an empty tail; allow ordinary doubling.
     // Long calculations avoid overflow for the largest representable records.
-    private bool ReuseFieldBuffer(int recordByteLength) =>
-        _fieldTexts.Capacity <= SmallFieldBufferCapacity ||
-        _fieldTexts.Capacity <= 2L * (recordByteLength + 1L);
+    private static bool ReuseFieldBuffer(int capacity, int recordByteLength) =>
+        capacity <= SmallFieldBufferCapacity || capacity <= 2L * (recordByteLength + 1L);
+
+    private static bool FitsRebuildWidth(int capacity, int fieldCount) =>
+        fieldCount > 0 && capacity >= fieldCount && capacity <= 2L * fieldCount;
 
     private bool ReuseCacheBuffer(int recordByteLength) =>
         _fieldValueCache.Capacity <= SmallFieldCacheCapacity ||

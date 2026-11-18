@@ -131,7 +131,9 @@ escaping values own their spelling. Rebuilding/output prepares the full byte len
 admits destination storage before copying/publication. Field/cache identities survive
 split completion and reconstruction; failed staging leaves earlier observations valid.
 Reconstruction stages numeric spellings in field order under the active `CONVFMT`.
-It transfers the staged record's funding on publication and checks cancellation after
+The frame can reuse one funded descriptor buffer to stage a similarly wide rebuild.
+Much smaller records and frame reset release the spare storage.
+The frame transfers the staged record's funding on publication and checks cancellation after
 retiring the old payload. Field mutations publish cells and `NF` before refunds.
 The frame's two input slots use the invocation ledger. A borrowed slot has funded
 fallback storage before it can be published, and promotion rebinds the frame's view.
