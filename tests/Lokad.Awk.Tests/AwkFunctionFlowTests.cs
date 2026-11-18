@@ -43,7 +43,7 @@ public sealed class AwkFunctionFlowTests
                 }
             };
             var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-                AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static _ => []);
+                AwkFileDescriptor.StdErr, cancellation.Token, limits, state, static _ => []);
             using var executor = new AwkRecordTestExecution(program, state);
             using (state.EnterActionPhase(AwkActionPhase.BeginFile))
             {
@@ -98,7 +98,7 @@ public sealed class AwkFunctionFlowTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.InitializeFunctions(program.Functions);
         var host = new MockFileSystem();
-        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, CancellationToken.None, counters, limits, state, static _ => []);
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, CancellationToken.None, limits, state, static _ => []);
         using var executor = new AwkRecordTestExecution(program, state);
         var record = AwkInputRecordResult.Record(AwkText.FromString("row"), AwkRecordTerminator.NewLine, AwkRecordFieldSplittingMode.Ordinary);
         var expectedFlow = skipFile ? AwkStatementFlow.NextFile : AwkStatementFlow.Continue;

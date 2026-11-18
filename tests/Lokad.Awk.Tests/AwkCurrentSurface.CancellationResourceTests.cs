@@ -23,7 +23,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
             cancellation.Token,
-            AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             state,
             static _ => []);
@@ -226,7 +225,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
             CancellationToken.None,
-            AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             state,
             static _ => []);
@@ -422,7 +420,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
             cancellation.Token,
-            AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             state,
             static _ => []);
@@ -760,7 +757,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
             CancellationToken.None,
-            AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             state,
             static _ => []);
@@ -864,10 +860,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var concatenated = segment;
         for (var index = 0; index < 1_024; index++)
         {
-            concatenated = concatenated.Concat(
-                segment,
-                state.Counters,
-                state.MemoryAccounting);
+            concatenated = AwkText.Concat([concatenated, segment], state.Counters, state.MemoryAccounting);
         }
 
         var exception = Assert.Throws<AwkRuntimeException>(() =>
@@ -967,8 +960,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 300))));
         var host = new MockFileSystem();
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, CancellationToken.None, AwkRuntimeCounters.Disabled,
-            state.Limits, state, static _ => []);
+            AwkFileDescriptor.StdErr, CancellationToken.None,             state.Limits, state, static _ => []);
         var binding = AwkBinder.Bind(AwkParser.Parse("{print \"unreachable\"}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
@@ -1015,8 +1007,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 300))));
         var host = new MockFileSystem();
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, cancellation.Token, AwkRuntimeCounters.Disabled,
-            state.Limits, state, static _ => []);
+            AwkFileDescriptor.StdErr, cancellation.Token,             state.Limits, state, static _ => []);
         var binding = AwkBinder.Bind(AwkParser.Parse("{print \"unreachable\"}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
@@ -1249,7 +1240,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
             CancellationToken.None,
-            AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxOutputFiles(2),
             state,
             static _ => []);

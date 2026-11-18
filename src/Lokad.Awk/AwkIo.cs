@@ -6,7 +6,6 @@ internal sealed class AwkIo
     private readonly AwkIoHostAdapter _host;
     private readonly AwkPipeRuntime _pipes;
     private readonly AwkSpecialPathPolicy _specialPaths;
-    private readonly AwkRuntimeCounters _counters;
     private readonly AwkRuntimeState _state;
     private readonly AwkRecordDescriptorReader _descriptorReader;
     private readonly AwkFileDescriptor _stdIn;
@@ -30,7 +29,6 @@ internal sealed class AwkIo
         AwkFileDescriptor stdOut,
         AwkFileDescriptor stdErr,
         CancellationToken cancellationToken,
-        AwkRuntimeCounters counters,
         AwkRuntimeLimits limits,
         AwkRuntimeState state,
         Func<AwkMemoryLease, IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
@@ -81,7 +79,6 @@ internal sealed class AwkIo
             CreatePipeRecordCursor,
             NextRedirectionOrder);
         _specialPaths = new AwkSpecialPathPolicy(stdIn, stdOut, stdErr);
-        _counters = counters;
     }
 
     public Task WriteStandardOutputAsync(ReadOnlyMemory<byte> content)
@@ -252,7 +249,7 @@ internal sealed class AwkIo
                     ? AwkGetlineResult.EndOfFileClearingTerminator
                     : AwkGetlineResult.EndOfFile;
 
-            _counters.Add(AwkCounter.RecordsRead, 1);
+            _state.Counters.Add(AwkCounter.RecordsRead);
             return AwkGetlineResult.Record(
                 input.RecordText,
                 input.Terminator,

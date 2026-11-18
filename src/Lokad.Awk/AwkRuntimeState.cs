@@ -114,7 +114,7 @@ internal sealed class AwkRuntimeState : IDisposable
         try
         {
             _stringRuntime = new AwkStringRuntime(stringUnitMode, CancellationCheckpoint);
-            _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Counters, MemoryAccounting, CompatibilityMode, CancellationCheckpoint);
+            _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, this);
             _fieldSplitter = new AwkFieldSplitter(
                 fieldSeparator,
                 _regexRuntime.Create,
@@ -155,7 +155,7 @@ internal sealed class AwkRuntimeState : IDisposable
             throw;
         }
 
-        AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable)
+        AwkText ResolveFormatVariable(AwkFormattingVariable variable)
         {
             var id = AwkFormattingVariableFacts.SpecialVariableId(variable);
             var text = specialVariables is not null && specialVariables.TryGetNumericFormat(id, out var captured)
@@ -164,7 +164,7 @@ internal sealed class AwkRuntimeState : IDisposable
             // captured format; cache decoded text only at its owning scalar.
             if (text.RequiresStringCache && _variables.GetSpecialScalarCell(id) is { } cell)
                 text = AwkVariables.PrepareScalarStringCache(cell, text);
-            return new(text);
+            return text;
         }
 
         void ApplySpecialVariableAssignment(string name, AwkValue value)

@@ -57,7 +57,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("2"));
         state.AssignVariable(fs, " ");
         var host = new MockFileSystem();
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         try

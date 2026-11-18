@@ -125,8 +125,7 @@ public sealed class AwkCalendarTimeTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(8 << 20, enabled: governed);
-        var text = AwkText.FromString("1970 1 1 0 0 0 ")
-            .Concat(AwkText.FromString(new string(' ', 1_000_000)), counters, memory.Accounting);
+        var text = AwkText.Concat([AwkText.FromString("1970 1 1 0 0 0 "), AwkText.FromString(new string(' ', 1_000_000))], counters, memory.Accounting);
         var runtime = new AwkTimeRuntime(static () => new(0), TimeZoneInfo.Utc);
         using var cancellation = new CancellationTokenSource();
         var resources = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters, cancellation.Token);

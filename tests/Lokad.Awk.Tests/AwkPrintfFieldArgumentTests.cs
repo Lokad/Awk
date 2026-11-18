@@ -25,7 +25,7 @@ public sealed class AwkPrintfFieldArgumentTests
         { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options);
         var host = new PendingHost();
-        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static _ => []);
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, limits, state, static _ => []);
         var source = fieldList ? "{print $1,$2}" : "{printf \"%s:%04d\\n\",$1,$2}";
         var expected = fieldList ? "before 7\n" : "before:0007\n";
         var binding = AwkBinder.Bind(AwkParser.Parse(source));

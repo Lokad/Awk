@@ -370,8 +370,7 @@ public sealed class AwkFieldCancellationTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
-        var source = AwkText.FromString(new string(operation == "widths" ? '0' : 'a', LongScan))
-            .Concat(AwkText.FromString("1"), counters, governor);
+        var source = AwkText.Concat([AwkText.FromString(new string(operation == "widths" ? '0' : 'a', LongScan)), AwkText.FromString("1")], counters, governor);
         using var cancellation = new CancellationTokenSource();
         var splitter = Splitter(cancellation.Token.ThrowIfCancellationRequested, counters, governor);
         using var recordContext = new AwkFieldTestContext(counters, governor,

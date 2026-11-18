@@ -191,7 +191,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         var byteCount = AwkUtf8Codec.GetEncodedByteCount(text);
         var nextLength = AwkRuntimeMemory.CheckedAdd(Length, byteCount);
         EnsureCapacity(nextLength);
-        AwkUtf8Codec.EncodeWithoutCounting(
+        AwkUtf8Codec.Encode(
             text,
             _buffer.AsSpan(Length, byteCount));
         Length = nextLength;

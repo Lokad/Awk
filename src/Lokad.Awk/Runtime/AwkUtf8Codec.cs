@@ -14,13 +14,11 @@ internal static class AwkUtf8Codec
     public static string Decode(ReadOnlySpan<byte> bytes) =>
         bytes.IsEmpty ? string.Empty : StrictUtf8.GetString(bytes);
 
-    public static string DecodeRuntimeText(ReadOnlySpan<byte> bytes, AwkRuntimeCounters counters)
+    public static string DecodeRuntimeText(ReadOnlySpan<byte> bytes)
     {
         try
         {
-            var decoded = Decode(bytes);
-            counters.Add(AwkCounter.StringDecodes, 1);
-            return decoded;
+            return Decode(bytes);
         }
         catch (DecoderFallbackException)
         {
@@ -43,15 +41,6 @@ internal static class AwkUtf8Codec
         }
     }
 
-    public static byte[] EncodeOwned(string text, AwkRuntimeCounters counters)
-    {
-        if (text.Length == 0)
-            return [];
-
-        counters.Add(AwkCounter.Utf8Encodes, 1);
-        return EncodeOwned(text);
-    }
-
     public static int GetEncodedByteCount(ReadOnlySpan<char> text)
     {
         try { return StrictUtf8.GetByteCount(text); }
@@ -62,18 +51,6 @@ internal static class AwkUtf8Codec
     }
 
     public static int Encode(
-        ReadOnlySpan<char> text,
-        Span<byte> destination,
-        AwkRuntimeCounters counters)
-    {
-        if (text.IsEmpty)
-            return 0;
-
-        counters.Add(AwkCounter.Utf8Encodes, 1);
-        return EncodeWithoutCounting(text, destination);
-    }
-
-    public static int EncodeWithoutCounting(
         ReadOnlySpan<char> text,
         Span<byte> destination)
     {

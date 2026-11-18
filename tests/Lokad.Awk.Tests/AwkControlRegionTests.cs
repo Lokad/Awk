@@ -110,7 +110,7 @@ public sealed class AwkControlRegionTests
             host.ReadAsyncOverride = null;
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = program.MainProgram.ExecuteAsync(state, io, output).AsTask();
         try
@@ -165,7 +165,7 @@ public sealed class AwkControlRegionTests
         var state = memory.State;
         state.AssignVariableValue(AwkVariableName.FromText("i"), AwkValue.FromNumber(42));
         var host = new MockFileSystem();
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         cancellation.Cancel();
         try
@@ -191,7 +191,7 @@ public sealed class AwkControlRegionTests
         using var memory = State(program, counters);
         var state = memory.State;
         var host = new MockFileSystem();
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         Assert.Equal(AwkStatementFlow.Continue, await program.MainProgram.ExecuteAsync(state, io, output));
         Assert.Equal(count, Number(state, "executed"));
@@ -223,7 +223,7 @@ public sealed class AwkControlRegionTests
             state.SetCurrentRecord(AwkText.FromSourceLiteralString("a b"));
         }
         var host = new MockFileSystem();
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         var error = "";
         try
@@ -281,9 +281,9 @@ public sealed class AwkControlRegionTests
 
     private static double Number(AwkRuntimeState state, string name) => state.ResolveVariableValue(AwkVariableName.FromText(name)).AsNumber();
 
-    private static AwkIo Io(AwkRuntimeState state, MockFileSystem host, AwkRuntimeCounters counters) =>
+    private static AwkIo Io(AwkRuntimeState state, MockFileSystem host) =>
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
-            CancellationToken.None, counters, state.Limits, state, static _ => []);
+            CancellationToken.None, state.Limits, state, static _ => []);
 
     private readonly record struct Result(double Value, double Index, string Output, string Error);
 }

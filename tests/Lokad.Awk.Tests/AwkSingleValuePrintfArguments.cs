@@ -15,7 +15,7 @@ internal readonly struct AwkSingleValuePrintfArguments(
 
         // Raw fixture arguments use round-trip spelling; execution format policy stays at its owner.
         return value.IsNumberValue
-            ? AwkText.FromString(value.AsString(counters, checkpoint), counters, checkpoint)
+            ? AwkText.FromString(value.AsString(), counters, checkpoint)
             : value.ByteText;
     }
 

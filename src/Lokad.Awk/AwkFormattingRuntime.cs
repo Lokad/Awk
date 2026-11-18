@@ -1,16 +1,13 @@
 namespace Lokad.Awk;
 
 internal sealed class AwkFormattingRuntime(
-    Func<AwkFormattingVariable, AwkFormatString> resolveVariable,
-    AwkRuntimeCounters counters,
-    AwkMemoryAccounting governor,
-    AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-    Action? checkpoint = null)
+    Func<AwkFormattingVariable, AwkText> resolveVariable,
+    AwkRuntimeState state)
 {
     internal AwkText CaptureNumericFormat(AwkValue value, AwkMemoryLease lease) =>
         double.IsFinite(value.StoredNumber)
             ? FormatStringByteText(value, lease)
-            : AwkNumberFormatter.ToDefaultFormatAwkText(value.StoredNumber, counters, governor, lease);
+            : AwkNumberFormatter.ToDefaultFormatAwkText(value.StoredNumber, state.Counters, state.MemoryAccounting, lease);
 
     public AwkText FormatPrintByteText(AwkValue value) => FormatPrintByteText(value, null);
 
@@ -22,7 +19,7 @@ internal sealed class AwkFormattingRuntime(
         // Integers already ignore OFMT. Reuse the same bounded emission without
         // constructing an owning text value for this immediate print consumer.
         if (!double.IsInteger(number)) return false;
-        AwkNumberFormatter.Append(number, destination, checkpoint);
+        AwkNumberFormatter.Append(number, destination, state.CancellationCheckpoint);
 
         return true;
     }
@@ -51,15 +48,15 @@ internal sealed class AwkFormattingRuntime(
         AwkMemoryLease? retainedTextLease)
     {
         if (double.IsInteger(number))
-            return AwkNumberFormatter.ToAwkText(number, counters, governor, retainedTextLease);
+            return AwkNumberFormatter.ToAwkText(number, state.Counters, state.MemoryAccounting, retainedTextLease);
 
         if (UsesDefaultFormat(variable))
-            return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor, retainedTextLease);
+            return AwkNumberFormatter.ToDefaultFormatAwkText(number, state.Counters, state.MemoryAccounting, retainedTextLease);
 
-        using var argumentText = governor.CreateTransientLease();
+        using var argumentText = state.MemoryAccounting.CreateTransientLease();
         return PrintfEvaluation.FormatByteText(
-            resolveVariable(variable).AsString(counters, checkpoint), new NumericFormatArguments(number, variable, this, argumentText),
-            PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
+            resolveVariable(variable).AsString(state.Counters, state.CancellationCheckpoint), new NumericFormatArguments(number, variable, this, argumentText),
+            PrintfMissingArgumentPolicy.OmitDirective, state.Counters, state.MemoryAccounting, state.CompatibilityMode, state.CancellationCheckpoint, retainedTextLease);
     }
 
     private AwkText FormatNumberArgumentText(double number, AwkFormattingVariable variable, AwkMemoryLease lease) =>
@@ -67,7 +64,7 @@ internal sealed class AwkFormattingRuntime(
             ? FormatStringByteText(AwkValue.FromNumber(number), lease)
             // A string conversion within CONVFMT cannot apply CONVFMT again.
             // Keep the existing round-trip spelling at this nonrecursive boundary.
-            : AwkNumberFormatter.ToAwkText(number, counters, governor, lease);
+            : AwkNumberFormatter.ToAwkText(number, state.Counters, state.MemoryAccounting, lease);
 
     private readonly struct NumericFormatArguments(double number, AwkFormattingVariable variable,
         AwkFormattingRuntime runtime, AwkMemoryLease textLease) : IPrintfArguments
@@ -117,23 +114,6 @@ internal sealed class AwkFormattingRuntime(
         }
     }
 
-    public static AwkText FormatPrintfStrictByteText<TArguments>(
-        string formatText,
-        TArguments arguments,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null,
-        AwkMemoryLease? retainedTextLease = null,
-        AwkStringUnitMode stringUnitMode = AwkStringUnitMode.Utf8Rune)
-        where TArguments : IPrintfArguments
-    {
-
-        return PrintfEvaluation.FormatByteText(
-            formatText, arguments, PrintfMissingArgumentPolicy.Throw, counters, governor, compatibilityMode, checkpoint,
-            retainedTextLease, stringUnitMode);
-    }
-
     public static void FormatPrintfToBuilder<TArguments>(
         AwkUtf8Builder output,
         string format,
@@ -148,9 +128,8 @@ internal sealed class AwkFormattingRuntime(
 
     private bool UsesDefaultFormat(AwkFormattingVariable variable)
     {
-        var format = resolveVariable(variable);
-        var text = format.Text;
-        return text.EqualsAscii(AwkFormattingVariableFacts.DefaultFormat(variable), checkpoint);
+        var text = resolveVariable(variable);
+        return text.EqualsAscii(AwkFormattingVariableFacts.DefaultFormat(variable), state.CancellationCheckpoint);
     }
 
 }

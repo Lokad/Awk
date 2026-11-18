@@ -153,7 +153,9 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         if (Representation == AwkArrayKeyKind.Text) return Text.AsString(counters, checkpoint);
         checkpoint?.Invoke();
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        return AwkUtf8Codec.DecodeRuntimeText(AsSpan(buffer), counters);
+        var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(buffer));
+        counters.Add(AwkCounter.StringDecodes);
+        return decoded;
     }
 
     public int ByteLength

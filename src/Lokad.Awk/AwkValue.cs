@@ -358,9 +358,6 @@ internal readonly struct AwkValue
     public string AsString() =>
         _kind == AwkValueKind.Number ? AwkNumberFormatter.ToString(_number) : ByteText.AsString();
 
-    public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null) =>
-        _kind == AwkValueKind.Number ? AwkNumberFormatter.ToString(_number) : ByteText.AsString(counters, checkpoint);
-
     public AwkText ByteText
     {
         get

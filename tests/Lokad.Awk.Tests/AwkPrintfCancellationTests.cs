@@ -116,14 +116,13 @@ public sealed class AwkPrintfCancellationTests
             cancellation.Token.ThrowIfCancellationRequested();
         }
         var arguments = new TestArguments(value, 0, onString: () => readingValue = true);
-        var failure = Assert.Throws<OperationCanceledException>(() => AwkFormattingRuntime.FormatPrintfStrictByteText(
-            format, arguments, counters, governor, checkpoint: Checkpoint));
+        var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(format, arguments, PrintfMissingArgumentPolicy.Throw, counters, governor, checkpoint: Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal(4, callsDuringValue);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
 
-        var completed = AwkFormattingRuntime.FormatPrintfStrictByteText(format, new TestArguments(value, 0), counters, governor);
+        var completed = PrintfEvaluation.FormatByteText(format, new TestArguments(value, 0), PrintfMissingArgumentPolicy.Throw, counters, governor);
         var expected = conversion switch
         {
             "precision" => "prefixa" + string.Concat(Enumerable.Repeat(scalar, 8999)),
@@ -249,7 +248,7 @@ public sealed class AwkPrintfCancellationTests
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
         var governor = memoryForGovernor.Accounting;
         resources.Checkpoint();
-        var output = AwkFormattingRuntime.FormatPrintfStrictByteText("%" + new string('0', 24_000) + "1$s", new TestArguments("界", 0), counters, governor, checkpoint: () => resources.ThrowIfCancellationRequested(CancellationToken.None));
+        var output = PrintfEvaluation.FormatByteText("%" + new string('0', 24_000) + "1$s", new TestArguments("界", 0), PrintfMissingArgumentPolicy.Throw, counters, governor, checkpoint: () => resources.ThrowIfCancellationRequested(CancellationToken.None));
         Assert.Equal("界", output.AsString());
 
         resources.Checkpoint();

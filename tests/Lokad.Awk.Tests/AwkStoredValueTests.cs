@@ -133,15 +133,13 @@ public sealed class AwkStoredValueTests
     [Fact]
     public void AwkValue_RetainsNumberWithoutTextProjection()
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
         var slot = AwkValue.ForVariableStorage(AwkValue.FromNumber(42), AwkNumberParsingMode.Decimal);
         var value = slot.ReadVariableStorage(AwkNumberParsingMode.Decimal);
 
         Assert.Equal(0, slot.RetainedTextMemoryBytes);
         Assert.True(value.IsNumberValue);
         Assert.Equal(42, value.AsNumber());
-        Assert.Equal("42", value.AsString(counters));
-        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal("42", value.AsString());
 
     }
 }

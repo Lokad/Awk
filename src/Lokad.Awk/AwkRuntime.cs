@@ -48,7 +48,6 @@ internal static class AwkRuntime
             stdio.StdOut,
             stdio.StdErr,
             cancellationToken,
-            runtimeOptions.Counters,
             runtimeOptions.Limits,
             state,
             state.SnapshotEnvironment,

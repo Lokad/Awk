@@ -34,7 +34,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
         var host = new MockFileSystem();
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         try

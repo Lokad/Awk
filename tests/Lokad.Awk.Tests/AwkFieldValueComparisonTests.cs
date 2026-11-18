@@ -379,7 +379,7 @@ public sealed class AwkFieldValueComparisonTests
     }
     private static AwkIo Io(AwkRuntimeState state, MockFileSystem host) => new(host, AwkPath.Root,
         AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, CancellationToken.None,
-        state.Counters, state.Limits, state, static _ => []);
+state.Limits, state, static _ => []);
 
     private static CooperativeTestMemory State(bool finite,
         CancellationToken cancellation = default, AwkCompatibilityProfile? profile = null)

@@ -58,6 +58,14 @@ internal static class AwkTestHarness
         CancellationToken cancellationToken) =>
         CreateRuntimeState(fieldSeparator, cancellationToken, AwkTestHarness.CreateRuntimeOptions());
 
+    public static AwkRuntimeState CreateRuntimeStateWithCounters(AwkRuntimeCounters counters) =>
+        CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
+            new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, null,
+                counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance)
+            {
+                InternalFailureObserver = AwkInternalFailuresAttribute.CreateObserver()
+            });
+
     public static AwkRuntimeState CreateRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
         CancellationToken cancellationToken,

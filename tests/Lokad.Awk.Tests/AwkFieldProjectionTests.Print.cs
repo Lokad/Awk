@@ -78,7 +78,7 @@ public sealed partial class AwkFieldProjectionTests
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var region = program.MainProgram;
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static _ => []);
+            AwkFileDescriptor.StdErr, CancellationToken.None, state.Limits, state, static _ => []);
         var allocations = counters[AwkCounter.TextAllocations];
         await region.ExecuteAsync(state, io, output);
         AwkTestHarness.PublishBufferedRecord(state, "next 8 😀"u8);

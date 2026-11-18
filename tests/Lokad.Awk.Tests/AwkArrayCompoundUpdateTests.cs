@@ -199,7 +199,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
             foreach (var gate in inputs) Host.AddFile(gate.Path, gate.Content);
             Host.ReadAsyncOverride = Read;
             _io = new(Host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-                AwkFileDescriptor.StdErr, CancellationToken.None, State.Counters, State.Limits, State, static _ => []);
+                AwkFileDescriptor.StdErr, CancellationToken.None, State.Limits, State, static _ => []);
             _output = new(State.MemoryAccounting);
         }
         internal CooperativeTestMemory Memory { get; }

@@ -65,23 +65,20 @@ public sealed class AwkValueTests
     [Fact]
     public void AwkValue_NumberStringifiesWithoutAwkTextDecode()
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
         var value = AwkValue.FromNumber(123);
 
         Assert.True(value.IsNumberValue);
         Assert.Equal(123, value.AsNumber());
-        Assert.Equal("123", value.AsString(counters));
-
-        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal("123", value.AsString());
     }
 
     [Fact]
     public void AwkValue_IntegerConversionFormattingAvoidsStringProjection()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Disabled;
+        using var state = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
         var formatter = new AwkFormattingRuntime(
-            static _ => new AwkFormatString(AwkText.FromSourceLiteralString("%.6g")), counters, governor);
+            static _ => AwkText.FromSourceLiteralString("%.6g"), state);
 
         var text = formatter.FormatStringByteText(AwkValue.FromNumber(123));
 
@@ -96,10 +93,10 @@ public sealed class AwkValueTests
     public void AwkValue_DefaultNumericFormattingAvoidsPrintfFallback()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Disabled;
-        var defaultFormat = new AwkFormatString(AwkText.FromSourceLiteralString("%.6g"));
+        using var state = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        var defaultFormat = AwkText.FromSourceLiteralString("%.6g");
         var formatter = new AwkFormattingRuntime(
-            _ => defaultFormat, counters, governor);
+            _ => defaultFormat, state);
 
         var oneThird = formatter.FormatPrintByteText(AwkValue.FromNumber(1.0 / 3));
         var exponent = formatter.FormatPrintByteText(AwkValue.FromNumber(1_234_567.5));

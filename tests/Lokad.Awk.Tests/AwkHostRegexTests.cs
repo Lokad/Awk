@@ -362,8 +362,7 @@ public sealed class AwkHostRegexTests
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
             new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters),
             memory.Accounting, regexEngine: engine, memoryBudget: memory.Budget);
-        var subject = AwkText.FromString(new string('a', 16_384))
-            .Concat(AwkText.FromString("z"), counters, memory.Accounting);
+        var subject = AwkText.Concat([AwkText.FromString(new string('a', 16_384)), AwkText.FromString("z")], counters, memory.Accounting);
         var recipe = new AwkRegex(AwkText.FromSourceLiteralString("a"), AwkRegexCaseSensitivity.CaseSensitive);
 
         var error = Assert.Throws<AwkRuntimeException>(() => runtime.OpenSearch(recipe, subject));
@@ -393,8 +392,7 @@ public sealed class AwkHostRegexTests
             cancellationToken: cancellation.Token);
         var regex = runtime.Create(new AwkRegexPattern("a"));
         var pattern = Assert.Single(engine.Patterns);
-        var subject = AwkText.FromString(new string('a', 16_384))
-            .Concat(AwkText.FromString("z"), counters, memory.Accounting);
+        var subject = AwkText.Concat([AwkText.FromString(new string('a', 16_384)), AwkText.FromString("z")], counters, memory.Accounting);
         memory.Budget.OnGrowth = _ => cancellation.Cancel();
 
         var error = Assert.Throws<OperationCanceledException>(() =>

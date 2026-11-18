@@ -124,7 +124,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             cancellation.Cancel();
         };
         var host = new MockFileSystem();
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {

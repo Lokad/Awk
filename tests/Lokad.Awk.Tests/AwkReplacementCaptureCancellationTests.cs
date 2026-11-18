@@ -47,7 +47,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         var expected = new string('a', LongText) + "&";
-        var text = AwkText.FromString(expected[..^1]).Concat(AwkText.FromString("&"), counters, governor);
+        var text = AwkText.Concat([AwkText.FromString(expected[..^1]), AwkText.FromString("&")], counters, governor);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         using var builder = new AwkUtf8Builder(governor, 0);
@@ -356,8 +356,7 @@ public sealed class AwkReplacementCaptureCancellationTests
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance));
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
-        var replacement = AwkText.FromString(new string('x', LongText))
-            .Concat(AwkText.FromString("&"), counters, state.MemoryAccounting);
+        var replacement = AwkText.Concat([AwkText.FromString(new string('x', LongText)), AwkText.FromString("&")], counters, state.MemoryAccounting);
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() => AwkRegexSubstitution.ReplaceAll(state, regex,
             AwkText.FromString("a"), replacement, gensub ? AwkReplacementMode.Gensub : AwkReplacementMode.Substitution,

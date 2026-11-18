@@ -69,7 +69,7 @@ public sealed class AwkArgumentStorageTests
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
-            CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
+            CancellationToken.None, state.Limits, state, static _ => []);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();
         try

@@ -79,7 +79,7 @@ public sealed class AwkFieldLoopRegionTests
             host.ReadAsyncOverride = null;
             return await host.ReadAsync(descriptor, maximum, CancellationToken.None).ConfigureAwait(false);
         };
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         var run = program.MainProgram.ExecuteAsync(state, io, output).AsTask();
         try
@@ -129,7 +129,7 @@ public sealed class AwkFieldLoopRegionTests
         foreach (var name in new[] { "i", "nonempty", "chars" }) state.AssignVariableValue(AwkVariableName.FromText(name), AwkValue.FromNumber(0));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(record));
         var host = new MockFileSystem();
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         var error = "";
@@ -155,9 +155,9 @@ public sealed class AwkFieldLoopRegionTests
         return new(AwkFieldSeparatorSpec.Default, token, options, new(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint));
     }
 
-    private static AwkIo Io(AwkRuntimeState state, MockFileSystem host, AwkRuntimeCounters counters) =>
+    private static AwkIo Io(AwkRuntimeState state, MockFileSystem host) =>
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
-            CancellationToken.None, counters, state.Limits, state, static _ => []);
+            CancellationToken.None, state.Limits, state, static _ => []);
 
     private readonly record struct Result(double Index, double Nonempty, double Chars, string Output, string Error);
 }

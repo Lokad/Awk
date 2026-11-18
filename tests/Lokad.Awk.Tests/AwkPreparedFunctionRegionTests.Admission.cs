@@ -30,7 +30,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 Assert.Equal("keep", state.ResolveVariableValue(saved).AsString());
             };
         };
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
@@ -86,7 +86,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 cancellation.Cancel();
             };
         };
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
@@ -144,7 +144,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 Assert.True(state.IsInsideFunction);
             };
         };
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
@@ -197,7 +197,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 Assert.Equal("keep", state.ResolveVariableValue(AwkVariableName.FromText("t")).AsString());
             };
         };
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {

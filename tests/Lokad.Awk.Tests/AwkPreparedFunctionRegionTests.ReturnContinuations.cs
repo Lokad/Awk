@@ -46,7 +46,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             }
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static _ => []);
+            AwkFileDescriptor.StdErr, CancellationToken.None, state.Limits, state, static _ => []);
         using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         state.AssignVariableValue(AwkVariableName.FromText("ready"), AwkValue.FromNumber(0));
         var observed = false;
@@ -124,7 +124,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             cancellation.Cancel();
         };
         var host = new MockFileSystem();
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {

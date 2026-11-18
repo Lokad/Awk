@@ -134,7 +134,7 @@ public sealed class AwkTextCancellationTests
             _ => throw new ArgumentOutOfRangeException(nameof(scenario))
         };
         var text = scenario == "deep" ? DeepText(3_000, counters, governor)
-            : AwkText.FromString(expected[..^1]).Concat(AwkText.FromString("z"), counters, governor);
+            : AwkText.Concat([AwkText.FromString(expected[..^1]), AwkText.FromString("z")], counters, governor);
         using var cancellation = new CancellationTokenSource();
         var copyingChecks = 0;
         Action checkpoint = () =>
@@ -172,8 +172,7 @@ public sealed class AwkTextCancellationTests
     public void CallersCheckCancellationBeforeHiddenMaterialization(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var text = AwkText.FromString(new string('0', LongText))
-            .Concat(AwkText.FromString("1"), counters, AwkMemoryAccounting.Disabled);
+        var text = AwkText.Concat([AwkText.FromString(new string('0', LongText)), AwkText.FromString("1")], counters, AwkMemoryAccounting.Disabled);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         Action checkpoint = cancellation.Token.ThrowIfCancellationRequested;
@@ -282,36 +281,6 @@ public sealed class AwkTextCancellationTests
         Assert.Equal(2, counters[AwkCounter.StringDecodes]);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CanceledFormatDecodeIsNotPublishedAndAllowsRetry(bool output)
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
-        var current = new AwkFormatString(AwkText.FromString("%.1f"));
-        using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        Action checkpoint = () =>
-        {
-            if (armed && counters[AwkCounter.StringDecodes] == 2) cancellation.Cancel();
-            if (armed) cancellation.Token.ThrowIfCancellationRequested();
-        };
-        var formatter = new AwkFormattingRuntime(_ => current, counters, AwkMemoryAccounting.Disabled, checkpoint: checkpoint);
-        AwkText Format() => output ? formatter.FormatPrintByteText(AwkValue.FromNumber(1.25)) : formatter.FormatStringByteText(AwkValue.FromNumber(1.25));
-        Assert.Equal("1.2", Format().AsString());
-        current = new AwkFormatString(AwkText.FromString("%.3f"));
-        armed = true;
-
-        Assert.Throws<OperationCanceledException>(() => Format());
-
-        armed = false;
-        Assert.Equal("1.250", Format().AsString());
-        Assert.Equal(3, counters[AwkCounter.StringDecodes]);
-        Assert.Equal("1.250", Format().AsString());
-        Assert.Equal(3, counters[AwkCounter.StringDecodes]);
-    }
-
     [Fact]
     public void CanceledBuilderAppendDoesNotExposeAPartialSuffix()
     {
@@ -342,7 +311,7 @@ public sealed class AwkTextCancellationTests
         using var memoryForGovernor = Governor();
         var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
-        var completed = owned.Concat(AwkText.FromString("z"), counters, governor);
+        var completed = AwkText.Concat([owned, AwkText.FromString("z")], counters, governor);
         Assert.Throws<OperationCanceledException>(() => completed.AsMemory(CancelOnCheck(cancellation, 3)));
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
@@ -418,7 +387,7 @@ public sealed class AwkTextCancellationTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(LongText + 1);
         var governor = memoryForGovernor.Accounting;
-        var text = AwkText.FromString(new string('a', LongText)).Concat(AwkText.FromString("z"), counters, governor);
+        var text = AwkText.Concat([AwkText.FromString(new string('a', LongText)), AwkText.FromString("z")], counters, governor);
         using (var existing = governor.ReserveTransient(1))
         {
             var error = Assert.Throws<AwkRuntimeException>(() => { _ = text.AsSpan(() => { }); });
@@ -513,8 +482,8 @@ public sealed class AwkTextCancellationTests
     {
         var leaf = AwkText.FromString("a");
         var text = leaf;
-        for (var index = 1; index < count; index++) text = text.Concat(leaf, counters, governor);
-        return text.Concat(AwkText.FromString("z"), counters, governor);
+        for (var index = 1; index < count; index++) text = AwkText.Concat([text, leaf], counters, governor);
+        return AwkText.Concat([text, AwkText.FromString("z")], counters, governor);
     }
 
     private static Action CancelOnCheck(CancellationTokenSource cancellation, int check)

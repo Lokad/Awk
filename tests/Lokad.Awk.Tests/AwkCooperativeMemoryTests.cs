@@ -234,8 +234,7 @@ public sealed class AwkCooperativeMemoryTests
         state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
         var host = new MockFileSystem();
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, CancellationToken.None, AwkRuntimeCounters.Disabled,
-            state.Limits, state, static _ => []);
+            AwkFileDescriptor.StdErr, CancellationToken.None,             state.Limits, state, static _ => []);
         var binding = AwkBinder.Bind(AwkParser.Parse("{print \"unreachable\"}"));
         Assert.True(binding.Success);
         var program = binding.Program.Program;

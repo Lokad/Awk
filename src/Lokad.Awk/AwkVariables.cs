@@ -719,10 +719,15 @@ internal sealed partial class AwkVariables
             ? _symbolTable.ContainsValue(index.AsString(_counters, _checkpoint))
             : GetOrCreateArray(name).ContainsKey(index);
 
-    public bool ContainsArrayValue(AwkArrayName name, ReadOnlySpan<byte> index) =>
-        !name.IsFunctionLocal && IsSymbolTable(name.Text)
-            ? _symbolTable.ContainsValue(AwkUtf8Codec.DecodeRuntimeText(index, _counters))
-            : GetOrCreateArray(name).ByteLookup.ContainsKey(index);
+    public bool ContainsArrayValue(AwkArrayName name, ReadOnlySpan<byte> index)
+    {
+        if (name.IsFunctionLocal || !IsSymbolTable(name.Text))
+            return GetOrCreateArray(name).ByteLookup.ContainsKey(index);
+
+        var decoded = AwkUtf8Codec.DecodeRuntimeText(index);
+        _counters.Add(AwkCounter.StringDecodes);
+        return _symbolTable.ContainsValue(decoded);
+    }
 
     public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
     {

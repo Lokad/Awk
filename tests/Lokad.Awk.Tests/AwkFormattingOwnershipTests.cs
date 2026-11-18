@@ -13,10 +13,11 @@ public sealed class AwkFormattingOwnershipTests
     public void ReplacedFormatIsNotRetainedByTheFormatter(bool output, bool reuseDefault)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var current = new AwkFormatString(AwkText.FromString("%.6g"));
-        var formatter = new AwkFormattingRuntime(_ => current, counters, AwkMemoryAccounting.Disabled);
-        var previous = Prime(formatter, text => current = new(text), output);
-        current = new(AwkText.FromString("%.6g"));
+        var current = AwkText.FromString("%.6g");
+        using var state = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        var formatter = new AwkFormattingRuntime(_ => current, state);
+        var previous = Prime(formatter, text => current = text, output);
+        current = AwkText.FromString("%.6g");
         if (reuseDefault)
             Assert.Equal("1.25", Format(formatter, output).AsString());
         GC.Collect();
@@ -32,8 +33,9 @@ public sealed class AwkFormattingOwnershipTests
     public void ReusedCustomFormatUsesAwkTextDecodeCache(bool output)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var format = new AwkFormatString(AwkText.FromString("%.3f"));
-        var formatter = new AwkFormattingRuntime(_ => format, counters, AwkMemoryAccounting.Disabled);
+        var format = AwkText.FromString("%.3f");
+        using var state = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        var formatter = new AwkFormattingRuntime(_ => format, state);
         Assert.Equal("1.250", Format(formatter, output).AsString());
         var decodes = counters[AwkCounter.StringDecodes];
         for (var index = 0; index < 10; index++)

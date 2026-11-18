@@ -34,7 +34,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         using var output = new AwkOutputSink(governor, Check);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var text = rope
-            ? AwkText.FromString(new string('a', Large / 2)).Concat(AwkText.FromString(new string('b', Large / 2)), AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled)
+            ? AwkText.Concat([AwkText.FromString(new string('a', Large / 2)), AwkText.FromString(new string('b', Large / 2))], AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled)
             : AwkText.FromString(new string('a', Large));
         var expected = rope ? new string('a', Large / 2) + new string('b', Large / 2) : new string('a', Large);
         var bytes = Encoding.UTF8.GetBytes(expected);

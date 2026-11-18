@@ -180,7 +180,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             }
         };
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static _ => []);
+            AwkFileDescriptor.StdErr, CancellationToken.None, state.Limits, state, static _ => []);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         output.Append(AwkText.FromSourceLiteralString("before\n"));
         var run = Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask();

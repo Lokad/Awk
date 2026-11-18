@@ -75,7 +75,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 else memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
             };
         };
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
         try
         {

@@ -59,7 +59,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.AssignVariableValue(total, AwkValue.FromNumber(4));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("missing"));
         _ = state.GetFieldValue(1); // Ensure the refused growth belongs to the array read.
-        var host = new MockFileSystem(); var io = Io(state, host, counters);
+        var host = new MockFileSystem(); var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         var region = program.MainProgram;
         using var scratch = new AwkRegionStorage(state);
@@ -100,7 +100,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetArrayAwkValue(AwkArrayName.FromText("a"), new("hit"), AwkValue.FromNumber(7));
         state.SetArrayAwkValue(AwkArrayName.FromText("b"), new("hit"), AwkValue.FromNumber(3));
         var host = new MockFileSystem();
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         await program.MainProgram.ExecuteAsync(state, io, output);
@@ -138,7 +138,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var total = AwkVariableName.FromText("total");
         state.AssignVariableValue(total, AwkValue.FromNumber(4));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(missing ? "missing" : "hit"));
-        var host = new MockFileSystem(); var io = Io(state, host, counters);
+        var host = new MockFileSystem(); var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         var error = "";
         try { await action.ExecuteAsync(state, io, output); }
@@ -166,7 +166,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.AssignVariableValue(total, AwkValue.FromNumber(4));
         var record = AwkText.FromSourceLiteralString("missing");
         state.SetCurrentRecord(record);
-        var host = new MockFileSystem(); var io = Io(state, host, counters);
+        var host = new MockFileSystem(); var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>

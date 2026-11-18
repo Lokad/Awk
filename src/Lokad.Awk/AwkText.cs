@@ -149,7 +149,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
             return Empty;
 
         checkpoint?.Invoke();
-        var bytes = AwkUtf8Codec.EncodeOwned(text, counters);
+        counters.Add(AwkCounter.Utf8Encodes);
+        var bytes = AwkUtf8Codec.EncodeOwned(text);
         checkpoint?.Invoke();
 
         counters.Add(AwkCounter.TextAllocations, bytes.Length > 0 ? 1 : 0); counters.Add(AwkCounter.TextBytes, bytes.Length);
@@ -183,7 +184,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         checkpoint?.Invoke();
         var bytes = destination is null ? AllocateOwnedBytes(byteCount, governor) :
             AllocateOwnedBytes(byteCount, governor, destination, checkpoint);
-        AwkUtf8Codec.Encode(text, bytes, counters);
+        counters.Add(AwkCounter.Utf8Encodes);
+        AwkUtf8Codec.Encode(text, bytes);
         checkpoint?.Invoke();
 
         counters.Add(AwkCounter.TextAllocations, bytes.Length > 0 ? 1 : 0); counters.Add(AwkCounter.TextBytes, bytes.Length);
@@ -287,7 +289,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         if (_backing is not TextStorage storage)
         {
 
-            var converted = AwkUtf8Codec.DecodeRuntimeText(((byte[]?)_backing).AsSpan(), counters);
+            var converted = AwkUtf8Codec.DecodeRuntimeText(((byte[]?)_backing).AsSpan());
+            counters.Add(AwkCounter.StringDecodes);
             checkpoint?.Invoke();
             return converted;
         }
@@ -296,7 +299,8 @@ internal readonly struct AwkText : IEquatable<AwkText>
         if (cached is not null)
             return cached;
 
-        var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(checkpoint), counters);
+        var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(checkpoint));
+        counters.Add(AwkCounter.StringDecodes);
         checkpoint?.Invoke();
         return storage.CachedString = decoded;
     }
@@ -346,27 +350,6 @@ internal readonly struct AwkText : IEquatable<AwkText>
 
         checkpoint?.Invoke();
         return true;
-    }
-
-    public AwkText Concat(
-        AwkText other,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor)
-    {
-        if (ByteLength == 0)
-            return other;
-
-        if (other.ByteLength == 0)
-            return this;
-
-        var length = AwkRuntimeMemory.CheckedAdd(ByteLength, other.ByteLength);
-
-        return new AwkText(
-            this,
-            other,
-            length,
-            counters,
-            governor);
     }
 
     public static AwkText Concat(

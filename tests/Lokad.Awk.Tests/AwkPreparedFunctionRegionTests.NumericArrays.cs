@@ -55,7 +55,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             budget.SetAvailableBytes(0);
             clamped = true;
         };
-        var io = Io(state, host, counters);
+        var io = Io(state, host);
         using var output = new AwkOutputSink(state.MemoryAccounting);
         try
         {
