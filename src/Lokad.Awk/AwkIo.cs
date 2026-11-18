@@ -133,7 +133,7 @@ internal sealed class AwkIo
         await _host.AppendAsync(descriptor, output.Content).ConfigureAwait(false);
     }
 
-    public async ValueTask<AwkGetlineResult> ReadRedirectedRecordAsync(string path)
+    public async ValueTask<AwkGetlineCompletion> ReadRedirectedRecordAsync(string path)
     {
         ThrowIfFileRedirectionDisabled();
         AwkSpecialPathPolicy.ThrowIfUnsupported(path);
@@ -165,7 +165,7 @@ internal sealed class AwkIo
             _descriptors.PrepareInput(path, pending);
             var opened = await _host.OpenFileAsync(targetPath.Request, AwkFileOpenMode.Read).ConfigureAwait(false);
             if (!opened.Success)
-                return AwkGetlineResult.Failure(AwkErrno.FromHostMessage(_host.ResolveError(opened.Error)));
+                return AwkGetlineCompletion.Failure(AwkErrno.FromHostMessage(_host.ResolveError(opened.Error)));
 
             reader = CreateRecordCursor(opened.FileDescriptor);
             _descriptors.AddInput(path, opened.FileDescriptor, reader, NextRedirectionOrder(), pending);
@@ -174,7 +174,7 @@ internal sealed class AwkIo
         return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
     }
 
-    public async ValueTask<AwkGetlineResult> ReadPipeRecordAsync(string command)
+    public async ValueTask<AwkGetlineCompletion> ReadPipeRecordAsync(string command)
     {
         ThrowIfCommandPipeDisabled();
         // An input-pipe command borrows parent stdin as well as its new output pipe.
@@ -202,34 +202,24 @@ internal sealed class AwkIo
         PreserveRedirectedStandardInput();
     }
 
-    public ValueTask<AwkGetlineResult> ReadMainRecordAsync()
+    public ValueTask<AwkGetlineCompletion> ReadMainRecordAsync()
     {
         if (_mainInput is not { } input)
-            return ValueTask.FromResult(AwkGetlineResult.EndOfFile);
+            return ValueTask.FromResult(AwkGetlineCompletion.EndOfFile);
 
         return ReadGetlineRecordAsync(input);
     }
 
-    private async ValueTask<AwkGetlineResult> ReadGetlineRecordAsync(IAwkInputRecordReader reader)
+    private static async ValueTask<AwkGetlineCompletion> ReadGetlineRecordAsync(IAwkInputRecordReader reader)
     {
         try
         {
             await reader.MoveNextAsync().ConfigureAwait(false);
-            reader.TakeRecord(out var input);
-            if (!input.HasRecord)
-                return input.ClearsRecordTerminator
-                    ? AwkGetlineResult.EndOfFileClearingTerminator
-                    : AwkGetlineResult.EndOfFile;
-
-            _state.Counters.Add(AwkCounter.RecordsRead);
-            return AwkGetlineResult.Record(
-                input.RecordText,
-                input.Terminator,
-                input.FieldSplittingMode);
+            return AwkGetlineCompletion.Read(reader);
         }
         catch (AwkHostReadException exception)
         {
-            return AwkGetlineResult.Failure(AwkErrno.FromHostMessage(exception.Error.Message));
+            return AwkGetlineCompletion.Failure(AwkErrno.FromHostMessage(exception.Error.Message));
         }
     }
 

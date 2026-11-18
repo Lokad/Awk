@@ -29,16 +29,14 @@ internal partial struct AwkRegionMachine
         // The execution location cannot move during a pending read. Its preceding instruction
         // identifies the funded source/destination without another pending object.
         var instruction = _region.Instructions[_position - 1];
-        ApplyRead(_region.Getlines[instruction.Left], ((Task<AwkGetlineResult>)_hostCompletion).Result);
+        ApplyRead(_region.Getlines[instruction.Left], ((Task<AwkGetlineCompletion>)_hostCompletion).Result);
     }
 
-    private void ApplyRead(AwkRegionGetline read, AwkGetlineResult result)
+    private void ApplyRead(AwkRegionGetline read, AwkGetlineCompletion completion)
     {
         var storage = _storage;
-        _state.ThrowIfCancellationRequested();
-        AwkGetlineRuntime.ApplyResult(_state, storage.GetlineTarget(read.Slot),
-            read.Kind == AwkGetlineSourceKind.MainInput, result);
-        storage.Numbers[read.Result] = result.StatusCode;
+        storage.Numbers[read.Result] = AwkGetlineRuntime.ApplyResult(_state, storage.GetlineTarget(read.Slot),
+            read.Kind == AwkGetlineSourceKind.MainInput, completion);
         _hostCompletion = Task.CompletedTask;
         storage.ReleaseGetlineTarget(read.Slot);
         if (read.Source >= 0) storage.ReleaseValue(read.Source);

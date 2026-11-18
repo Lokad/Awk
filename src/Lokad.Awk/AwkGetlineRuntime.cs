@@ -2,37 +2,44 @@ namespace Lokad.Awk;
 
 internal static class AwkGetlineRuntime
 {
-    internal static void ApplyResult(AwkRuntimeState state, AwkResolvedGetlineTarget target,
-        bool readsMainInput, AwkGetlineResult result)
+    internal static int ApplyResult(AwkRuntimeState state, AwkResolvedGetlineTarget target,
+        bool readsMainInput, AwkGetlineCompletion completion)
     {
-        if (result.HasRecord)
+        var record = AwkInputRecordResult.EndOfFile;
+        completion.Reader?.TakeRecord(out record);
+        var hasRecord = record.HasRecord;
+        if (hasRecord) state.Counters.Add(AwkCounter.RecordsRead);
+        state.ThrowIfCancellationRequested();
+
+        if (hasRecord)
         {
             if (target.IsCurrentRecord)
             {
-                state.PublishInputRecord(AwkInputRecordResult.Record(result.RecordText,
-                    result.Terminator, result.FieldSplittingMode), readsMainInput);
-                return;
+                state.PublishInputRecord(in record, readsMainInput);
+                return 1;
             }
             state.ThrowIfCancellationRequested();
             if (readsMainInput)
             {
-                state.AdvanceMainInputRecord(result.Terminator);
+                state.AdvanceMainInputRecord(record.Terminator);
             }
             else
             {
-                state.SetRecordTerminator(result.Terminator);
+                state.SetRecordTerminator(record.Terminator);
             }
 
-            target.AssignRecord(state, result.RecordText);
+            target.AssignRecord(state, record.RecordText);
+            return 1;
         }
-        else if (result.ClearsRecordTerminator)
+        if (record.ClearsRecordTerminator)
         {
             state.SetRecordTerminator(AwkRecordTerminator.Empty);
         }
-        else if (result.Failed)
+        else if (completion.Error is { } error)
         {
-            state.SetErrno(result.Errno);
+            state.SetErrno(error);
+            return -1;
         }
+        return 0;
     }
-
 }

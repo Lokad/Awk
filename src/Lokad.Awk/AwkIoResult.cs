@@ -1,12 +1,5 @@
 namespace Lokad.Awk;
 
-internal enum AwkGetlineStatus
-{
-    Failure = -1,
-    EndOfFile = 0,
-    Record = 1
-}
-
 internal enum AwkIoOperationStatus
 {
     Failure,
@@ -33,55 +26,18 @@ internal readonly struct AwkIoOperationResult(AwkIoOperationStatus status, AwkEr
     public int StatusCode { get; } = statusCode;
 }
 
-internal readonly struct AwkGetlineResult(
-    AwkGetlineStatus status,
-    AwkText record,
-    AwkRecordTerminator terminator,
-    AwkRecordFieldSplittingMode fieldSplittingMode,
-    AwkErrno errno,
-    bool clearsRecordTerminator = false)
+internal readonly struct AwkGetlineCompletion
 {
-    public static AwkGetlineResult EndOfFile { get; } =
-        new(
-            AwkGetlineStatus.EndOfFile,
-            AwkText.Empty,
-            AwkRecordTerminator.Empty,
-            AwkRecordFieldSplittingMode.Ordinary,
-            AwkErrno.None);
+    private AwkGetlineCompletion(IAwkInputRecordReader? reader, AwkErrno? error)
+    {
+        Reader = reader;
+        Error = error;
+    }
 
-    public static AwkGetlineResult EndOfFileClearingTerminator { get; } =
-        new(AwkGetlineStatus.EndOfFile, AwkText.Empty, AwkRecordTerminator.Empty,
-            AwkRecordFieldSplittingMode.Ordinary, AwkErrno.None, clearsRecordTerminator: true);
+    public static AwkGetlineCompletion EndOfFile => default;
+    public static AwkGetlineCompletion Read(IAwkInputRecordReader reader) => new(reader, null);
+    public static AwkGetlineCompletion Failure(AwkErrno errno) => new(null, errno);
 
-    public static AwkGetlineResult Failure(AwkErrno errno) =>
-        new(
-            AwkGetlineStatus.Failure,
-            AwkText.Empty,
-            AwkRecordTerminator.Empty,
-            AwkRecordFieldSplittingMode.Ordinary,
-            errno);
-
-    public static AwkGetlineResult Record(
-        AwkText record,
-        AwkRecordTerminator terminator,
-        AwkRecordFieldSplittingMode fieldSplittingMode) =>
-        new(AwkGetlineStatus.Record, record, terminator, fieldSplittingMode, AwkErrno.None);
-
-    public AwkGetlineStatus Status { get; } = status;
-
-    public AwkText RecordText => record;
-
-    public AwkRecordTerminator Terminator { get; } = terminator;
-
-    public AwkRecordFieldSplittingMode FieldSplittingMode { get; } = fieldSplittingMode;
-
-    public AwkErrno Errno { get; } = errno;
-
-    public bool HasRecord => Status == AwkGetlineStatus.Record;
-
-    public bool ClearsRecordTerminator { get; } = clearsRecordTerminator;
-
-    public bool Failed => Status == AwkGetlineStatus.Failure;
-
-    public int StatusCode => (int)Status;
+    public IAwkInputRecordReader? Reader { get; }
+    public AwkErrno? Error { get; }
 }
