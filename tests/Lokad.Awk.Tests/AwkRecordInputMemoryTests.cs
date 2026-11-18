@@ -128,6 +128,8 @@ public sealed class AwkRecordInputMemoryTests
                 "CAFÉ changed other\nWXYZ changed other\n", ["café 3\n", "wxyz 5\n"]),
             ("function inner(t){return tolower(t)}function outer(s){return inner(s)}{v=outer($1);$0=\"new\";print v}",
                 "abcdef\nsecond\n", ["ABCDEF tail\n", "SECOND tail\n"]),
+            ("function view(s){return tolower(s)}{print view($2)}",
+                "off\ncafé\n", ["a OFF first\nb Café second\n"]),
             ("function later(s){getline;return tolower(s)\":\"$1}{print later($1)}",
                 "first:SECOND\n", ["FIRST x\n", "SECOND y\n"]),
             ("function readnext(){getline;return 2}function view(s,n){return substr(s,1,n)}{print view($1,readnext())}",
