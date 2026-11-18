@@ -102,7 +102,7 @@ internal sealed class AwkTopLevelSyntaxParser
         return TopLevelItem.Function(
             name.Value,
             parameterList.InnerTokens,
-            body.InnerTokens,
+            BodyTokens(body),
             SpanFrom(start, body.CloseToken));
     }
 
@@ -124,7 +124,7 @@ internal sealed class AwkTopLevelSyntaxParser
         return TopLevelItem.Rule(
             ToRuleKind(keywordToken.Kind),
             AwkPatternSyntax.Empty,
-            action.InnerTokens,
+            BodyTokens(action),
             hasExplicitAction: true,
             SpanFrom(keywordToken, action.CloseToken));
 
@@ -146,7 +146,7 @@ internal sealed class AwkTopLevelSyntaxParser
         return TopLevelItem.Rule(
             AwkRuleKind.Main,
             AwkPatternSyntax.Empty,
-            action.InnerTokens,
+            BodyTokens(action),
             hasExplicitAction: true,
             SpanFrom(action.OpenToken, action.CloseToken));
     }
@@ -160,7 +160,7 @@ internal sealed class AwkTopLevelSyntaxParser
         return TopLevelItem.Rule(
             AwkRuleKind.Main,
             pattern,
-            action.InnerTokens,
+            BodyTokens(action),
             hasExplicitAction: true,
             SpanFrom(pattern.Tokens[0], action.CloseToken));
     }
@@ -187,28 +187,33 @@ internal sealed class AwkTopLevelSyntaxParser
     [Rule]
     public BalancedBlock Block(
         [AwkT(AwkTokenKind.LeftBrace)] Pos<string> open,
-        [AwkL(Min = 0)] BlockPart[] parts,
+        [AwkL(Min = 0)] BlockPart[] _,
         [AwkT(AwkTokenKind.RightBrace)] Pos<string> close)
     {
         _checkpoint?.Invoke();
-        var openToken = ToToken(AwkTokenKind.LeftBrace, open);
-        var closeToken = ToToken(AwkTokenKind.RightBrace, close);
-        var inner = Flatten(parts.Select(part => part.Tokens));
-        return new BalancedBlock(openToken, closeToken, inner);
+        return new(ToToken(AwkTokenKind.LeftBrace, open), ToToken(AwkTokenKind.RightBrace, close));
     }
 
     [Rule]
-    public BlockPart NestedBlock([NT] BalancedBlock block)
+    public BlockPart NestedBlock([NT] BalancedBlock _)
     {
         _checkpoint?.Invoke();
-        return new(block.FullTokens);
+        return default;
     }
 
     [Rule]
-    public BlockPart BlockLeaf([AwkTopLevelBlockLeaf] Pos<string> token)
+    public BlockPart BlockLeaf([AwkTopLevelBlockLeaf] Pos<string> _)
     {
         _checkpoint?.Invoke();
-        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, _checkpoint)]);
+        return default;
+    }
+
+    private IReadOnlyList<AwkToken> BodyTokens(BalancedBlock body)
+    {
+        var tokens = AwkTokenNavigation.ForIndexedAccess(_originalTokens, _checkpoint);
+        var start = AwkParsingSupport.FindOriginalTokenIndex(tokens, body.OpenToken.Span, _checkpoint) + 1;
+        var end = AwkParsingSupport.FindOriginalTokenIndex(tokens, body.CloseToken.Span, _checkpoint);
+        return end == start ? [] : new BodyTokenRange(tokens, start, end - start);
     }
 
     [Rule]
@@ -483,10 +488,7 @@ internal sealed class AwkTopLevelSyntaxParser
         public AwkToken Token { get; } = token;
     }
 
-    public sealed class BalancedBlock(
-        AwkToken openToken,
-        AwkToken closeToken,
-        IReadOnlyList<AwkToken> innerTokens) : AwkBalancedTokenGroup(openToken, closeToken, innerTokens);
+    public readonly record struct BalancedBlock(AwkToken OpenToken, AwkToken CloseToken);
 
     public sealed class BalancedParenthesized(
         AwkToken openToken,
@@ -498,9 +500,24 @@ internal sealed class AwkTopLevelSyntaxParser
         AwkToken closeToken,
         IReadOnlyList<AwkToken> innerTokens) : AwkBalancedTokenGroup(openToken, closeToken, innerTokens);
 
-    public readonly struct BlockPart(IReadOnlyList<AwkToken>? tokens)
+    public readonly struct BlockPart;
+
+    // The lexer stream is complete before any body is parsed. A body borrows its
+    // original kinds, text and source spans for the duration of preparation.
+    private sealed class BodyTokenRange(IReadOnlyList<AwkToken> tokens, int start, int count) : IReadOnlyList<AwkToken>
     {
-        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
+        public int Count => count;
+
+        public AwkToken this[int index] => (uint)index < (uint)count
+            ? tokens[start + index] : throw new ArgumentOutOfRangeException(nameof(index));
+
+        public IEnumerator<AwkToken> GetEnumerator()
+        {
+            for (var index = 0; index < count; index++)
+                yield return tokens[start + index];
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     public readonly struct ParenthesizedPart(IReadOnlyList<AwkToken>? tokens)

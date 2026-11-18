@@ -86,7 +86,12 @@ internal static class AwkParsingSupport
     {
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
-        var start = value.Location.Location.Position;
+        var span = new AwkTextSpan(value.Location.Location.Position, value.Location.Length);
+        return tokens[FindOriginalTokenIndex(tokens, span, checkpoint)];
+    }
+
+    internal static int FindOriginalTokenIndex(IReadOnlyList<AwkToken> tokens, AwkTextSpan span, Action? checkpoint)
+    {
         var low = 0;
         var high = tokens.Count - 1;
         while (low <= high)
@@ -94,12 +99,12 @@ internal static class AwkParsingSupport
             checkpoint?.Invoke();
             var middle = low + ((high - low) / 2);
             var token = tokens[middle];
-            if (token.Span.Start < start)
+            if (token.Span.Start < span.Start)
                 low = middle + 1;
-            else if (token.Span.Start > start)
+            else if (token.Span.Start > span.Start)
                 high = middle - 1;
-            else if (token.Span.Length == value.Location.Length)
-                return token;
+            else if (token.Span.Length == span.Length)
+                return middle;
             else
                 break;
         }

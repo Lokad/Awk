@@ -27,6 +27,8 @@ remain independent; observational counters can be shared explicitly.
 Parser results carry syntax, errors and warnings. Binding validates function
 declarations and builtin call shapes before lowering and returns a prepared program
 or diagnostics. Preparation reports malformed constructs that reach lowering.
+The top-level grammar recognizes balanced action and function bodies. Statement
+parsing reads those bodies from token ranges in the original lexer stream.
 Validation reads collected symbols in source order. Collection, validation and
 lowering use the same invocation-local function layouts and parameter slots.
 Frontend syntax walks share source-order traversal and cancellation checks.
