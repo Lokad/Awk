@@ -38,119 +38,128 @@ internal static class BenchmarkCounterReport
 
         static CounterScenario[] CreateScenarios()
         {
+            var streamingRows = BuildCounterStreamingRows();
+            var streaming = new BenchmarkFile("/stream.tsv", streamingRows);
+            var projection = new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n");
             return [
             new(
             "counter column extraction",
             ["{print $2}", "/data.tsv"],
-            [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")]),
+            [projection],
+            "value1\nvalue2\nvalue3\n"),
         new(
             "counter multi-column projection",
             ["{print $1,$3,$2}", "/data.tsv"],
-            [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")]),
+            [projection],
+            "sku1 tail value1\nsku2 tail value2\nsku3 tail value3\n"),
         new(
             "counter streaming projection calibration",
             ["{print $2}", "/stream.tsv"],
-            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())]),
+            [streaming],
+            string.Concat(Enumerable.Range(0, CounterStreamingRecordCount)
+                .Select(row => FormattableString.Invariant($"region{row % 11}\n")))),
         new(
             "counter three-key filter calibration",
             ["$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}", "/stream.tsv"],
-            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())]),
+            [streaming], "2500\n"),
         new(
             "counter associative aggregation calibration",
             ["{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}", "/stream.tsv"],
-            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())]),
+            [streaming], "1111 2\n"),
         new(
             "counter two-file comparison calibration",
             ["NR==FNR{left[$1]=$2; next} ($1 in left) && left[$1]!=$2{differences++} END{print differences+0}", "/left.tsv", "/right.tsv"],
             [
                 new BenchmarkFile("/left.tsv", BuildCounterComparisonRows(changed: false)),
                 new BenchmarkFile("/right.tsv", BuildCounterComparisonRows(changed: true))
-            ]),
+            ], "500\n"),
         new(
             "counter arithmetic loop",
             ["BEGIN{for(i=1;i<=100;i++) total += i * 2; print total}"],
-            []),
+            [], "10100\n"),
         new(
             "counter print-heavy action",
             ["BEGIN{for(i=1;i<=50;i++) print \"row\", i}"],
-            []),
+            [],
+            string.Concat(Enumerable.Range(1, 50).Select(row => FormattableString.Invariant($"row {row}\n")))),
         new(
             "counter regex field separator",
             ["BEGIN{FS=\"[|;]\"} {sum += NF + length($2)} END{print sum}", "/pipe.txt"],
-            [new BenchmarkFile("/pipe.txt", "a|beta;flag\nb|delta;plain\nc|gamma;flag\n")]),
+            [new BenchmarkFile("/pipe.txt", "a|beta;flag\nb|delta;plain\nc|gamma;flag\n")], "23\n"),
         new(
             "counter dynamic record separator",
             ["BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}", "/dynamic-rs.txt"],
-            [new BenchmarkFile("/dynamic-rs.txt", "first|second,third;fourth;")]),
+            [new BenchmarkFile("/dynamic-rs.txt", "first|second,third;fourth;")], "4 22\n"),
         new(
             "counter grouped byte-run record separator",
             ["BEGIN{RS=\"([,;])+\"} {print length($0)}", "/stream.tsv"],
-            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())]),
+            [streaming],
+            FormattableString.Invariant($"{streamingRows.Length}\n")),
         .. new[] { 100, 400, 1_600 }.Select(CreateLiteralRecordSeparatorScenario),
         new(
             "counter non-ASCII record separator",
             ["BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}", "/non-ascii-rs.txt"],
-            [new BenchmarkFile("/non-ascii-rs.txt", "caf\u00e91\u00e9r\u00e9sum\u00e92\u00e9")]),
+            [new BenchmarkFile("/non-ascii-rs.txt", "caf\u00e91\u00e9r\u00e9sum\u00e92\u00e9")], "5 9\n"),
         new(
             "counter field modes",
             ["NR%2{FPAT=\"[A-Z]+|[0-9]+\"; FIELDWIDTHS=\"\"; fp += NF; split($0,a,/[0-9]+/,s); sep += length(s[1]); next} {FPAT=\"\"; FIELDWIDTHS=\"2 3\"; fw += NF} END{print fw, fp, sep}", "/field-modes.txt"],
-            [new BenchmarkFile("/field-modes.txt", "A-12-B\nabcdef\nC-34-D\nghijkl\n")]),
+            [new BenchmarkFile("/field-modes.txt", "A-12-B\nabcdef\nC-34-D\nghijkl\n")], "0 3 4\n"),
         new(
             "counter UTF-8 FIELDWIDTHS",
             ["BEGIN{FIELDWIDTHS=\"4 5 2\"} {total += length($1) + length($2) + NF} END{print total}", "/fieldwidths.txt"],
-            [new BenchmarkFile("/fieldwidths.txt", "caf\u00e9bravo12\nna\u00efveplain34\n")]),
+            [new BenchmarkFile("/fieldwidths.txt", "caf\u00e9bravo12\nna\u00efveplain34\n")], "24\n"),
         new(
             "counter large split fields",
             ["{n=split($0,a,\" \"); total += n + length($1) + length($NF) + length(a[1]) + length(a[n])} END{print total}", "/split-fields.txt"],
-            [new BenchmarkFile("/split-fields.txt", BuildCounterSeparatedRows())]),
+            [new BenchmarkFile("/split-fields.txt", BuildCounterSeparatedRows())], "896\n"),
         new(
             "counter large scalar growth",
             ["{x = x $0} END{print length(x)}", "/scalar.txt"],
-            [new BenchmarkFile("/scalar.txt", "alpha\nbeta\ngamma\n")]),
+            [new BenchmarkFile("/scalar.txt", "alpha\nbeta\ngamma\n")], "14\n"),
         new(
             "counter large field list",
             ["{total += NF + length($8)} END{print total}", "/fields.txt"],
-            [new BenchmarkFile("/fields.txt", "a b c d e f g h i j\n1 2 3 4 5 6 7 8 9 10\n")]),
+            [new BenchmarkFile("/fields.txt", "a b c d e f g h i j\n1 2 3 4 5 6 7 8 9 10\n")], "22\n"),
         new(
             "counter small text split arrays",
             ["{n=split($0,a,\"\"); total += n + length(a[1]) + length(a[n])} END{print total}", "/small-split.txt"],
-            [new BenchmarkFile("/small-split.txt", "abcdef\nbcdefg\n")]),
+            [new BenchmarkFile("/small-split.txt", "abcdef\nbcdefg\n")], "16\n"),
         new(
             "counter regex replacement expansion",
             ["{gsub(/([[:alpha:]]+)([[:digit:]]+)/,\"<&>-<&>-<&>\",$0); total += length($0)} END{print total}", "/replace.txt"],
-            [new BenchmarkFile("/replace.txt", "sku1 item22\nsku3 item44\n")]),
+            [new BenchmarkFile("/replace.txt", "sku1 item22\nsku3 item44\n")], "94\n"),
         new(
             "counter regex capture array",
             ["BEGIN{if(match(\"abc123\",/([a-z]+)([0-9]+)/,m)) print m[1],m[2]}"],
-            []),
+            [], "abc 123\n"),
         new(
             "counter gensub capture selection",
             ["BEGIN{print gensub(/(x)(a)?(b)?(c)?(d)?(e)?(f)?(g)?(h)?(i)?(j)?/,\"<\\\\1>\",\"g\",\"xx\")}"],
-            []),
+            [], "<x><x>\n"),
         new(
             "counter regex pattern gap",
             ["BEGIN{s=\"abc\"; print match(s,/\\`a/)}"],
-            []),
+            [], "1\n"),
         new(
             "counter array sorting",
             ["{a[$1] += $2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; for(k in a) print k, a[k]}", "/array-sort.txt"],
-            [new BenchmarkFile("/array-sort.txt", "b 2\na 1\nb 3\n")]),
+            [new BenchmarkFile("/array-sort.txt", "b 2\na 1\nb 3\n")], "a 1\nb 5\n"),
         new(
             "counter small ordinal array",
             ["BEGIN{for(i=1;i<=64;i++) a[i]=i; for(i=1;i<=64;i++) total += a[i]; print total}"],
-            []),
+            [], "2080\n"),
         new(
             "counter user-function loop",
             ["function add(x,y){return x+y} BEGIN{for(i=1;i<=80;i++) total=add(total,i); print total}"],
-            []),
+            [], "3240\n"),
         new(
             "counter UTF-8 rune slicing",
             ["{for(i=1;i<=length($0);i++) last=substr($0,i,1)} END{print last}", "/runes.txt"],
-            [new BenchmarkFile("/runes.txt", new string('\u00e9', 4_096) + "\n")]),
+            [new BenchmarkFile("/runes.txt", new string('\u00e9', 4_096) + "\n")], "\u00e9\n"),
         new(
             "counter byte concat",
             ["--characters-as-bytes", "{x = $1 \"|\" $2 \"|\" $3; total += length(x)} END{print total}", "/concat.txt"],
-            [new BenchmarkFile("/concat.txt", "a b c\nx y z\n")])
+            [new BenchmarkFile("/concat.txt", "a b c\nx y z\n")], "10\n")
             ];
             static CounterScenario CreateLiteralRecordSeparatorScenario(int recordCount)
             {
@@ -160,7 +169,8 @@ internal static class BenchmarkCounterReport
                 return new CounterScenario(
                     "counter literal record separator (" + recordCount + " records)",
                     [script, "/literal-rs.txt"],
-                    [new BenchmarkFile("/literal-rs.txt", input)]);
+                    [new BenchmarkFile("/literal-rs.txt", input)],
+                    FormattableString.Invariant($"{recordCount}\n"));
             }
 
             static string BuildCounterStreamingRows()
@@ -260,12 +270,8 @@ internal static class BenchmarkCounterReport
             var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []);
             var exitCode = await AwkExecutor.ExecuteAsync(host, command, cancellationToken, options)
                 .ConfigureAwait(false);
-            if (exitCode.Failed)
-                throw new InvalidOperationException("Counter report scenario failed: " + scenario.Name);
-
             var run = host.Finish(exitCode.Value);
-            if (run.ErrorDigest.Bytes != 0)
-                throw new InvalidOperationException("Counter report scenario wrote stderr: " + scenario.Name);
+            ReferenceExecution.Verify(run, scenario.ExpectedOutput, scenario.Name);
 
             return counters;
         }
@@ -286,9 +292,10 @@ internal static class BenchmarkCounterReport
 }
 
 internal sealed class CounterScenario(string name, IReadOnlyList<string> arguments,
-    IReadOnlyList<BenchmarkFile> files)
+    IReadOnlyList<BenchmarkFile> files, string expectedOutput)
 {
     public string Name { get; } = name;
     public IReadOnlyList<string> Arguments { get; } = arguments;
     public IReadOnlyList<BenchmarkFile> Files { get; } = files;
+    public OutputDigest ExpectedOutput { get; } = OutputDigest.FromBytes(Encoding.UTF8.GetBytes(expectedOutput));
 }

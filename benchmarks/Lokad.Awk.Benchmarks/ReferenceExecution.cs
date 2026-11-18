@@ -51,10 +51,10 @@ internal static class ReferenceExecution
             .ToDictionary(counter => counter.ToString(), counter => counters[counter], StringComparer.Ordinal);
     }
 
-    public static void Verify(ReferenceExecutionResult result, OutputDigest expected)
+    public static void Verify(ReferenceExecutionResult result, OutputDigest expected, string? scenario = null)
     {
         if (!result.IsSuccess || result.OutputDigest != expected)
-            throw new InvalidOperationException("Benchmark execution failed validation: exit " + result.ExitCode +
+            throw new InvalidOperationException($"Benchmark {scenario ?? "execution"} failed validation: exit " + result.ExitCode +
                 "; stdout " + result.OutputDigest.Bytes + " bytes; stderr " + Encoding.UTF8.GetString(result.Error));
     }
 
