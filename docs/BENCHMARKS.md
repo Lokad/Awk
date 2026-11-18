@@ -120,16 +120,22 @@ by process startup.
 | Filter `$1` / occasionally print `$3`, 64 fields | 20733.15 | 5.566 | 23.207 | 0.24× | 0.106 |
 | Long Unicode field / bounded prefix | 8197.00 | 1.491 | 40.738 | 0.04× | 0.156 |
 
-The current 070b3b5c admission-policy cohort runs the same text-call script with
-the existing profile: **23.795 ms ordinary / 36.177 ms shared admission**,
-**1.52×**, with a 512 MiB budget. Managed allocations are
-**3.658 / 3.659 MiB**. Every invocation checks complete refund.
-This profile reuses options; compare within its cohort rather than the catalog.
+Current admission-policy profile at [0ac2fba2](https://github.com/Lokad/Awk/commit/0ac2fba2c6d6ff674ed3d5c91703f6f32d2efa97), measured 2026-11-18 UTC:
+
+| Case | Ordinary ms | Shared ms | Shared/ordinary | Ordinary allocated MiB | Shared allocated MiB |
+|---|---:|---:|---:|---:|---:|
+| Keyed aggregation | 6.441 | 7.260 | 1.13× | 0.119 | 0.120 |
+| Conditional text calls | 26.615 | 37.939 | 1.43× | 3.657 | 3.659 |
+
+Shared execution uses the shipped `AwkMemoryBudget.CreateFixed(512L << 20)`.
+Each invocation verifies complete output and refund. This profile reuses options;
+compare within its cohort rather than the catalog. It uses the in-process toolchain,
+one launch, four warmups and five 500 ms measurement iterations on the quiet machine.
 
 ## Method and refresh
 
-The four **‡** rows are current at e4edf7f3; the two **†** rows and the policy
-pair remain at 070b3b5c. The other **78 managed/78 GNU catalog timings** remain at
+The admission-policy table is current at 0ac2fba2. The four **‡** rows remain at
+e4edf7f3 and the two **†** rows at 070b3b5c. The other **78 managed/78 GNU catalog timings** remain at
 72589eb5. Retained results are not fresh checkout measurements. The affected field-output
 rows use their bounded confirmation; controls use the initial focused batch. Every
 refreshed workload verifies complete output. Driver/core hashes and native identity
