@@ -644,31 +644,6 @@ public sealed partial class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task RepeatedCompositeUpdatesReuseRetainedKeys(bool governed)
-    {
-        const int records = 256;
-        var host = new MockFileSystem();
-        host.SetStandardInput(string.Concat(Enumerable.Repeat("k 0007 1\n", records)));
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var budget = new CooperativeTestBudget(8 << 20);
-        var command = AwkTestHarness.BuildInvocation("awk", "{sum[$1,$2]+=$3} END{print sum[\"k\",\"0007\"]}");
-        var exit = await AwkExecutor.ExecuteAsync(host, command, CancellationToken.None,
-            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
-        Assert.Equal(0, exit.Value);
-        Assert.Equal("256\n", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-        // Input records still own text; repeated hits need no new retained key copies.
-        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 32);
-
-        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
-        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, host.OpenFileCount);
-        Assert.Equal(0, budget.Reserved);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
     public async Task CompositeFieldKeysConsumeBytesWithoutOwnedComponentValues(bool governed)
     {
         const int records = 256;

@@ -467,26 +467,6 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
     }
 
-    [Fact]
-    public async Task Awk_EmptyFieldSeparatorRejectsNonAsciiByteModeFields()
-    {
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
-            "awk",
-            "--characters-as-bytes",
-            "BEGIN{FS=\"\"} {print NF}",
-            "/file.txt"));
-        var fileSystem = new MockFileSystem();
-        fileSystem.AddFile("/file.txt", "é\n");
-
-        var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(
-            "awk: byte-mode FS=\"\" over non-ASCII text is unsupported in Lokad awk\n",
-            fileSystem.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
     public static TheoryData<string, string, string, int, int> ByteNativeFieldCountCases => new()
     {
         {

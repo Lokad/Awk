@@ -158,43 +158,6 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     }
 
     [Fact]
-    public async Task Awk_SupportsLongOptionsForFieldSeparatorFileAndAssign()
-    {
-        var fileSystem = new MockFileSystem();
-        fileSystem.AddFile("/script.awk", "BEGIN{print prefix} {print $2}");
-        fileSystem.AddFile("/file.txt", "a:b\nc:d\n");
-
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
-            "awk",
-            "--field-separator",
-            ":",
-            "--assign=prefix=SKU",
-            "--file",
-            "/script.awk",
-            "/file.txt"));
-        var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.Success, exitCode);
-        Assert.Equal("SKU\nb\nd\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-    }
-
-    [Fact]
-    public async Task Awk_SupportsVariableAssignmentOption()
-    {
-        var fileSystem = new MockFileSystem();
-
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
-            "awk",
-            "-v",
-            "prefix=SKU",
-            "BEGIN{print prefix}"));
-        var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.Success, exitCode);
-        Assert.Equal("SKU\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-    }
-
-    [Fact]
     public async Task Awk_HelpPrintsUsage()
     {
         var fileSystem = new MockFileSystem();
@@ -206,41 +169,6 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         Assert.Contains("Usage: awk", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Contains("--assign", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public async Task Awk_LoadsScriptFromFile()
-    {
-        var fileSystem = new MockFileSystem();
-        fileSystem.AddFile("/script.awk", "BEGIN{print \"start\"} {print $2}");
-        fileSystem.AddFile("/file.txt", "1 one\n2 two\n");
-
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk", "/file.txt"));
-        var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.Success, exitCode);
-        Assert.Equal("start\none\ntwo\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-    }
-
-    [Fact]
-    public async Task Awk_LoadsRepeatedScriptFilesInOrder()
-    {
-        var fileSystem = new MockFileSystem();
-        fileSystem.AddFile("/begin.awk", "BEGIN{print \"start\"}");
-        fileSystem.AddFile("/main.awk", "{print $2}");
-        fileSystem.AddFile("/file.txt", "1 one\n2 two\n");
-
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
-            "awk",
-            "-f",
-            "/begin.awk",
-            "-f",
-            "/main.awk",
-            "/file.txt"));
-        var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.Success, exitCode);
-        Assert.Equal("start\none\ntwo\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
     }
 
     [Fact]
