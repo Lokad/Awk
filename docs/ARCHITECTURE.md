@@ -130,6 +130,7 @@ Current records may borrow host bytes. Promote retained slices before retiring t
 escaping values own their spelling. Rebuilding/output prepares the full byte length and
 admits destination storage before copying/publication. Field/cache identities survive
 split completion and reconstruction; failed staging leaves earlier observations valid.
+Reconstruction stages numeric spellings in field order under the active `CONVFMT`.
 Refunds for replaced field storage follow publication of the field cells and `NF`.
 The frame's two input slots use the invocation ledger. A borrowed slot has funded
 fallback storage before it can be published, and promotion rebinds the frame's view.

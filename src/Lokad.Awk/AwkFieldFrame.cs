@@ -1042,82 +1042,68 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         return cache;
     }
 
-    private AwkFieldText CompositionField(int index, ReadOnlySpan<AwkFieldText> formatted) =>
-        formatted.IsEmpty ? FieldText(_fieldTexts[index]) : formatted[index];
-
     private void EnsureRecordText()
     {
         if (_recordTextIsCurrent) return;
-        var bufferBytes = AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Count);
-        if (_numericFieldCount > 0)
-            bufferBytes = AwkRuntimeMemory.CheckedAdd(bufferBytes,
-                AwkRuntimeMemory.EstimateFieldTextListBytes(_fieldTexts.Count));
+        var fieldCount = _fieldTexts.Count;
+        var numericCount = _numericFieldCount;
+        var bufferBytes = state.MemoryAccounting.IsEnabled
+            ? AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateRecordFieldListBytes(fieldCount),
+                AwkRuntimeMemory.EstimateNumericFieldSpellingArrayBytes(numericCount))
+            : 0;
         using var buffers = state.MemoryAccounting.ReserveTransient(bufferBytes);
-        long formattedBytes = 0;
-        try
+        var formatted = numericCount == 0 ? [] : new (int FieldIndex, AwkText Text)[numericCount];
+        var payloadByteLength = _fieldPayloadByteLength;
+        var formattedCount = 0;
+        for (var index = 0; index < fieldCount && formattedCount < formatted.Length; index++)
         {
-            ReadOnlySpan<AwkFieldText> formatted = default;
-            var payloadByteLength = _fieldPayloadByteLength;
-            if (_numericFieldCount > 0)
-            {
-                var values = new List<AwkFieldText>(_fieldTexts.Count);
-                for (var index = 0; index < _fieldTexts.Count; index++)
-                {
-                    if ((index & 1023) == 0) state.CancellationCheckpoint?.Invoke();
-                    var field = FieldText(_fieldTexts[index]);
-                    if (TryGetCachedFieldValue(index, out var value) && value.IsNumberValue)
-                    {
-                        state.CancellationCheckpoint?.Invoke();
-                        var text = state.FormatStringByteText(value);
-                        state.CancellationCheckpoint?.Invoke();
-                        var bytes = text.EstimatedRetainedMemoryBytes;
-                        var next = AwkRuntimeMemory.CheckedAdd(formattedBytes, bytes);
-                        state.MemoryAccounting.Charge(bytes);
-                        formattedBytes = next;
-                        payloadByteLength = AwkRuntimeMemory.CheckedAdd(payloadByteLength, text.ByteLength);
-                        field = AwkFieldText.FromOwned(text);
-                    }
-                    values.Add(field);
-                }
-                formatted = CollectionsMarshal.AsSpan(values);
-            }
-            var byteLength = EstimateComposedRecordByteLength(_recompositionSeparator.ByteLength,
-                _fieldTexts.Count, payloadByteLength);
-            var fieldCount = _fieldTexts.Count;
-            var retained = EstimateRetainedBytes(AwkRuntimeMemory.EstimateTextBytes(byteLength),
-                fieldCount, fieldCount, _fieldValueCache, _fieldCountValue);
-            using var recompositionAdmission = PreflightRecomposition(retained, byteLength);
-            var fields = new AwkRecordFieldBuffer(fieldCount);
-            var destination = AwkText.AllocateOwnedBytes(byteLength, state.MemoryAccounting);
-            var separator = byteLength == 0 ? default : _recompositionSeparator.AsSpan(state.CancellationCheckpoint);
-            var offset = 0;
-            for (var index = 0; index < fieldCount; index++)
-            {
-                if ((index & 1023) == 0) state.CancellationCheckpoint?.Invoke();
-                if (index > 0 && !separator.IsEmpty)
-                {
-                    AwkText.CopyBytes(separator, destination.AsSpan(offset), state.CancellationCheckpoint);
-                    offset += separator.Length;
-                }
-                var field = CompositionField(index, formatted);
-                var length = field.ByteLength();
-                if (length != 0)
-                    AwkText.CopyBytes(field.AsSpan(RecordBytes(), state.CancellationCheckpoint),
-                        destination.AsSpan(offset), state.CancellationCheckpoint);
-                fields.Add(AwkRecordField.FromRecordSlice(offset, length).WithCacheFrom(_fieldTexts[index]));
-                offset += length;
-            }
-            var recordText = byteLength == 0 ? AwkText.Empty : state.AdoptText(destination);
+            if ((index & 1023) == 0) state.CancellationCheckpoint?.Invoke();
+            if (!TryGetCachedFieldValue(index, out var value) || !value.IsNumberValue) continue;
+
             state.CancellationCheckpoint?.Invoke();
-            ReplaceRetainedMemory(retained);
-            ClearBufferedRecord();
-            _recordText = recordText;
-            _fieldTexts = fields;
-            _recordTextIsCurrent = true;
-            _recordWasRecomposed = true;
-            _recompositionSeparator = AwkText.Empty;
+            var text = state.FormatStringByteText(value, buffers);
+            state.CancellationCheckpoint?.Invoke();
+            payloadByteLength = AwkRuntimeMemory.CheckedAdd(payloadByteLength, text.ByteLength);
+            formatted[formattedCount++] = (index, text);
         }
-        finally { state.MemoryAccounting.Refund(formattedBytes); }
+
+        var byteLength = EstimateComposedRecordByteLength(_recompositionSeparator.ByteLength,
+            fieldCount, payloadByteLength);
+        var retained = EstimateRetainedBytes(AwkRuntimeMemory.EstimateTextBytes(byteLength),
+            fieldCount, fieldCount, _fieldValueCache, _fieldCountValue);
+        using var recompositionAdmission = PreflightRecomposition(retained, byteLength);
+        var fields = new AwkRecordFieldBuffer(fieldCount);
+        var destination = AwkText.AllocateOwnedBytes(byteLength, state.MemoryAccounting);
+        var separator = byteLength == 0 ? default : _recompositionSeparator.AsSpan(state.CancellationCheckpoint);
+        var offset = 0;
+        var nextFormatted = 0;
+        for (var index = 0; index < fieldCount; index++)
+        {
+            if ((index & 1023) == 0) state.CancellationCheckpoint?.Invoke();
+            if (index > 0 && !separator.IsEmpty)
+            {
+                AwkText.CopyBytes(separator, destination.AsSpan(offset), state.CancellationCheckpoint);
+                offset += separator.Length;
+            }
+            var descriptor = _fieldTexts[index];
+            var field = nextFormatted < formattedCount && formatted[nextFormatted].FieldIndex == index
+                ? AwkFieldText.FromOwned(formatted[nextFormatted++].Text) : FieldText(descriptor);
+            var length = field.ByteLength();
+            if (length != 0)
+                AwkText.CopyBytes(field.AsSpan(RecordBytes(), state.CancellationCheckpoint),
+                    destination.AsSpan(offset), state.CancellationCheckpoint);
+            fields.Add(AwkRecordField.FromRecordSlice(offset, length).WithCacheFrom(descriptor));
+            offset += length;
+        }
+        var recordText = byteLength == 0 ? AwkText.Empty : state.AdoptText(destination);
+        state.CancellationCheckpoint?.Invoke();
+        ReplaceRetainedMemory(retained);
+        ClearBufferedRecord();
+        _recordText = recordText;
+        _fieldTexts = fields;
+        _recordTextIsCurrent = true;
+        _recordWasRecomposed = true;
+        _recompositionSeparator = AwkText.Empty;
     }
 
     public void PrepareOutputFieldSeparatorAssignment()

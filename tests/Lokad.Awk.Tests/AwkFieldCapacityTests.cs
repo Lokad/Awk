@@ -58,7 +58,7 @@ public sealed class AwkFieldCapacityTests
             Grow(frame, operation, target);
             Assert.Equal(target, frame.GetFieldCount());
             Assert.True(accounting.LiveBytes >= AwkRuntimeMemory.EstimateTextBytes(record) +
-                AwkRuntimeMemory.EstimateFieldTextListBytes(target));
+                AwkRuntimeMemory.EstimateRecordFieldListBytes(target));
             Assert.Equal(target, counters[AwkCounter.FieldsPrepared]);
             if (operation == "reference") Assert.True(record.HasSameStorage(frame.RecordAwkText));
             frame.ResetRecord();

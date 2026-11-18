@@ -61,6 +61,27 @@ public sealed class AwkNumericFieldResourceTests
         Assert.True(state.CurrentRecordByteText.AsSpan().SequenceEqual("1.25 b"u8));
     }
 
+    [Fact]
+    public void SparseNumericFieldsKeepTheirSpellingOrderAfterTruncation()
+    {
+        using var memory = State(AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("a b c d e"));
+        state.AssignFieldValue(new(4), AwkValue.FromNumber(2.75));
+        state.AssignFieldValue(new(2), AwkValue.FromNumber(1.25));
+        state.AssignFieldValue(new(3), AwkValue.FromText("003"));
+        SetFormat(state, "[%.2f]");
+
+        Assert.Equal("a [1.25] 003 [2.75] e", state.CurrentRecordByteText.AsString());
+
+        state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldCount, AwkValue.FromNumber(3));
+        SetFormat(state, "%.3f");
+
+        Assert.Equal("a 1.250 003", state.CurrentRecordByteText.AsString());
+        Assert.Equal(1.25, state.RecordFields.GetFieldValue(new(2)).AsNumber());
+        Assert.Equal("003", state.RecordFields.GetFieldValue(new(3)).AsString());
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -156,8 +177,8 @@ public sealed class AwkNumericFieldResourceTests
     public void FieldBufferEstimateIncludesValueTypeEntriesAndArrayHeaders()
     {
         Assert.Equal(AwkRuntimeMemory.FieldTextBytes, Unsafe.SizeOf<AwkFieldText>());
-        Assert.Equal(32 + 24 + 4 * Unsafe.SizeOf<AwkFieldText>(), AwkRuntimeMemory.EstimateFieldTextListBytes(4));
-        Assert.Equal(0, AwkRuntimeMemory.EstimateFieldTextListBytes(0));
+        Assert.Equal(24 + 4 * Unsafe.SizeOf<(int, AwkText)>(), AwkRuntimeMemory.EstimateNumericFieldSpellingArrayBytes(4));
+        Assert.Equal(0, AwkRuntimeMemory.EstimateNumericFieldSpellingArrayBytes(0));
         Assert.Equal(32 + 24 + 4 * Unsafe.SizeOf<AwkRecordField>(), AwkRuntimeMemory.EstimateRecordFieldListBytes(4));
         Assert.Equal(0, AwkRuntimeMemory.EstimateRecordFieldListBytes(0));
     }
