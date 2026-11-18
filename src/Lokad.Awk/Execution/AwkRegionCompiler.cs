@@ -314,42 +314,7 @@ internal sealed partial class AwkRegionCompiler
                 var returned = -1;
                 if (statement.Expression.TryGetValue(out var returning))
                     if (!Expression(returning, out returned)) return false;
-                // Keep an inserted poll after the read at its original boundary.
-                if (returned >= 0 && !_code.RequiresPoll) TryTakeFreshArrayRead(returned);
-                if (returned >= 0 && _operands[returned] is { Kind: AwkRegionOperandKind.NumberTemporary } numericReturn)
-                {
-                    if (_lastNumberRead == _code.Count - 1 && _code.Count > 0 &&
-                        _code[^1] is var read && read.IsNumberRead && read.Target == numericReturn.Index)
-                        _code[^1] = read with { Kind = AwkRegionInstructionKind.ReturnNumber,
-                            Target = 0, Left = _lastNumberOperand };
-                    else Emit(new(AwkRegionInstructionKind.ReturnNumber, Left: ~numericReturn.Index));
-                }
-                else
-                {
-                    // Return owns capture and actual flush completion. Existing
-                    // value/text results already have owning scratch; other sources
-                    // use the same funded value slot without a separate dispatch.
-                    var source = -1;
-                    var destination = returned < 0
-                        ? new AwkRegionOperand(AwkRegionOperandKind.ValueTemporary, -1)
-                        : _operands[returned];
-                    if (returned >= 0 && destination.Kind is not
-                        (AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary))
-                    {
-                        source = returned;
-                        destination = new(AwkRegionOperandKind.ValueTemporary, _values++);
-                    }
-                    if (source < 0 && returned >= 0 && _operands[returned] is
-                        { Kind: AwkRegionOperandKind.ValueTemporary } directReturn && _code.Count > 0 &&
-                        _code[^1] is { Kind: AwkRegionInstructionKind.Call,
-                            Detail: (int)AwkRegionReturnConsumer.Value } call && call.Target == directReturn.Index)
-                        _code[^1] = call with { Detail = (int)AwkRegionReturnConsumer.ReturnValue };
-                    // The return consumer already knows its owning storage role.
-                    // Keep the source operand for capture, but bind the actual
-                    // destination slot rather than redispatching it as a source.
-                    Emit(new(AwkRegionInstructionKind.Return, Target: destination.Index,
-                        Left: source, Detail: (int)destination.Kind));
-                }
+                EmitReturn(returned);
                 break;
             case AwkStatementKind.Print:
                 if (!AwkStatementLoweringShapes.Output(statement).TryGetValue(out var output)) return false;
@@ -832,58 +797,104 @@ internal sealed partial class AwkRegionCompiler
 
     private readonly record struct PreparedNumber(int Operand, int ReadInstruction = -1);
 
-    private bool TryTakeFreshArrayRead(int operand)
+    private void EmitReturn(int operand)
+    {
+        var value = operand < 0 ? new AwkRegionOperand(AwkRegionOperandKind.ValueTemporary, -1) : _operands[operand];
+        if (value.Kind == AwkRegionOperandKind.NumberTemporary)
+        {
+            var position = Emit(new(AwkRegionInstructionKind.ReturnNumber, Left: ~value.Index));
+            if (_lastNumberRead >= 0 && _lastNumberRead == position - 1 &&
+                _code[_lastNumberRead] is var read && read.IsNumberRead && read.Target == value.Index)
+            {
+                _code[_lastNumberRead] = read with { Kind = AwkRegionInstructionKind.ReturnNumber,
+                    Target = 0, Left = _lastNumberOperand };
+                _code.TrimTail(1);
+            }
+            return;
+        }
+
+        // Existing temporary values already own their scratch. Other values
+        // publish into a fresh slot before any actual flush can suspend.
+        var useTemporary = value.Kind is AwkRegionOperandKind.ValueTemporary or AwkRegionOperandKind.TextTemporary;
+        var destination = useTemporary ? value.Index : _values++;
+        var instruction = new AwkRegionInstruction(AwkRegionInstructionKind.Return, Target: destination,
+            Left: useTemporary ? -1 : operand,
+            Detail: (int)(useTemporary ? value.Kind : AwkRegionOperandKind.ValueTemporary));
+        var predecessor = Emit(instruction) - 1;
+        if (predecessor < 0 || operand < 0 || value.Kind != AwkRegionOperandKind.ValueTemporary)
+            return;
+        if (TryGetFreshArrayRead(operand, predecessor, out var access))
+        {
+            // A direct capture can keep the same funded slot as the discarded array read.
+            _operands[operand] = new(AwkRegionOperandKind.ArrayElement, access);
+            _code[predecessor] = instruction with { Left = operand };
+            _code.TrimTail(1);
+        }
+        else if (_code[predecessor] is { Kind: AwkRegionInstructionKind.Call,
+            Detail: (int)AwkRegionReturnConsumer.Value } call && call.Target == value.Index)
+        {
+            _code[predecessor] = call with { Detail = (int)AwkRegionReturnConsumer.ReturnValue };
+        }
+    }
+
+    private bool TryGetFreshArrayRead(int operand, int position, out int access)
     {
         var source = _operands[operand];
-        if (source.Kind != AwkRegionOperandKind.ValueTemporary || operand != _operands.Count - 1 ||
-            source.Index != _values - 1 || _code.Count == 0 ||
-            _code[^1] is not { Kind: AwkRegionInstructionKind.ArrayRead, Detail: 0 } read ||
-            read.Target != source.Index) return false;
-        // Joins and key retirement leave intervening instructions. This private
-        // producer can give its canonical operand to the immediate consumer.
-        _values--;
-        _operands[operand] = new(AwkRegionOperandKind.ArrayElement, read.Left);
-        _code.TrimTail(1);
-        return true;
+        if (source.Kind == AwkRegionOperandKind.ValueTemporary && operand == _operands.Count - 1 &&
+            source.Index == _values - 1 && position >= 0 &&
+            _code[position] is { Kind: AwkRegionInstructionKind.ArrayRead, Detail: 0 } read &&
+            read.Target == source.Index)
+        {
+            access = read.Left;
+            return true;
+        }
+        access = -1;
+        return false;
     }
 
     private PreparedNumber CaptureNumber(int operand, bool preserveLocation = false)
     {
         var source = _operands[operand];
         if (source.Kind == AwkRegionOperandKind.NumberTemporary) return new(operand);
-        if (!preserveLocation && source.Kind == AwkRegionOperandKind.DynamicField &&
-            _code.Count > 0 && _code[^1] is { Kind: AwkRegionInstructionKind.FieldIndex } index &&
-            index.Target == source.Index)
-        {
-            // This rvalue consumes the index immediately. Keep validation at its
-            // original position and reuse the coordinate slot for the field number.
-            _code[^1] = new(AwkRegionInstructionKind.FieldIndexNumber, source.Index, index.Left);
-            _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, source.Index);
-            // No bound field location remains for a return to reread. Its actual
-            // numeric register still captures before flushing/retiring the callee.
-            _lastNumberRead = -1;
-            return new(operand, _code.Count - 1);
-        }
         var target = _numbers++;
-        if (TryTakeFreshArrayRead(operand))
+        var position = EmitNumberRead(operand, target);
+        var predecessor = position - 1;
+        if (predecessor >= 0)
         {
-            _lastNumberRead = Emit(new(AwkRegionInstructionKind.ArrayNumber, target, _operands[operand].Index));
-            _lastNumberOperand = operand;
-            return new(Operand(AwkRegionOperandKind.NumberTemporary, target), _lastNumberRead);
+            if (!preserveLocation && source.Kind == AwkRegionOperandKind.DynamicField &&
+                _code[predecessor] is { Kind: AwkRegionInstructionKind.FieldIndex } index && index.Target == source.Index)
+            {
+                // Use the existing coordinate slot for the numeric field result.
+                _numbers--;
+                _code[predecessor] = new(AwkRegionInstructionKind.FieldIndexNumber, source.Index, index.Left);
+                _code.TrimTail(1);
+                _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, source.Index);
+                _lastNumberRead = -1;
+                return new(operand, predecessor);
+            }
+            if (TryGetFreshArrayRead(operand, predecessor, out var access))
+            {
+                _values--;
+                _operands[operand] = new(AwkRegionOperandKind.ArrayElement, access);
+                _code[predecessor] = new(AwkRegionInstructionKind.ArrayNumber, target, access);
+                _code.TrimTail(1);
+                position = predecessor;
+            }
+            else if (source.Kind == AwkRegionOperandKind.ValueTemporary &&
+                _code[predecessor] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
+            {
+                // The adjacent conversion runs while the callee still owns the value.
+                _code[predecessor] = call with { Target = target, Detail = (int)AwkRegionReturnConsumer.Number };
+                _code.TrimTail(1);
+                if (source.Index == _values - 1) _values--;
+                _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, target);
+                return new(operand);
+            }
         }
-        if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count > 0 &&
-            _code[^1] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
-        {
-            // Conversion is the immediate consumer: no script work moves across
-            // it. Keep the value with its funded callee until conversion finishes.
-            _code[^1] = call with { Target = target, Detail = (int)AwkRegionReturnConsumer.Number };
-            if (source.Index == _values - 1) _values--;
-            _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, target);
-            return new(operand);
-        }
-        _lastNumberRead = EmitNumberRead(operand, target);
+
+        _lastNumberRead = position;
         _lastNumberOperand = operand;
-        return new(Operand(AwkRegionOperandKind.NumberTemporary, target), _lastNumberRead);
+        return new(Operand(AwkRegionOperandKind.NumberTemporary, target), position);
     }
 
     private int EmitNumberRead(int operand, int target)

@@ -46,7 +46,8 @@ internal sealed partial class AwkRegionCompiler
 
         internal void TrimTail(int count)
         {
-            System.Diagnostics.Debug.Assert(count >= 0 && count <= _straightLine);
+            if ((uint)count > (uint)_straightLine)
+                throw new InvalidOperationException("An instruction rewrite crossed a poll boundary.");
             _instructions.RemoveRange(Count - count, count);
             _straightLine -= count;
         }
