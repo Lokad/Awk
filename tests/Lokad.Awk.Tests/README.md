@@ -98,3 +98,5 @@ runner uses argument lists, bounded capture, streamed input, cancellation and pr
 cleanup. `--reference-contracts` checks equivalent native work; `--driver-smoke` checks the
 process boundary. Known reference bugs cannot be equivalent performance cases. See the
 [benchmark workflow](../../docs/BENCHMARKS.md) for focused development and milestone refreshes.
+The test and benchmark projects compile their shared native-reference helpers and fixtures
+from [verification](../../verification).

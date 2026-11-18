@@ -25,11 +25,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceOutput.cs" Link="Benchmarking\ReferenceOutput.cs" />
-    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceProcess.cs" Link="Benchmarking\ReferenceProcess.cs" />
-    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceBenchmarkHost.cs" Link="Benchmarking\ReferenceBenchmarkHost.cs" />
-    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceWorkloads.cs" Link="Benchmarking\ReferenceWorkloads.cs" />
-    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceContracts.cs" Link="Benchmarking\ReferenceContracts.cs" />
-    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\MachineQuietProbe.cs" Link="Benchmarking\MachineQuietProbe.cs" />
+    <Compile Include="..\..\verification\*.cs" Link="Verification\%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>
