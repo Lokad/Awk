@@ -128,23 +128,6 @@ internal partial struct AwkRegionMachine
     {
         switch (_pending)
         {
-            case Pending.Flush:
-            case Pending.Output:
-                if (!_hostCompletion.IsCompletedSuccessfully) return false;
-                CompleteHostOperation();
-                break;
-            case Pending.NumberReturn:
-                if (!_hostCompletion.IsCompletedSuccessfully) return false;
-                CompleteNumberReturn();
-                break;
-            case Pending.ValueReturn:
-                if (!_hostCompletion.IsCompletedSuccessfully) return false;
-                CompleteValueReturn();
-                break;
-            case Pending.Read:
-                if (!_hostCompletion.IsCompletedSuccessfully) return false;
-                CompleteRead();
-                break;
             case Pending.MainRead:
                 if (!_mainRead.IsCompletedSuccessfully) return false;
                 CompleteMainRead(_mainRead.Result);
@@ -157,9 +140,33 @@ internal partial struct AwkRegionMachine
                 if (!_pendingValue.IsCompletedSuccessfully) return false;
                 CompleteBuiltinValue(_pendingValue.Result);
                 break;
-            default: throw new InvalidOperationException("The pending operation has no completion source.");
+            default:
+                if (!_hostCompletion.IsCompletedSuccessfully) return false;
+                CompletePendingTask();
+                break;
         }
         return true;
+    }
+
+    private void CompletePendingTask()
+    {
+        switch (_pending)
+        {
+            case Pending.Flush:
+            case Pending.Output:
+                CompleteHostOperation();
+                break;
+            case Pending.NumberReturn:
+                CompleteNumberReturn();
+                break;
+            case Pending.ValueReturn:
+                CompleteValueReturn();
+                break;
+            case Pending.Read:
+                CompleteRead();
+                break;
+            default: throw new InvalidOperationException("The pending operation has no completion source.");
+        }
     }
 
     private void BeginWrite(AwkRegionOutput output, int payloadStart = 0)
@@ -396,23 +403,6 @@ internal partial struct AwkRegionMachine
             {
                 switch (machine._pending)
                 {
-                    case Pending.Flush:
-                    case Pending.Output:
-                        await machine._hostCompletion.ConfigureAwait(false);
-                        machine.CompleteHostOperation();
-                        break;
-                    case Pending.NumberReturn:
-                        await machine._hostCompletion.ConfigureAwait(false);
-                        machine.CompleteNumberReturn();
-                        break;
-                    case Pending.ValueReturn:
-                        await machine._hostCompletion.ConfigureAwait(false);
-                        machine.CompleteValueReturn();
-                        break;
-                    case Pending.Read:
-                        await machine._hostCompletion.ConfigureAwait(false);
-                        machine.CompleteRead();
-                        break;
                     case Pending.MainRead:
                         var mainRecord = await machine._mainRead.ConfigureAwait(false);
                         machine.CompleteMainRead(mainRecord);
@@ -425,7 +415,10 @@ internal partial struct AwkRegionMachine
                         var builtinValue = await machine._pendingValue.ConfigureAwait(false);
                         machine.CompleteBuiltinValue(builtinValue);
                         break;
-                    default: throw new InvalidOperationException("The pending operation has no completion source.");
+                    default:
+                        await machine._hostCompletion.ConfigureAwait(false);
+                        machine.CompletePendingTask();
+                        break;
                 }
             }
             return machine.Flow;
