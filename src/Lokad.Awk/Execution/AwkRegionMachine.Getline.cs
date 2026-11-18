@@ -6,14 +6,22 @@ internal partial struct AwkRegionMachine
     {
         var storage = _storage;
         _state.ThrowIfCancellationRequested();
-        _pending = Pending.Read;
-        _hostCompletion = read.Kind switch
+        var completion = read.Kind switch
         {
             AwkGetlineSourceKind.MainInput => _io.ReadMainRecordAsync(),
             AwkGetlineSourceKind.RedirectedFile => _io.ReadRedirectedRecordAsync(storage.PreparedString(read.Source)),
             AwkGetlineSourceKind.InputPipe => _io.ReadPipeRecordAsync(storage.PreparedString(read.Source)),
             _ => throw new InvalidOperationException("Unknown getline source.")
         };
+
+        if (completion.IsCompletedSuccessfully)
+        {
+            ApplyRead(read, completion.Result);
+            return;
+        }
+
+        _pending = Pending.Read;
+        _hostCompletion = completion.AsTask();
     }
 
     private void CompleteRead()
@@ -21,8 +29,11 @@ internal partial struct AwkRegionMachine
         // The execution location cannot move during a pending read. Its preceding instruction
         // identifies the funded source/destination without another pending object.
         var instruction = _region.Instructions[_position - 1];
-        var read = _region.Getlines[instruction.Left];
-        var result = ((Task<AwkGetlineResult>)_hostCompletion).Result;
+        ApplyRead(_region.Getlines[instruction.Left], ((Task<AwkGetlineResult>)_hostCompletion).Result);
+    }
+
+    private void ApplyRead(AwkRegionGetline read, AwkGetlineResult result)
+    {
         var storage = _storage;
         _state.ThrowIfCancellationRequested();
         AwkGetlineRuntime.ApplyResult(_state, storage.GetlineTarget(read.Slot),

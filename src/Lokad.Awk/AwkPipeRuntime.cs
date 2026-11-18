@@ -58,36 +58,30 @@ internal sealed class AwkPipeRuntime(
         }
     }
 
-    public async Task<AwkRecordCursor> GetInputReaderAsync(string command)
+    public async ValueTask<AwkRecordCursor> GetInputReaderAsync(string command)
     {
-        var pipe = await GetOrOpenInputPipeAsync(command).ConfigureAwait(false);
-        return pipe.Reader;
+        if (_inputPipes.TryGetValue(command, out var existing))
+            return existing.Reader;
 
-        async Task<AwkInputPipe> GetOrOpenInputPipeAsync(string command)
+        ThrowIfPipeLimitReached();
+
+        var descriptors = await host.CreatePipeAsync().ConfigureAwait(false);
+        var memory = memoryAccounting.CreateTransientLease();
+        Task<AwkExitCode>? completion = null;
+        try
         {
-            if (_inputPipes.TryGetValue(command, out var existing))
-                return existing;
-
-            ThrowIfPipeLimitReached();
-
-            var descriptors = await host.CreatePipeAsync().ConfigureAwait(false);
-            var memory = memoryAccounting.CreateTransientLease();
-            Task<AwkExitCode>? completion = null;
-            try
-            {
-                var invocation = host.CreateInputPipeCommand(command, descriptors.Write, memory);
-                completion = host.RunCommandAsync(invocation);
-                var reader = createRecordCursor(descriptors.Read);
-                var pipe = new AwkInputPipe(descriptors.Read, descriptors.Write, reader, completion, memory, nextRedirectionOrder());
-                _inputPipes.Add(command, pipe);
-                return pipe;
-            }
-            catch
-            {
-                await CloseCreatedDescriptorsForCleanupAsync(descriptors).ConfigureAwait(false);
-                await AwaitCommandForCleanupAsync(completion, memory).ConfigureAwait(false);
-                throw;
-            }
+            var invocation = host.CreateInputPipeCommand(command, descriptors.Write, memory);
+            completion = host.RunCommandAsync(invocation);
+            var reader = createRecordCursor(descriptors.Read);
+            var pipe = new AwkInputPipe(descriptors.Read, descriptors.Write, reader, completion, memory, nextRedirectionOrder());
+            _inputPipes.Add(command, pipe);
+            return reader;
+        }
+        catch
+        {
+            await CloseCreatedDescriptorsForCleanupAsync(descriptors).ConfigureAwait(false);
+            await AwaitCommandForCleanupAsync(completion, memory).ConfigureAwait(false);
+            throw;
         }
     }
 

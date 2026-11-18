@@ -10,6 +10,8 @@ One prepared interpreter program runs main input, rule conditions/bodies and rec
 backedges. Explicit frames and continuations preserve caller ownership across calls,
 nonlocal flow and real pending host work. Execution ownership can differ from the
 currently visible binding scope during retirement or file-phase reentry.
+Buffered `getline` can complete in the interpreter. A pending `getline` keeps
+its source and destination in the execution frame until the read completes.
 
 Formatting, including printf cursors and staged output, function storage and I/O read
 controls and accounting from their owning runtime, keeping cancellation, admission and

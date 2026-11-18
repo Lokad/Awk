@@ -134,7 +134,7 @@ internal sealed class AwkIo
         await _host.AppendAsync(descriptor, output.Content).ConfigureAwait(false);
     }
 
-    public async Task<AwkGetlineResult> ReadRedirectedRecordAsync(string path)
+    public async ValueTask<AwkGetlineResult> ReadRedirectedRecordAsync(string path)
     {
         ThrowIfFileRedirectionDisabled();
         AwkSpecialPathPolicy.ThrowIfUnsupported(path);
@@ -175,7 +175,7 @@ internal sealed class AwkIo
         return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
     }
 
-    public async Task<AwkGetlineResult> ReadPipeRecordAsync(string command)
+    public async ValueTask<AwkGetlineResult> ReadPipeRecordAsync(string command)
     {
         ThrowIfCommandPipeDisabled();
         // An input-pipe command borrows parent stdin as well as its new output pipe.
@@ -211,15 +211,15 @@ internal sealed class AwkIo
         PreserveRedirectedStandardInput();
     }
 
-    public Task<AwkGetlineResult> ReadMainRecordAsync()
+    public ValueTask<AwkGetlineResult> ReadMainRecordAsync()
     {
         if (_mainInputReader is not MainInputReaderBinding.Bound boundReader)
-            return Task.FromResult(AwkGetlineResult.EndOfFile);
+            return ValueTask.FromResult(AwkGetlineResult.EndOfFile);
 
         return ReadGetlineRecordAsync(boundReader.Reader);
     }
 
-    private async Task<AwkGetlineResult> ReadGetlineRecordAsync(IAwkInputRecordReader reader)
+    private async ValueTask<AwkGetlineResult> ReadGetlineRecordAsync(IAwkInputRecordReader reader)
     {
         try
         {
