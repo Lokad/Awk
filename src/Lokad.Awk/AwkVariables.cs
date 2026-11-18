@@ -8,8 +8,7 @@ internal sealed partial class AwkVariables
     public const string FunctionTableName = "FUNCTAB";
     public const string SymbolTableName = "SYMTAB";
 
-    private static readonly string FieldCountName = AwkSpecialVariables.Name(AwkSpecialVariableId.FieldCount);
-    private static readonly string OutputFieldSeparatorName = AwkSpecialVariables.Name(AwkSpecialVariableId.OutputFieldSeparator);
+    private static readonly AwkVariableName FieldCountName = AwkSpecialVariables.VariableName(AwkSpecialVariableId.FieldCount);
 
     private readonly AwkRuntimeState _state;
     private readonly Dictionary<AwkVariableName, AwkGlobalSlotId> _scalarSlotsByName = new();
@@ -101,10 +100,10 @@ internal sealed partial class AwkVariables
         {
             if (slotId.Value >= 0 && slotId.Value < _scalarSlots.Count)
             {
-                var scalarName = GetScalarCell(slotId).Name;
-                slot = string.Equals(scalarName.Text, FieldCountName, StringComparison.Ordinal)
+                var cell = GetScalarCell(slotId);
+                slot = IsFieldCountCell(cell)
                     ? AwkValue.ForVariableStorage(_state.RecordFields.GetFieldCountValue(), _state.NumberParsingMode)
-                    : GetScalarCell(slotId).State.Slot;
+                    : cell.State.Slot;
                 return true;
             }
 
@@ -365,7 +364,7 @@ internal sealed partial class AwkVariables
     {
         if (IsComputedFieldCount(name))
         {
-            _state.ApplySpecialVariableAssignment(name.Text, AwkValue.FromText(value, AwkNumberParsingMode.Decimal, _state.CancellationCheckpoint));
+            _state.AssignFieldCountValue(AwkValue.FromText(value, AwkNumberParsingMode.Decimal, _state.CancellationCheckpoint));
             return;
         }
         SetScalarSlot(name, AwkValue.FromDeferredText(AwkText.FromString(value), _state.NumberParsingMode));
@@ -375,14 +374,14 @@ internal sealed partial class AwkVariables
     {
         if (IsComputedFieldCount(name))
         {
-            _state.ApplySpecialVariableAssignment(name.Text, value);
+            _state.AssignFieldCountValue(value);
             return;
         }
         SetScalarSlot(name, AwkValue.ForVariableStorage(value, _state.NumberParsingMode));
     }
 
     private bool IsComputedFieldCount(AwkVariableName name) =>
-        _governScalarMemory && string.Equals(name.Text, FieldCountName, StringComparison.Ordinal);
+        _governScalarMemory && name == FieldCountName;
 
     public long EstimateScalarValueMemoryGrowth(AwkVariableName name, AwkValue value) =>
         EstimateScalarSlotMemoryGrowth(name, AwkValue.ForVariableStorage(value, _state.NumberParsingMode));
@@ -434,7 +433,7 @@ internal sealed partial class AwkVariables
 
     public AwkValue GetOrCreateScalarValue(AwkVariableName name)
     {
-        if (string.Equals(name.Text, FieldCountName, StringComparison.Ordinal))
+        if (name == FieldCountName)
             return _state.RecordFields.GetFieldCountValue();
 
         if (_scalarSlotsByName.TryGetValue(name, out var id))
@@ -447,7 +446,7 @@ internal sealed partial class AwkVariables
 
     internal AwkValue GetScalarValue(AwkScalarCell cell)
     {
-        if (string.Equals(cell.Name.Text, FieldCountName, StringComparison.Ordinal))
+        if (IsFieldCountCell(cell))
             return _state.RecordFields.GetFieldCountValue();
 
         return CreateValue(cell.State.Slot).ForceScalar();
@@ -471,10 +470,9 @@ internal sealed partial class AwkVariables
 
     internal void SetScalarValue(AwkScalarCell cell, AwkValue value)
     {
-        var name = cell.Name;
-        if (string.Equals(name.Text, FieldCountName, StringComparison.Ordinal))
+        if (IsFieldCountCell(cell))
         {
-            _state.ApplySpecialVariableAssignment(name.Text, value);
+            _state.AssignFieldCountValue(value);
             return;
         }
 
@@ -485,13 +483,13 @@ internal sealed partial class AwkVariables
         AwkRegionStorage source, in AwkRegionOperand sourceOperand)
     {
         // Computed NF and bootstrap storage retain their ordinary assignment owner.
-        if (!_governScalarMemory || string.Equals(cell.Name.Text, FieldCountName, StringComparison.Ordinal)) return false;
+        if (!_governScalarMemory || IsFieldCountCell(cell)) return false;
         if (sourceOperand.Kind != AwkRegionOperandKind.TextTemporary)
             value = AwkValue.ForVariableStorage(value, _state.NumberParsingMode);
         else System.Diagnostics.Debug.Assert(value.StoredKind ==
             AwkValue.FromDeferredText(AwkText.Empty, _state.NumberParsingMode).StoredKind);
         StoreScalarSlot(cell, value,
-            string.Equals(cell.Name.Text, OutputFieldSeparatorName, StringComparison.Ordinal), source, in sourceOperand);
+            IsOutputFieldSeparatorCell(cell), source, in sourceOperand);
         return true;
     }
 
@@ -1041,6 +1039,12 @@ internal sealed partial class AwkVariables
 
     internal AwkScalarCell? GetSpecialScalarCell(AwkSpecialVariableId id) => _specialScalarCells[(int)id];
 
+    private bool IsFieldCountCell(AwkScalarCell cell) =>
+        ReferenceEquals(cell, GetSpecialScalarCell(AwkSpecialVariableId.FieldCount));
+
+    private bool IsOutputFieldSeparatorCell(AwkScalarCell cell) =>
+        ReferenceEquals(cell, GetSpecialScalarCell(AwkSpecialVariableId.OutputFieldSeparator));
+
     private AwkGlobalSlotId GetOrCreateScalarSlotCore(AwkVariableName name)
     {
         if (_scalarSlotsByName.TryGetValue(name, out var existing))
@@ -1086,8 +1090,7 @@ internal sealed partial class AwkVariables
     private void SetScalarSlot(AwkGlobalSlotId id, AwkValue slot) => SetScalarSlot(GetScalarCell(id), slot);
 
     private void SetScalarSlot(AwkScalarCell cell, AwkValue slot) =>
-        StoreScalarSlot(cell, slot, _governScalarMemory &&
-            string.Equals(cell.Name.Text, OutputFieldSeparatorName, StringComparison.Ordinal));
+        StoreScalarSlot(cell, slot, _governScalarMemory && IsOutputFieldSeparatorCell(cell));
 
     private void StoreScalarSlot(AwkScalarCell cell, AwkValue slot, bool prepareOutputSeparator,
         AwkRegionStorage? source = null, in AwkRegionOperand sourceOperand = default)

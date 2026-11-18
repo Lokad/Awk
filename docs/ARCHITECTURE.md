@@ -95,6 +95,9 @@ and allocation observations until it can publish a complete copy.
 
 Incoming function storage belongs to its frame, while arguments evaluate in caller scope
 and source order. Known bindings may bypass name lookup only while visibility is valid.
+Initialized special scalars use their bound cells for writes. Numeric and general
+assignments enter the same format, separator and admission logic. Computed field
+count reads and writes belong to the record frame.
 Array arguments retain aliases and potential/untyped origins through later argument
 effects; mixed observers must retain the complete value. Retirement clears active
 references without invalidating captured values or pending users.

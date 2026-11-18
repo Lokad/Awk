@@ -1425,7 +1425,7 @@ internal sealed class AwkRuntimeState : IDisposable
     public void ExtendFieldCountForReference(AwkFieldIndex index) =>
         _recordFields.ExtendFieldCountForReference(index);
 
-    private void AssignFieldCountValue(AwkValue value)
+    internal void AssignFieldCountValue(AwkValue value)
     {
         var count = Math.Truncate(value.AsNumber(CancellationCheckpoint));
         if (count < 0) throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
