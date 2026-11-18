@@ -20,6 +20,10 @@ Each invocation parses, prepares and executes its own program. Programs, token c
 and concatenation owners are not shared between executions. Concurrent invocations
 remain independent; observational counters can be shared explicitly.
 
+Parser results carry syntax, errors and warnings. Binding validates function
+declarations before lowering and returns a prepared program or diagnostics.
+The executor maps diagnostics to source locations and delivers parser warnings.
+
 Synchronous views borrow actual program/storage/frame state and cannot survive suspension
 or callbacks that replace their backing. Publish active ownership before operations that
 can fail; unwind through the owner that acquired it. Pending operations retain their

@@ -15,10 +15,7 @@ internal static class AwkParser
             compatibilityMode);
         if (syntax.Diagnostics.Count == 0)
         {
-            return new AwkParseResult(AwkPhaseResult<AwkSyntaxProgram>.SuccessResult(
-                AwkPipelinePhase.Parse,
-                syntax,
-                []));
+            return new AwkParseResult(syntax, [], []);
         }
 
         var warningCount = 0;
@@ -43,22 +40,15 @@ internal static class AwkParser
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var phase = errors.Length == 0
-            ? AwkPhaseResult<AwkSyntaxProgram>.SuccessResult(AwkPipelinePhase.Parse, syntax, warnings)
-            : AwkPhaseResult<AwkSyntaxProgram>.Failure(AwkPipelinePhase.Parse, syntax, errors, warnings);
-        return new AwkParseResult(phase);
+        return new AwkParseResult(syntax, errors, warnings);
     }
 }
 
-internal sealed class AwkParseResult(AwkPhaseResult<AwkSyntaxProgram> phaseResult)
+internal sealed class AwkParseResult(AwkSyntaxProgram syntax,
+    IReadOnlyList<AwkDiagnostic> errors, IReadOnlyList<AwkDiagnostic> warnings)
 {
-    public AwkPhaseResult<AwkSyntaxProgram> PhaseResult { get; } = phaseResult;
-
-    public AwkSyntaxProgram Syntax => PhaseResult.Value;
-
-    public IReadOnlyList<AwkDiagnostic> Warnings => PhaseResult.Warnings;
-
-    public IReadOnlyList<AwkDiagnostic> Errors => PhaseResult.Diagnostics;
-
-    public bool Success => PhaseResult.Success;
+    public AwkSyntaxProgram Syntax { get; } = syntax;
+    public IReadOnlyList<AwkDiagnostic> Errors { get; } = errors;
+    public IReadOnlyList<AwkDiagnostic> Warnings { get; } = warnings;
+    public bool Success => Errors.Count == 0;
 }

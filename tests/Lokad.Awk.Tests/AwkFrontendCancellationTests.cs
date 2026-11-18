@@ -182,7 +182,7 @@ public sealed class AwkFrontendCancellationTests
                     AwkSemanticValidator.Validate(parsed.Syntax, model, AwkCompatibilityProfile.Default, Checkpoint);
                     break;
                 case "lowering":
-                    AwkProgramLowerer.Lower(parsed.Syntax, globals, checkpoint: Checkpoint);
+                    AwkProgramLowerer.LowerValidated(parsed.Syntax, globals, checkpoint: Checkpoint);
                     break;
                 case "binding":
                     AwkBinder.Bind(parsed, AwkCompatibilityProfile.Default, Checkpoint);
@@ -212,7 +212,7 @@ public sealed class AwkFrontendCancellationTests
             Assert.True(parsed.Success);
             var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out var globals);
             if (lowering)
-                AwkProgramLowerer.Lower(parsed.Syntax, globals, checkpoint: checkpoint);
+                AwkProgramLowerer.LowerValidated(parsed.Syntax, globals, checkpoint: checkpoint);
             else
                 AwkSemanticValidator.Validate(parsed.Syntax, AwkSemanticModel.Create(symbols),
                     AwkCompatibilityProfile.Default, checkpoint);

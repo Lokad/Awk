@@ -102,7 +102,7 @@ public sealed class AwkStringRegionTests
     {
         var result = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(result.Success);
-        return result.Value.Program;
+        return result.Program;
     }
 
     private static CooperativeTestMemory State(AwkProgram program, AwkRuntimeCounters counters, bool governed,

@@ -161,7 +161,7 @@ public sealed class AwkGlobalNumericLeafTests
         }
         var binding = AwkTestHarness.BindDefaultProfile(parsed);
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         return Assert.Single(program.BeginActions);

@@ -191,7 +191,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
                     new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault())))).State;
             var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
             Assert.True(binding.Success);
-            var program = binding.Value.Program;
+            var program = binding.Program;
             State.InitializeGlobalNames(program.GlobalNames);
             State.InitializeGlobalReadSlots(program.GlobalReadCount);
             State.InitializeFunctions(program.Functions);

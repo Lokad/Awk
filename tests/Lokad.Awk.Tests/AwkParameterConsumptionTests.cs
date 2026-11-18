@@ -114,7 +114,6 @@ public sealed partial class AwkParameterConsumptionTests
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source + " BEGIN{}",
             new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.True(binding.Success);
-        Assert.True(binding.Value.HasProgram);
-        return binding.Value.Program;
+        return binding.Program;
     }
 }

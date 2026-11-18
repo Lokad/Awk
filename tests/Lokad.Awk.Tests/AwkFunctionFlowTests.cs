@@ -18,7 +18,7 @@ public sealed class AwkFunctionFlowTests
             const string source = "function f(){print \"body\";next}{f();print \"bad\"}";
             var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
             Assert.True(binding.Success);
-            var program = binding.Value.Program;
+            var program = binding.Program;
             var counters = AwkRuntimeCounters.CreateEnabled();
             var limits = AwkRuntimeLimits.CreateDefault();
             var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0),
@@ -94,7 +94,7 @@ public sealed class AwkFunctionFlowTests
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source,
             new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault()
             .WithMaxFunctionCallDepth(2);

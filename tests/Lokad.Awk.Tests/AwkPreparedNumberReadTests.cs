@@ -33,7 +33,7 @@ public sealed class AwkPreparedNumberReadTests
         var state = memoryForState.State;
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{result=+NF}"));
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         using var storage = new AwkRegionStorage(state);

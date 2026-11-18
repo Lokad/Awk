@@ -12,7 +12,7 @@ internal static class AwkTestHarness
     public static AwkParseResult ParseSource(string source, int maxSyntaxNestingDepth = int.MaxValue) =>
         AwkParser.Parse(source, new AwkFrontendBudget(maxSyntaxNestingDepth), CancellationToken.None);
 
-    public static AwkPhaseResult<AwkProgramResult> BindDefaultProfile(AwkParseResult parsed) =>
+    public static AwkBindingResult BindDefaultProfile(AwkParseResult parsed) =>
         AwkBinder.Bind(parsed, AwkCompatibilityProfile.Default);
 
     public static List<AwkToken> TokenizeSource(string source) => AwkLexer.Tokenize(source, CancellationToken.None);

@@ -12,7 +12,7 @@ public sealed class AwkFunctionCleanupAllocationTests
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function f(x){return x}BEGIN{total=0;for(i=0;i<10000;i++)total+=f(42)}"));
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);

@@ -14,8 +14,6 @@ public sealed class AwkParserTests
         var result = AwkParser.Parse("BEGIN{print 1} {print $1}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.True(result.Success);
-        Assert.True(result.PhaseResult.Success);
-        Assert.Equal(AwkPipelinePhase.Parse, result.PhaseResult.Phase);
         Assert.Empty(result.Errors);
         Assert.Equal([AwkRuleKind.Begin, AwkRuleKind.Main], result.Syntax.Rules.Select(rule => rule.Kind).ToArray());
     }
@@ -27,16 +25,13 @@ public sealed class AwkParserTests
         var syntax = AwkSyntaxParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         AwkSymbolCollector.Collect(syntax, out var globalNames);
-        var result = AwkProgramLowerer.Lower(syntax, globalNames);
+        var result = AwkProgramLowerer.LowerValidated(syntax, globalNames);
 
         Assert.Equal(source, syntax.SourceText);
         Assert.True(result.Success);
-        Assert.True(result.PhaseResult.Success);
-        Assert.Equal(AwkPipelinePhase.Lower, result.PhaseResult.Phase);
         Assert.Empty(result.Diagnostics);
-        Assert.True(result.Program.HasProgram);
-        Assert.Single(result.Program.Program.BeginActions);
-        Assert.Single(result.Program.Program.Functions);
+        Assert.Single(result.Program.BeginActions);
+        Assert.Single(result.Program.Functions);
     }
 
     [Fact]
@@ -45,20 +40,17 @@ public sealed class AwkParserTests
         var result = AwkParser.Parse("BEGIN{print", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.False(result.Success);
-        Assert.False(result.PhaseResult.Success);
-        Assert.Equal(AwkPipelinePhase.Parse, result.PhaseResult.Phase);
         Assert.Contains(result.Errors, diagnostic => diagnostic.Message.Contains("Unterminated action block"));
     }
 
     [Fact]
-    public void AwkBinder_ReturnsLoweringDiagnosticsWithoutExecutableProgram()
+    public void AwkBinder_RejectsMissingRedirectionDestination()
     {
         var result = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("BEGIN{print \"x\" >}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.False(result.Success);
-        Assert.Equal(AwkPipelinePhase.Lower, result.Phase);
-        Assert.False(result.Value.HasProgram);
         Assert.NotEmpty(result.Diagnostics);
+        Assert.Throws<InvalidOperationException>(() => result.Program);
     }
 
     [Fact]

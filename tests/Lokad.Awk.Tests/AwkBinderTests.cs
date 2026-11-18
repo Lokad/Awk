@@ -51,8 +51,6 @@ public sealed class AwkBinderTests
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("BEGIN{print 1}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.True(binding.Success);
-        Assert.Equal(AwkPipelinePhase.Lower, binding.Phase);
-        Assert.True(binding.Value.HasProgram);
         Assert.Empty(binding.Diagnostics);
     }
 
@@ -62,8 +60,6 @@ public sealed class AwkBinderTests
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("BEGIN{print", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.False(binding.Success);
-        Assert.Equal(AwkPipelinePhase.Parse, binding.Phase);
-        Assert.False(binding.Value.HasProgram);
         Assert.Contains(binding.Diagnostics, diagnostic => diagnostic.Message.Contains("Unterminated action block"));
     }
 
@@ -157,7 +153,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(AwkDiagnosticCategory.Bind, diagnostic.Category);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
@@ -189,7 +184,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -210,7 +204,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal("awk: function `rand' requires a call.\n", Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -233,7 +226,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal("awk: undefined function: gensub\n", Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -247,7 +239,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal("awk: undefined function: typeof\n", Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -261,7 +252,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -277,7 +267,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -304,7 +293,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -333,7 +321,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -360,7 +347,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -386,7 +372,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -398,7 +383,6 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal("awk: undefined function: missing_function\n", Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }

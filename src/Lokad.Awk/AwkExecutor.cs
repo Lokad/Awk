@@ -274,28 +274,17 @@ internal static class AwkExecutor
             invocation.ExecutionOptions.CompatibilityProfile.Mode);
         var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings, cancellationToken.ThrowIfCancellationRequested);
         cancellationToken.ThrowIfCancellationRequested();
-        var phase = AwkBinder.Bind(parsed, invocation.ExecutionOptions.CompatibilityProfile,
+        var binding = AwkBinder.Bind(parsed, invocation.ExecutionOptions.CompatibilityProfile,
             cancellationToken.ThrowIfCancellationRequested, invocation.RuntimeArgumentsPlan);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!phase.Success)
+        if (!binding.Success)
         {
             return AwkProgramResolution.Fail(
-                AwkDiagnostics.Parse(AwkSourceDiagnosticMap.MapDiagnostics(source, phase.Diagnostics, cancellationToken.ThrowIfCancellationRequested)),
+                AwkDiagnostics.Parse(AwkSourceDiagnosticMap.MapDiagnostics(source, binding.Diagnostics, cancellationToken.ThrowIfCancellationRequested)),
                 warnings);
         }
 
-        var boundProgram = phase.Value;
-        if (!boundProgram.HasProgram)
-        {
-            return AwkProgramResolution.Fail(
-                new AwkFailureDiagnostic(
-                    AwkMessages.ErrorInvalidScript,
-                    AwkDiagnostics.FatalExitCode,
-                    AwkDiagnosticId.ParseSyntax),
-                warnings);
-        }
-
-        return AwkProgramResolution.Success(boundProgram.Program, warnings);
+        return AwkProgramResolution.Success(binding.Program, warnings);
     }
 
     private abstract class AwkProgramResolution

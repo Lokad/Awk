@@ -58,7 +58,7 @@ public sealed class AwkFieldTargetAllocationTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{values[$1]+=1}"));
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var region = Assert.Single(program.BeginActions);

@@ -195,7 +195,7 @@ public sealed partial class AwkRegionTests
         using var fixture = State(cancellation.Token, governed);
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function repeat(){" + body + "}BEGIN{repeat()}"));
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         fixture.State.InitializeGlobalNames(program.GlobalNames);
         fixture.State.InitializeGlobalReadSlots(program.GlobalReadCount);
         fixture.State.InitializeFunctions(program.Functions);

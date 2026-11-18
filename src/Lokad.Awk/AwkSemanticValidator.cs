@@ -27,8 +27,10 @@ internal static class AwkSemanticValidator
             {
                 checkpoint?.Invoke();
                 var function = syntax.Functions[index];
-                if (function.Name.Length == 0)
+                if (!function.Identifier.HasValue)
                 {
+                    diagnostics.Add(new AwkDiagnostic(function.Span,
+                        "Invalid function declaration.", AwkDiagnosticId.BindInvalidProgram));
                     ValidateFunctionParameters(function, mode, functionNames, diagnostics);
                     continue;
                 }

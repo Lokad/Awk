@@ -1,6 +1,6 @@
 namespace Lokad.Awk;
 
-internal static partial class AwkProgramLowerer
+internal static class AwkProgramLowerer
 {
     private static AwkUnobservedRecordHeaders PrepareUnobservedRecordHeaders(
         IReadOnlyList<AwkSymbolReference>? symbols, AwkRuntimeArgumentPlan? arguments, Action? checkpoint)
@@ -20,34 +20,20 @@ internal static partial class AwkProgramLowerer
         return unobserved;
     }
 
-    public static AwkLoweringResult Lower(AwkSyntaxProgram syntax, IReadOnlySet<AwkVariableName> globalNames,
+    public static AwkBindingResult LowerValidated(AwkSyntaxProgram syntax, IReadOnlySet<AwkVariableName> globalNames,
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
         IReadOnlyList<AwkSymbolReference>? symbols = null,
         AwkRuntimeArgumentPlan? externalArguments = null)
     {
         checkpoint?.Invoke();
-        List<AwkDiagnostic>? syntaxErrors = null;
-        for (var diagnosticIndex = 0; diagnosticIndex < syntax.Diagnostics.Count; diagnosticIndex++)
-        {
-            checkpoint?.Invoke();
-            if (!syntax.Diagnostics[diagnosticIndex].IsWarning)
-            {
-                syntaxErrors ??= [];
-                syntaxErrors.Add(syntax.Diagnostics[diagnosticIndex]);
-            }
-        }
-
-        if (syntaxErrors != null)
-        {
-            return AwkLoweringResult.Failure(syntaxErrors);
-        }
-
         if (syntax.Rules.Count == 0 && syntax.Functions.Count == 0)
         {
             return syntax.Directives.Count == 0
-                ? AwkLoweringResult.SuccessResult(AwkProgram.Empty)
-                : AwkLoweringResult.Failure(syntax, "Expected awk pattern or action.");
+                ? AwkBindingResult.FromProgram(AwkProgram.Empty)
+                : AwkBindingResult.Failure([new AwkDiagnostic(
+                    new AwkTextSpan(0, Math.Min(1, syntax.SourceText.Length)),
+                    "Expected awk pattern or action.", AwkDiagnosticId.BindInvalidProgram)]);
         }
 
         var beginActions = new List<AwkRegion>();
@@ -61,16 +47,9 @@ internal static partial class AwkProgramLowerer
         {
             checkpoint?.Invoke();
             var functionSyntax = syntax.Functions[functionIndex];
-            var functionDefinition = BindFunctionSignature(functionSyntax, mode, checkpoint);
-            if (!functionDefinition.Succeeded)
-            {
-                return AwkLoweringResult.Failure(functionDefinition.Diagnostics);
-            }
-
-            var function = functionDefinition.Value;
-            if (!functions.TryAdd(function.FunctionName, function))
-                return AwkLoweringResult.Failure([new AwkDiagnostic(functionSyntax.Span,
-                    "Duplicate function definition `" + function.Name + "'.", AwkDiagnosticId.BindInvalidProgram)]);
+            var name = new AwkFunctionName(functionSyntax.Identifier.Value);
+            var layout = new AwkFunctionLocalLayout(functionSyntax.ParameterBinding.Parameters, checkpoint);
+            functions.Add(name, new AwkUserFunction(name, layout));
         }
 
         AwkValueConsumption.Prepare(syntax, functions, mode, checkpoint, globalReads,
@@ -81,10 +60,10 @@ internal static partial class AwkProgramLowerer
         {
             checkpoint?.Invoke();
             var functionSyntax = syntax.Functions[functionIndex];
-            var function = functions[AwkFunctionName.FromText(functionSyntax.Name)];
+            var function = functions[new AwkFunctionName(functionSyntax.Identifier.Value)];
             var scope = AwkLoweringScope.Function(function.LocalLayout, mode, checkpoint, globalReads, functions);
             if (!AwkRegionCompiler.TryCompile(functionSyntax.BodyStatements, scope, out var region, out var diagnostic))
-                return AwkLoweringResult.Failure([diagnostic]);
+                return AwkBindingResult.Failure([diagnostic]);
             function.PrepareRegion(region);
         }
 
@@ -101,16 +80,11 @@ internal static partial class AwkProgramLowerer
             if (rule.Kind == AwkRuleKind.Main)
             {
                 if (!main.AppendMainRule(rule, rangeIndex, out var diagnostic))
-                    return AwkLoweringResult.Failure([diagnostic]);
+                    return AwkBindingResult.Failure([diagnostic]);
                 continue;
             }
-            var actionLowering = LowerPhase(rule, globalScope);
-            if (!actionLowering.Succeeded)
-            {
-                return AwkLoweringResult.Failure(actionLowering.Diagnostics);
-            }
-
-            var action = actionLowering.Value;
+            if (!AwkRegionCompiler.TryCompilePhase(rule, globalScope, out var action, out var phaseDiagnostic))
+                return AwkBindingResult.Failure([phaseDiagnostic]);
             switch (rule.Kind)
             {
                 case AwkRuleKind.Begin:
@@ -133,29 +107,6 @@ internal static partial class AwkProgramLowerer
             globalNames, globalReads.Count, rangeCount, main.HasMainRules,
             PrepareUnobservedRecordHeaders(symbols, externalArguments, checkpoint));
         checkpoint?.Invoke();
-        return AwkLoweringResult.SuccessResult(program);
-
-        static AwkLoweringOutcome<AwkUserFunction> BindFunctionSignature(
-            AwkFunctionSyntax functionSyntax, AwkCompatibilityMode mode, Action? checkpoint)
-        {
-            if (functionSyntax.Name.Length == 0 || AwkCompatibilityNames.IsReservedFunction(functionSyntax.Name, mode))
-                return AwkLoweringOutcome<AwkUserFunction>.Failure(new AwkDiagnostic(
-                    functionSyntax.Span,
-                    "Invalid function declaration.",
-                    AwkDiagnosticId.BindInvalidProgram));
-
-            var parameterBinding = functionSyntax.ParameterBinding;
-            if (!parameterBinding.Success)
-                return AwkLoweringOutcome<AwkUserFunction>.Failure(parameterBinding.Diagnostics);
-
-            var localLayout = new AwkFunctionLocalLayout(parameterBinding.Parameters, checkpoint);
-            return AwkLoweringOutcome<AwkUserFunction>.Success(
-                new AwkUserFunction(AwkFunctionName.FromText(functionSyntax.Name), localLayout));
-        }
-
-        static AwkLoweringOutcome<AwkRegion> LowerPhase(AwkRuleSyntax rule, AwkLoweringScope scope) =>
-            AwkRegionCompiler.TryCompilePhase(rule, scope, out var region, out var diagnostic)
-                ? AwkLoweringOutcome<AwkRegion>.Success(region)
-                : AwkLoweringOutcome<AwkRegion>.Failure(diagnostic);
+        return AwkBindingResult.FromProgram(program);
     }
 }

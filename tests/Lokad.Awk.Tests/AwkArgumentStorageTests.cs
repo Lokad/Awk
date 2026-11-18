@@ -48,7 +48,7 @@ public sealed class AwkArgumentStorageTests
             "BEGIN{caller(42)}";
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);

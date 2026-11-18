@@ -13,7 +13,7 @@ public sealed class AwkProgramTests
     {
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{}"));
         Assert.True(binding.Success);
-        var beginActions = new List<AwkRegion> { Assert.Single(binding.Value.Program.BeginActions) };
+        var beginActions = new List<AwkRegion> { Assert.Single(binding.Program.BeginActions) };
         var firstFunctionName = AwkFunctionName.FromText("first");
         var secondFunctionName = AwkFunctionName.FromText("second");
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction>
@@ -47,7 +47,7 @@ public sealed class AwkProgramTests
         var source = "BEGIN{result=" + string.Join(' ', Enumerable.Repeat("s", 32)) + "}";
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);

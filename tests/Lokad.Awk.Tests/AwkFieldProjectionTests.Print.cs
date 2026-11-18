@@ -73,7 +73,7 @@ public sealed partial class AwkFieldProjectionTests
         var host = new MockFileSystem();
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{print $1,$3,$2}"));
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var region = Assert.Single(program.BeginActions);

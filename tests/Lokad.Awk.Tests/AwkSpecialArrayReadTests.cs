@@ -58,8 +58,8 @@ public sealed class AwkSpecialArrayReadTests
     public void GlobalInventoryExcludesParametersAndSurvivesScalarArrayUse()
     {
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("function f(local){local=1;global=2;a[1]=3}BEGIN{other=4}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
-        Assert.True(binding.Value.HasProgram);
-        var program = binding.Value.Program;
+        Assert.True(binding.Success);
+        var program = binding.Program;
         Assert.False(program.GlobalNames.Contains(AwkVariableName.FromText("local")));
         Assert.True(program.GlobalNames.Contains(AwkVariableName.FromText("global")));
         Assert.True(program.GlobalNames.Contains(AwkVariableName.FromText("a")));

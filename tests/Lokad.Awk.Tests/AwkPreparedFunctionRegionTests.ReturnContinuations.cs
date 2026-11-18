@@ -15,7 +15,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             new AwkFrontendBudget(int.MaxValue), CancellationToken.None), AwkCompatibilityProfile.Default,
             externalArguments: new([], [], [], AwkPath.Root));
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
         using var memory = new CooperativeTestMemory(8 << 20);
@@ -100,7 +100,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             new AwkFrontendBudget(int.MaxValue), CancellationToken.None), AwkCompatibilityProfile.Default,
             externalArguments: new([], [], [], AwkPath.Root));
         Assert.True(binding.Success);
-        var program = binding.Value.Program;
+        var program = binding.Program;
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
         using var memory = new CooperativeTestMemory(8 << 20);

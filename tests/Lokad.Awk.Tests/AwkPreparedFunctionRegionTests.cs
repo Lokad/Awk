@@ -662,8 +662,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.True(binding.Success);
-        Assert.True(binding.Value.HasProgram);
-        return binding.Value.Program;
+        return binding.Program;
     }
 
     private static async Task<Result> RunAsync(string source, int functionDepth = 0, AwkRuntimeLimits? limitsOverride = null)
