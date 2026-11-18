@@ -331,7 +331,8 @@ internal sealed partial class AwkVariables
 
     internal void SetCapturedArrayNumber(AwkArrayIdentity array, in AwkArrayUpdateTarget target, double number)
     {
-        ThrowIfDetached(array);
+        // The commit caller has matched the captured target to its live owner.
+        System.Diagnostics.Debug.Assert(ReferenceEquals(array, target.Array) && !array.IsDetached);
         var value = AwkValue.FromNumber(number);
         if (target.Cell is { IsAttached: true } cell)
         {
