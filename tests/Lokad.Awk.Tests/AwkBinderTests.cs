@@ -20,7 +20,7 @@ public sealed class AwkBinderTests
         var parsed = AwkTestHarness.ParseSource(source);
         var binding = AwkTestHarness.BindDefaultProfile(parsed);
         Assert.True(binding.Success);
-        var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out _);
+        var symbols = AwkSymbolCollector.Collect(parsed.Syntax).References;
         Assert.Equal(new[] { "f", "local", "local", "left", "a", "x", "right", "b", "y",
             "local", "c", "d", "e", "g", "local", "out", "f", "input" },
             symbols.Select(symbol => symbol.Name));
@@ -69,8 +69,7 @@ public sealed class AwkBinderTests
         var parsed = AwkParser.Parse("function helper(value, extra){ return value + extra }\n" +
             "BEGIN{print NF, length($1); a[$1]++; helper(a[$2])}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         Assert.True(parsed.Success);
-        var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out _);
-        var model = AwkSemanticModel.Create(symbols);
+        var symbols = AwkSymbolCollector.Collect(parsed.Syntax).References;
 
         Assert.Contains(symbols, symbol =>
             symbol is { Name: "helper", Kind: AwkSymbolReferenceKind.FunctionDefinition });
@@ -84,27 +83,6 @@ public sealed class AwkBinderTests
             symbol is { Name: "a", Kind: AwkSymbolReferenceKind.Array });
         Assert.Contains(symbols, symbol =>
             symbol is { Name: "helper", Kind: AwkSymbolReferenceKind.UserFunction });
-        AssertSemanticSymbol(model, AwkSemanticSymbolKind.FunctionParameter, "value");
-        AssertSemanticSymbol(model, AwkSemanticSymbolKind.SpecialVariable, "NF");
-        AssertSemanticSymbol(model, AwkSemanticSymbolKind.Array, "a");
-        AssertSemanticSymbol(model, AwkSemanticSymbolKind.BuiltinFunction, "length");
-        AssertSemanticSymbol(model, AwkSemanticSymbolKind.UserFunction, "helper");
-        AssertSemanticSymbol(model, AwkSemanticSymbolKind.FunctionDefinition, "helper");
-        AssertSemanticDeclaration(model, AwkSemanticSymbolKind.FunctionDefinition, "helper");
-        AssertSemanticDeclaration(model, AwkSemanticSymbolKind.FunctionParameter, "value");
-        AssertSemanticUsage(model, AwkSemanticSymbolKind.BuiltinFunction, "length");
-
-        static void AssertSemanticDeclaration(
-            AwkSemanticModel model,
-            AwkSemanticSymbolKind kind,
-            string name) =>
-            Assert.Contains(model.Declarations, symbol => symbol.Kind == kind && symbol.Name == name);
-
-        static void AssertSemanticUsage(
-            AwkSemanticModel model,
-            AwkSemanticSymbolKind kind,
-            string name) =>
-            Assert.Contains(model.Usages, symbol => symbol.Kind == kind && symbol.Name == name);
     }
 
     [Fact]
@@ -121,11 +99,11 @@ public sealed class AwkBinderTests
             "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.True(AwkTestHarness.BindDefaultProfile(parsed).Success);
-        var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out _);
-        var model = AwkSemanticModel.Create(symbols);
+        var symbols = AwkSymbolCollector.Collect(parsed.Syntax).References;
         foreach (var name in new[] { "sub", "gsub", "split", "patsplit", "asort", "asorti", "match", "typeof", "isarray" })
         {
-            AssertSemanticSymbol(model, AwkSemanticSymbolKind.BuiltinFunction, name);
+            Assert.Contains(symbols, symbol =>
+                symbol.Kind == AwkSymbolReferenceKind.BuiltinFunction && symbol.Name == name);
             Assert.DoesNotContain(symbols, symbol =>
                 symbol.Kind == AwkSymbolReferenceKind.UnknownFunction && symbol.Name == name);
         }
@@ -389,10 +367,4 @@ public sealed class AwkBinderTests
 
     private static string Decode(ReadOnlyMemory<byte> bytes) =>
         Encoding.UTF8.GetString(bytes.Span);
-
-    private static void AssertSemanticSymbol(
-        AwkSemanticModel model,
-        AwkSemanticSymbolKind kind,
-        string name) =>
-        Assert.Contains(model.Declarations.Concat(model.Usages), symbol => symbol.Kind == kind && symbol.Name == name);
 }

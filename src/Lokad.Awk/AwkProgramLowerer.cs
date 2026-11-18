@@ -3,10 +3,10 @@ namespace Lokad.Awk;
 internal static class AwkProgramLowerer
 {
     private static AwkUnobservedRecordHeaders PrepareUnobservedRecordHeaders(
-        IReadOnlyList<AwkSymbolReference>? symbols, AwkRuntimeArgumentPlan? arguments, Action? checkpoint)
+        IReadOnlyList<AwkSymbolReference> symbols, AwkRuntimeArgumentPlan? arguments, Action? checkpoint)
     {
         // Standalone preparation can have observers outside the source program.
-        if (symbols is null || arguments is null) return AwkUnobservedRecordHeaders.None;
+        if (arguments is null) return AwkUnobservedRecordHeaders.None;
         var unobserved = AwkUnobservedRecordHeaders.All;
         foreach (var symbol in symbols)
         {
@@ -20,10 +20,9 @@ internal static class AwkProgramLowerer
         return unobserved;
     }
 
-    public static AwkBindingResult LowerValidated(AwkSyntaxProgram syntax, IReadOnlySet<AwkVariableName> globalNames,
+    public static AwkBindingResult LowerValidated(AwkSyntaxProgram syntax, AwkCollectedSymbols symbols,
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
-        IReadOnlyList<AwkSymbolReference>? symbols = null,
         AwkRuntimeArgumentPlan? externalArguments = null)
     {
         checkpoint?.Invoke();
@@ -41,19 +40,19 @@ internal static class AwkProgramLowerer
         var beginFileActions = new List<AwkRegion>();
         var endFileActions = new List<AwkRegion>();
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction>(syntax.Functions.Count);
-        var globalReads = new AwkGlobalReadLayout(globalNames, checkpoint);
+        var globalReads = new AwkGlobalReadLayout(symbols.Globals, checkpoint);
 
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
         {
             checkpoint?.Invoke();
             var functionSyntax = syntax.Functions[functionIndex];
             var name = new AwkFunctionName(functionSyntax.Identifier.Value);
-            var layout = new AwkFunctionLocalLayout(functionSyntax.ParameterBinding.Parameters, checkpoint);
+            var layout = symbols.FunctionLayouts[functionIndex];
             functions.Add(name, new AwkUserFunction(name, layout));
         }
 
         AwkValueConsumption.Prepare(syntax, functions, mode, checkpoint, globalReads,
-            externalArguments is null ? null : symbols);
+            externalArguments is null ? null : symbols.References);
 
         // All named targets have one identity, including forward and recursive calls.
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
@@ -104,8 +103,8 @@ internal static class AwkProgramLowerer
 
         checkpoint?.Invoke();
         var program = new AwkProgram(beginActions, main.BuildMain(), endActions, beginFileActions, endFileActions, functions,
-            globalNames, globalReads.Count, rangeCount, main.HasMainRules,
-            PrepareUnobservedRecordHeaders(symbols, externalArguments, checkpoint));
+            symbols.Globals, globalReads.Count, rangeCount, main.HasMainRules,
+            PrepareUnobservedRecordHeaders(symbols.References, externalArguments, checkpoint));
         checkpoint?.Invoke();
         return AwkBindingResult.FromProgram(program);
     }

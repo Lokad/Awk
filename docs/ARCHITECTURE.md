@@ -22,6 +22,8 @@ remain independent; observational counters can be shared explicitly.
 
 Parser results carry syntax, errors and warnings. Binding validates function
 declarations before lowering and returns a prepared program or diagnostics.
+Validation reads collected symbols in source order. Collection, validation and
+lowering use the same invocation-local function layouts and parameter slots.
 The executor maps diagnostics to source locations and delivers parser warnings.
 
 Synchronous views borrow actual program/storage/frame state and cannot survive suspension

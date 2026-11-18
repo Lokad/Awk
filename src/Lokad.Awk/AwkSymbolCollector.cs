@@ -1,26 +1,36 @@
 namespace Lokad.Awk;
 
+internal sealed class AwkCollectedSymbols(
+    IReadOnlyList<AwkSymbolReference> references,
+    IReadOnlySet<AwkVariableName> globals,
+    IReadOnlySet<AwkIdentifier> functionNames,
+    IReadOnlyList<AwkFunctionLocalLayout> functionLayouts)
+{
+    public IReadOnlyList<AwkSymbolReference> References { get; } = references;
+    public IReadOnlySet<AwkVariableName> Globals { get; } = globals;
+    public IReadOnlySet<AwkIdentifier> FunctionNames { get; } = functionNames;
+
+    // Indexed in syntax order, including declarations that validation rejects.
+    public IReadOnlyList<AwkFunctionLocalLayout> FunctionLayouts { get; } = functionLayouts;
+}
+
 internal static class AwkSymbolCollector
 {
-
-    public static IReadOnlyList<AwkSymbolReference> Collect(
+    public static AwkCollectedSymbols Collect(
         AwkSyntaxProgram syntax,
-        out IReadOnlySet<AwkVariableName> globalNames,
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null)
     {
         checkpoint?.Invoke();
         var collector = new Collector(syntax, mode, checkpoint);
         collector.CollectProgram(syntax);
-        globalNames = collector.Globals;
-        return collector.Symbols;
+        return new(collector.Symbols, collector.Globals, collector.FunctionNames, collector.FunctionLayouts);
     }
 
     private sealed class Collector
     {
         private readonly AwkCompatibilityMode _mode;
         private readonly Action? _checkpoint;
-        private readonly HashSet<AwkIdentifier> _functionNames;
         private AwkLoweringScope _scope;
 
         public Collector(AwkSyntaxProgram syntax, AwkCompatibilityMode mode, Action? checkpoint)
@@ -28,24 +38,28 @@ internal static class AwkSymbolCollector
             _mode = mode;
             _checkpoint = checkpoint;
             _scope = AwkLoweringScope.GlobalFor(mode, checkpoint);
-            _functionNames = new(syntax.Functions.Count);
+            FunctionNames = new(syntax.Functions.Count);
+            FunctionLayouts = syntax.Functions.Count == 0 ? [] : new AwkFunctionLocalLayout[syntax.Functions.Count];
             foreach (var function in syntax.Functions)
             {
                 _checkpoint?.Invoke();
                 if (function.Identifier.HasValue)
-                    _functionNames.Add(function.Identifier.Value);
+                    FunctionNames.Add(function.Identifier.Value);
             }
         }
 
         public List<AwkSymbolReference> Symbols { get; } = [];
 
         public HashSet<AwkVariableName> Globals { get; } = [];
+        public HashSet<AwkIdentifier> FunctionNames { get; }
+        public AwkFunctionLocalLayout[] FunctionLayouts { get; }
 
         public void CollectProgram(AwkSyntaxProgram syntax)
         {
-            foreach (var function in syntax.Functions)
+            for (var index = 0; index < syntax.Functions.Count; index++)
             {
                 _checkpoint?.Invoke();
+                var function = syntax.Functions[index];
                 if (function.Identifier.HasValue)
                     Symbols.Add(new AwkSymbolReference(function.Identifier.Value,
                         AwkSymbolReferenceKind.FunctionDefinition, function.Span));
@@ -59,7 +73,9 @@ internal static class AwkSymbolCollector
                             AwkSymbolReferenceKind.FunctionParameter, token.Span, isFunctionLocal: true));
                 }
 
-                _scope = AwkLoweringScope.Function(new(function.ParameterBinding.Parameters, _checkpoint), _mode, _checkpoint);
+                var layout = new AwkFunctionLocalLayout(function.ParameterBinding.Parameters, _checkpoint);
+                FunctionLayouts[index] = layout;
+                _scope = AwkLoweringScope.Function(layout, _mode, _checkpoint);
                 CollectStatements(function.BodyStatements);
             }
 
@@ -128,7 +144,7 @@ internal static class AwkSymbolCollector
                                 var kind = !local && AwkBuiltins.TryGetCallable(callable.Name, out var builtin) &&
                                     AwkCompatibilityNames.EnablesBuiltin(builtin, _mode)
                                     ? AwkSymbolReferenceKind.BuiltinFunction
-                                    : !local && _functionNames.Contains(callable.Identifier)
+                                    : !local && FunctionNames.Contains(callable.Identifier)
                                         ? AwkSymbolReferenceKind.UserFunction
                                         : AwkSymbolReferenceKind.UnknownFunction;
                                 Symbols.Add(new AwkSymbolReference(callable.Identifier, kind, callable.Span, local));

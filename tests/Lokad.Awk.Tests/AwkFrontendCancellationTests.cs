@@ -147,7 +147,6 @@ public sealed class AwkFrontendCancellationTests
 
     [Theory]
     [InlineData("symbols")]
-    [InlineData("model")]
     [InlineData("semantics")]
     [InlineData("lowering")]
     [InlineData("binding")]
@@ -155,8 +154,7 @@ public sealed class AwkFrontendCancellationTests
     {
         var parsed = AwkParser.Parse("BEGIN{" + string.Concat(Enumerable.Repeat("x=x+1;", 128)) + "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         Assert.True(parsed.Success);
-        var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out var globals);
-        var model = AwkSemanticModel.Create(symbols);
+        var symbols = AwkSymbolCollector.Collect(parsed.Syntax);
         var binding = AwkTestHarness.BindDefaultProfile(parsed);
         Assert.True(binding.Success);
         using var cancellation = new CancellationTokenSource();
@@ -173,16 +171,13 @@ public sealed class AwkFrontendCancellationTests
             switch (pass)
             {
                 case "symbols":
-                    AwkSymbolCollector.Collect(parsed.Syntax, out _, checkpoint: Checkpoint);
-                    break;
-                case "model":
-                    AwkSemanticModel.Create(symbols, Checkpoint);
+                    AwkSymbolCollector.Collect(parsed.Syntax, checkpoint: Checkpoint);
                     break;
                 case "semantics":
-                    AwkSemanticValidator.Validate(parsed.Syntax, model, AwkCompatibilityProfile.Default, Checkpoint);
+                    AwkSemanticValidator.Validate(parsed.Syntax, symbols, AwkCompatibilityProfile.Default, Checkpoint);
                     break;
                 case "lowering":
-                    AwkProgramLowerer.LowerValidated(parsed.Syntax, globals, checkpoint: Checkpoint);
+                    AwkProgramLowerer.LowerValidated(parsed.Syntax, symbols, checkpoint: Checkpoint);
                     break;
                 case "binding":
                     AwkBinder.Bind(parsed, AwkCompatibilityProfile.Default, Checkpoint);
@@ -210,11 +205,11 @@ public sealed class AwkFrontendCancellationTests
         {
             var parsed = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
             Assert.True(parsed.Success);
-            var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out var globals);
+            var symbols = AwkSymbolCollector.Collect(parsed.Syntax);
             if (lowering)
-                AwkProgramLowerer.LowerValidated(parsed.Syntax, globals, checkpoint: checkpoint);
+                AwkProgramLowerer.LowerValidated(parsed.Syntax, symbols, checkpoint: checkpoint);
             else
-                AwkSemanticValidator.Validate(parsed.Syntax, AwkSemanticModel.Create(symbols),
+                AwkSemanticValidator.Validate(parsed.Syntax, symbols,
                     AwkCompatibilityProfile.Default, checkpoint);
         }
 

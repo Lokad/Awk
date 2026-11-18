@@ -258,7 +258,7 @@ public sealed partial class AwkRegionTests
     {
         var parsed = AwkTestHarness.ParseSource("{" + body + "}");
         Assert.Empty(parsed.Errors);
-        AwkSymbolCollector.Collect(parsed.Syntax, out var names);
+        var names = AwkSymbolCollector.Collect(parsed.Syntax).Globals;
         var reads = new AwkGlobalReadLayout(names, null);
         state.InitializeGlobalNames(names);
         state.InitializeGlobalReadSlots(reads.Count);

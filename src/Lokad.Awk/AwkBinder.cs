@@ -12,18 +12,17 @@ internal static class AwkBinder
         if (!parseResult.Success)
             return AwkBindingResult.Failure(parseResult.Errors);
 
-        var symbols = AwkSymbolCollector.Collect(parseResult.Syntax, out var globalNames, compatibilityProfile.Mode, checkpoint);
-        var semanticModel = AwkSemanticModel.Create(symbols, checkpoint);
+        var symbols = AwkSymbolCollector.Collect(parseResult.Syntax, compatibilityProfile.Mode, checkpoint);
         var semanticDiagnostics = AwkSemanticValidator.Validate(
             parseResult.Syntax,
-            semanticModel,
+            symbols,
             compatibilityProfile,
             checkpoint);
         if (semanticDiagnostics.Count > 0)
             return AwkBindingResult.Failure(semanticDiagnostics);
 
-        var binding = AwkProgramLowerer.LowerValidated(parseResult.Syntax, globalNames, compatibilityProfile.Mode, checkpoint,
-            symbols, externalArguments);
+        var binding = AwkProgramLowerer.LowerValidated(parseResult.Syntax, symbols, compatibilityProfile.Mode, checkpoint,
+            externalArguments);
         if (binding.Success) checkpoint?.Invoke();
         return binding;
     }

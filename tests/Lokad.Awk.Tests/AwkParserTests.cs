@@ -24,8 +24,8 @@ public sealed class AwkParserTests
         const string source = "function join(a,b){ return a b }\nBEGIN{x=\"A\"; y=\"B\"; print join(x, y)}";
         var syntax = AwkSyntaxParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
-        AwkSymbolCollector.Collect(syntax, out var globalNames);
-        var result = AwkProgramLowerer.LowerValidated(syntax, globalNames);
+        var symbols = AwkSymbolCollector.Collect(syntax);
+        var result = AwkProgramLowerer.LowerValidated(syntax, symbols);
 
         Assert.Equal(source, syntax.SourceText);
         Assert.True(result.Success);

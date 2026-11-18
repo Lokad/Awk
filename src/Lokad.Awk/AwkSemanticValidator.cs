@@ -4,7 +4,7 @@ internal static class AwkSemanticValidator
 {
     public static IReadOnlyList<AwkDiagnostic> Validate(
         AwkSyntaxProgram syntax,
-        AwkSemanticModel semanticModel,
+        AwkCollectedSymbols symbols,
         AwkCompatibilityProfile compatibilityProfile,
         Action? checkpoint = null)
     {
@@ -14,15 +14,8 @@ internal static class AwkSemanticValidator
             AwkCompatibilityMode mode,
             List<AwkDiagnostic> diagnostics)
         {
-            var functionNames = new HashSet<string>(System.StringComparer.Ordinal);
-            foreach (var function in syntax.Functions)
-            {
-                checkpoint?.Invoke();
-                functionNames.Add(function.Name);
-            }
-            var declarations = new Dictionary<string, AwkTextSpan>(
-                syntax.Functions.Count,
-                System.StringComparer.Ordinal);
+            if (syntax.Functions.Count == 0) return;
+            var declared = new HashSet<AwkIdentifier>(syntax.Functions.Count);
             for (var index = 0; index < syntax.Functions.Count; index++)
             {
                 checkpoint?.Invoke();
@@ -31,7 +24,7 @@ internal static class AwkSemanticValidator
                 {
                     diagnostics.Add(new AwkDiagnostic(function.Span,
                         "Invalid function declaration.", AwkDiagnosticId.BindInvalidProgram));
-                    ValidateFunctionParameters(function, mode, functionNames, diagnostics);
+                    ValidateFunctionParameters(function, mode, diagnostics);
                     continue;
                 }
 
@@ -42,7 +35,7 @@ internal static class AwkSemanticValidator
                         "Function name `" + function.Name + "' is reserved.",
                         AwkDiagnosticId.BindInvalidProgram));
                 }
-                else if (!declarations.TryAdd(function.Name, function.Span))
+                else if (!declared.Add(function.Identifier.Value))
                 {
                     diagnostics.Add(new AwkDiagnostic(
                         function.Span,
@@ -50,13 +43,12 @@ internal static class AwkSemanticValidator
                         AwkDiagnosticId.BindInvalidProgram));
                 }
 
-                ValidateFunctionParameters(function, mode, functionNames, diagnostics);
+                ValidateFunctionParameters(function, mode, diagnostics);
             }
 
             void ValidateFunctionParameters(
                 AwkFunctionSyntax function,
                 AwkCompatibilityMode mode,
-                IReadOnlySet<string> functionNames,
                 List<AwkDiagnostic> diagnostics)
             {
                 var binding = function.ParameterBinding;
@@ -77,7 +69,8 @@ internal static class AwkSemanticValidator
                         diagnostics.Add(new AwkDiagnostic(token.Span,
                             "Function parameter `" + name + "' is reserved.", AwkDiagnosticId.BindInvalidProgram));
                     else if (name == function.Name ||
-                        (mode == AwkCompatibilityMode.Posix && functionNames.Contains(name)))
+                        (mode == AwkCompatibilityMode.Posix && AwkIdentifier.TryParse(name, out var identifier) &&
+                            symbols.FunctionNames.Contains(identifier)))
                         diagnostics.Add(new AwkDiagnostic(token.Span,
                             "Function name `" + name + "' cannot be used as a parameter.", AwkDiagnosticId.BindInvalidProgram));
                 }
@@ -85,7 +78,6 @@ internal static class AwkSemanticValidator
         }
 
         void ValidateUndefinedFunctions(
-            AwkSemanticModel semanticModel,
             AwkLintMode lintMode,
             List<AwkDiagnostic> diagnostics)
         {
@@ -98,11 +90,12 @@ internal static class AwkSemanticValidator
                 };
 
             HashSet<AwkIdentifier>? reported = null;
-            for (var index = 0; index < semanticModel.Usages.Count; index++)
+            var references = symbols.References;
+            for (var index = 0; index < references.Count; index++)
             {
                 checkpoint?.Invoke();
-                var symbol = semanticModel.Usages[index];
-                if (symbol.Kind != AwkSemanticSymbolKind.UnknownFunction || symbol.IsFunctionLocal)
+                var symbol = references[index];
+                if (symbol.Kind != AwkSymbolReferenceKind.UnknownFunction || symbol.IsFunctionLocal)
                     continue;
 
                 reported ??= [];
@@ -117,22 +110,17 @@ internal static class AwkSemanticValidator
         }
 
         void ValidateFunctionVariableConflicts(
-            AwkSemanticModel semanticModel,
             List<AwkDiagnostic> diagnostics)
         {
-            var functions = new HashSet<AwkIdentifier>();
-            foreach (var declaration in semanticModel.Declarations)
+            var functions = symbols.FunctionNames;
+            if (functions.Count == 0) return;
+            var references = symbols.References;
+            for (var index = 0; index < references.Count; index++)
             {
                 checkpoint?.Invoke();
-                if (declaration.Kind is AwkSemanticSymbolKind.FunctionDefinition)
-                    functions.Add(declaration.Identifier);
-            }
-
-            foreach (var usage in semanticModel.Usages)
-            {
-                checkpoint?.Invoke();
+                var usage = references[index];
                 if (!usage.IsFunctionLocal &&
-                    usage.Kind is AwkSemanticSymbolKind.Variable or AwkSemanticSymbolKind.Array &&
+                    usage.Kind is AwkSymbolReferenceKind.Variable or AwkSymbolReferenceKind.Array &&
                     functions.Contains(usage.Identifier))
                 {
                     diagnostics.Add(new AwkDiagnostic(usage.Span,
@@ -143,7 +131,6 @@ internal static class AwkSemanticValidator
         }
 
         void ValidateCompatibilityGatedCallables(
-            AwkSemanticModel semanticModel,
             AwkCompatibilityMode compatibilityMode,
             List<AwkDiagnostic> diagnostics)
         {
@@ -151,11 +138,12 @@ internal static class AwkSemanticValidator
                 return;
 
             HashSet<AwkIdentifier>? reported = null;
-            for (var index = 0; index < semanticModel.Usages.Count; index++)
+            var references = symbols.References;
+            for (var index = 0; index < references.Count; index++)
             {
                 checkpoint?.Invoke();
-                var symbol = semanticModel.Usages[index];
-                if (symbol.Kind != AwkSemanticSymbolKind.BuiltinFunction ||
+                var symbol = references[index];
+                if (symbol.Kind != AwkSymbolReferenceKind.BuiltinFunction ||
                     !AwkBuiltins.TryGetCallable(symbol.Name, out var definition) ||
                     definition.Compatibility != AwkBuiltinCompatibility.Gnu)
                 {
@@ -260,9 +248,9 @@ internal static class AwkSemanticValidator
                     AwkDiagnosticId.ParseSyntax));
         }
         ValidateFunctionDeclarations(syntax, compatibilityProfile.Mode, diagnostics);
-        ValidateFunctionVariableConflicts(semanticModel, diagnostics);
-        ValidateUndefinedFunctions(semanticModel, compatibilityProfile.LintMode, diagnostics);
-        ValidateCompatibilityGatedCallables(semanticModel, compatibilityProfile.Mode, diagnostics);
+        ValidateFunctionVariableConflicts(diagnostics);
+        ValidateUndefinedFunctions(compatibilityProfile.LintMode, diagnostics);
+        ValidateCompatibilityGatedCallables(compatibilityProfile.Mode, diagnostics);
         ValidatePosixPowerOperators(syntax, compatibilityProfile.Mode, diagnostics);
         ValidatePosixTernaryContinuations(syntax, compatibilityProfile.Mode, diagnostics);
         ValidateStatementSemantics(syntax, compatibilityProfile.Mode, diagnostics);
@@ -279,7 +267,7 @@ internal static class AwkSemanticValidator
                 ValidateStatements(
                     syntax.Functions[index].BodyStatements,
                     AwkStatementValidationContext.FunctionBody(AwkLoweringScope.Function(
-                        new(syntax.Functions[index].ParameterBinding.Parameters, checkpoint), mode, checkpoint)),
+                        symbols.FunctionLayouts[index], mode, checkpoint)),
                     diagnostics);
             }
 
