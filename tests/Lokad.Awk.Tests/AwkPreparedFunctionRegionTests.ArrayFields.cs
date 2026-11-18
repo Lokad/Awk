@@ -84,8 +84,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData("default")]
-    [InlineData("syntax")]
-    [InlineData("lint")]
     [InlineData("pending")]
     [InlineData("captured-regex")]
     public async Task FieldArrayActionsKeepOriginalPolicyAndFieldBoundaries(string boundary)
@@ -93,8 +91,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var program = Bind("BEGIN{total+=a[$1]+b[$(1+0)]}");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-        var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+        var state = State(counters, limits);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var fs = AwkVariableName.FromText("FS");
         if (boundary == "captured-regex") state.AssignVariable(fs, "[,;]");

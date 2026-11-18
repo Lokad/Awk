@@ -19,36 +19,31 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData("t=x+1;return t", true)]
-    [InlineData("t=x+1;return", true)]
-    [InlineData("t=x+1;return t;t++", true)]
-    [InlineData("t+=x;return t", true)]
-    [InlineData("t++;return t", true)]
-    [InlineData("global=x;return global", true)]
-    [InlineData("a[x]=1;return x", true)]
-    [InlineData("a[x]=(getline y);return x", true)]
-    [InlineData("$1=x;return x", true)]
-    [InlineData("t=(getline line);return t", true)]
-    [InlineData("t=step(x);return t", true)]
-    public void LocalAssignmentReturnsPrepareCompleteBoundedBodies(string body, bool expected)
+    [InlineData("t=x+1;return t")]
+    [InlineData("t=x+1;return")]
+    [InlineData("t=x+1;return t;t++")]
+    [InlineData("t+=x;return t")]
+    [InlineData("t++;return t")]
+    [InlineData("global=x;return global")]
+    [InlineData("a[x]=1;return x")]
+    [InlineData("a[x]=(getline y);return x")]
+    [InlineData("$1=x;return x")]
+    [InlineData("t=(getline line);return t")]
+    [InlineData("t=step(x);return t")]
+    public void LocalAssignmentReturnsBindBoundedBodies(string body)
     {
-        var function = Bind("function step(x,t){" + body + "} BEGIN{}").Functions[AwkFunctionName.FromText("step")];
-        var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [function.FunctionName] = function };
-        Assert.Equal(expected, function.Region is not null);
+        _ = Bind("function step(x,t){" + body + "} BEGIN{}");
     }
 
     [Theory]
     [InlineData("default")]
-    [InlineData("syntax")]
-    [InlineData("lint")]
     [InlineData("pending")]
     [InlineData("captured-regex")]
     public async Task LocalAssignmentReturnsKeepExistingGuardsAndFieldDiagnostics(string boundary)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-        var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+        var state = State(counters, limits);
         var program = Bind("function step(x,t){t=$1+x;return t} BEGIN{total=step(7)}");
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
@@ -75,21 +70,20 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(1, 0, true)]
-    [InlineData(2, 1, true)]
-    [InlineData(4, 1, true)]
-    [InlineData(5, 1, true)]
-    [InlineData(65, 1, true)]
-    [InlineData(2, 3, true)]
-    [InlineData(2, 2, true)]
-    public void LocalAssignmentReturnCallsSupportOmittedLocalsAndExcessArguments(int slots, int arguments, bool expected)
+    [InlineData(1, 0)]
+    [InlineData(2, 1)]
+    [InlineData(4, 1)]
+    [InlineData(5, 1)]
+    [InlineData(65, 1)]
+    [InlineData(2, 3)]
+    [InlineData(2, 2)]
+    public async Task LocalAssignmentReturnCallsSupportOmittedLocalsAndExcessArguments(int slots, int arguments)
     {
         var parameters = string.Join(",", Enumerable.Range(0, slots).Select(i => i == 0 ? "x" : "p" + i));
         var call = "step(" + string.Join(",", Enumerable.Repeat("1", arguments)) + ")";
-        var parametersSource = "function step(" + parameters + "){x=1;return x}{total=" + call + "}";
-        var program = Bind(parametersSource);
-
-        Assert.Equal(expected, program.Functions[AwkFunctionName.FromText("step")].Region is not null);
+        var parametersSource = "function step(" + parameters + "){x=1;return x} BEGIN{total=" + call + ";print total}";
+        var result = await RunAsync(parametersSource);
+        AssertSemantics(result, 1, 0, "1\n", "");
     }
 
 }

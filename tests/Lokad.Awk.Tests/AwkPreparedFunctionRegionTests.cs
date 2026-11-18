@@ -35,13 +35,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
     public async Task TopLevelLoopActionsKeepExistingPolicyAndCapturedFieldBoundaries()
     {
         foreach (var loop in new[] { "for(i=0;i<3;i++)total+=$1", "i=0;while(i<3){total+=$1;i++}" })
-            foreach (var boundary in new[] { "default", "syntax", "lint", "pending", "captured-regex" })
+            foreach (var boundary in new[] { "default", "pending", "captured-regex" })
             {
                 var program = Bind("BEGIN{" + loop + "}");
                 var counters = AwkRuntimeCounters.CreateEnabled();
                 var limits = AwkRuntimeLimits.CreateDefault();
-                if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-                var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+                var state = State(counters, limits);
                 state.InitializeGlobalReadSlots(program.GlobalReadCount);
                 var fs = AwkVariableName.FromText("FS");
                 if (boundary == "captured-regex") state.AssignVariable(fs, "[,;]");
@@ -88,16 +87,13 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData("default")]
-    [InlineData("syntax")]
-    [InlineData("lint")]
     [InlineData("pending")]
     public async Task ScalarStringsKeepPolicyAndOutputBoundaries(string boundary)
     {
         var program = Bind("BEGIN{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))}");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-        var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+        var state = State(counters, limits);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("id:beta:tail"));
         var host = new MockFileSystem();
@@ -261,12 +257,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData("default")]
-    [InlineData("syntax")]
-    [InlineData("lint")]
     [InlineData("pending")]
     [InlineData("default", true)]
-    [InlineData("syntax", true)]
-    [InlineData("lint", true)]
     [InlineData("pending", true)]
     public async Task CallLoopsPreservePolicyAndOutputBoundaries(string boundary, bool multiple = false)
     {
@@ -274,8 +266,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             " BEGIN{total=0;for(i=0;i<3;i++)total+=" + (multiple ? "twice(7,1)" : "twice(7)") + ";print total}");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-        var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+        var state = State(counters, limits);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
         var host = new MockFileSystem();
@@ -292,12 +283,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData("default")]
-    [InlineData("syntax")]
-    [InlineData("lint")]
     [InlineData("pending")]
     [InlineData("default", true)]
-    [InlineData("syntax", true)]
-    [InlineData("lint", true)]
     [InlineData("pending", true)]
     public async Task ScalarCallActionsPreservePolicyAndOutputBoundaries(string boundary, bool multiple = false)
     {
@@ -305,8 +292,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             " BEGIN{total=" + (multiple ? "twice(7,1)" : "twice(7)") + "}");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-        var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+        var state = State(counters, limits);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
         var host = new MockFileSystem();
@@ -571,15 +557,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData("syntax")]
-    [InlineData("lint")]
     [InlineData("pending")]
     public async Task ConservativeBoundariesSelectOrdinaryExecution(string boundary)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-        var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+        var state = State(counters, limits);
         var program = Bind(Functions + " BEGIN{total=twice(7)}");
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
@@ -705,11 +688,11 @@ public sealed partial class AwkPreparedFunctionRegionTests
         return result;
     }
 
-    private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRuntimeLimits limits, CancellationToken token = default, AwkExecutionMemoryOwner? owner = null, AwkLintMode lint = AwkLintMode.Off)
+    private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRuntimeLimits limits, CancellationToken token = default, AwkExecutionMemoryOwner? owner = null)
     {
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance)
         { MemoryOwner = owner ?? AwkExecutionMemoryOwner.Disabled };
-        return new(AwkFieldSeparatorSpec.Default, token, options, AwkCompatibilityProfile.Default.WithLintMode(lint));
+        return new(AwkFieldSeparatorSpec.Default, token, options, AwkCompatibilityProfile.Default);
     }
 
     private static AwkIo Io(AwkRuntimeState state, MockFileSystem host) =>

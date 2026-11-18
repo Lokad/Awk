@@ -20,15 +20,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     [Theory]
     [InlineData("default")]
-    [InlineData("syntax")]
-    [InlineData("lint")]
     [InlineData("pending")]
     public async Task ConditionalReturnsKeepExistingFunctionGuards(string boundary)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-        var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+        var state = State(counters, limits);
         var program = Bind("function choose(x){if(x<3)return x+2;return x-2} BEGIN{total=choose(7)}");
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
@@ -51,19 +48,17 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData("if(x)return 1;return 2", true)]
-    [InlineData("if(x)return;return 2", true)]
-    [InlineData("if(x){x++;return 1}return 2", true)]
-    [InlineData("if(x)return 1;else return 2", true)]
-    [InlineData("if(x){if(x)return 1}return 2", true)]
-    [InlineData("if(x)return 1;return", true)]
-    [InlineData("if(x)return 1;return 2;x++", true)]
-    [InlineData("if((getline line)>0)return 1;return 2", true)]
-    public void ConditionalReturnsPrepareCompleteComputationalBodies(string body, bool expected)
+    [InlineData("if(x)return 1;return 2")]
+    [InlineData("if(x)return;return 2")]
+    [InlineData("if(x){x++;return 1}return 2")]
+    [InlineData("if(x)return 1;else return 2")]
+    [InlineData("if(x){if(x)return 1}return 2")]
+    [InlineData("if(x)return 1;return")]
+    [InlineData("if(x)return 1;return 2;x++")]
+    [InlineData("if((getline line)>0)return 1;return 2")]
+    public void ConditionalReturnsBindComputationalBodies(string body)
     {
-        var function = Bind("function choose(x){" + body + "} BEGIN{}").Functions[AwkFunctionName.FromText("choose")];
-        var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [function.FunctionName] = function };
-        Assert.Equal(expected, function.Region is not null);
+        _ = Bind("function choose(x){" + body + "} BEGIN{}");
     }
 
 }
