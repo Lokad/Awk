@@ -18,8 +18,7 @@ internal sealed class AwkIo
     private AwkRecordCursor? _standardInputReader;
     private long _standardInputOrder;
     private long _redirectionOrder;
-    private MainInputReaderBinding _mainInputReader = MainInputReaderBinding.Unbound;
-    private Action? _preserveMainStandardInput;
+    private AwkInputScheduler? _mainInput;
 
     internal AwkIo(
         IAwkHost host,
@@ -142,7 +141,7 @@ internal sealed class AwkIo
         AwkRecordCursor reader;
         if (_specialPaths.TryResolveInput(path, out var specialDescriptor))
         {
-            _preserveMainStandardInput?.Invoke();
+            _mainInput?.PreserveStandardInput();
             if (_standardInputReader is null)
             {
                 _standardInputReader = CreateRecordCursor(specialDescriptor);
@@ -184,17 +183,9 @@ internal sealed class AwkIo
         return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
     }
 
-    public void BindMainInputReader(IAwkInputRecordReader reader, Action? preserveStandardInput = null)
-    {
-        _mainInputReader = MainInputReaderBinding.Bind(reader);
-        _preserveMainStandardInput = preserveStandardInput;
-    }
+    public void BindMainInputReader(AwkInputScheduler input) => _mainInput = input;
 
-    public void ClearMainInputReader()
-    {
-        _mainInputReader = MainInputReaderBinding.Unbound;
-        _preserveMainStandardInput = null;
-    }
+    public void ClearMainInputReader() => _mainInput = null;
 
     public void PreserveStandardInputIfRedirected(AwkRecordCursor cursor)
     {
@@ -207,16 +198,16 @@ internal sealed class AwkIo
     private void ReleaseStandardInputBorrow(AwkFileDescriptor descriptor)
     {
         if (descriptor != _stdIn) return;
-        _preserveMainStandardInput?.Invoke();
+        _mainInput?.PreserveStandardInput();
         PreserveRedirectedStandardInput();
     }
 
     public ValueTask<AwkGetlineResult> ReadMainRecordAsync()
     {
-        if (_mainInputReader is not MainInputReaderBinding.Bound boundReader)
+        if (_mainInput is not { } input)
             return ValueTask.FromResult(AwkGetlineResult.EndOfFile);
 
-        return ReadGetlineRecordAsync(boundReader.Reader);
+        return ReadGetlineRecordAsync(input);
     }
 
     private async ValueTask<AwkGetlineResult> ReadGetlineRecordAsync(IAwkInputRecordReader reader)
@@ -391,21 +382,5 @@ internal sealed class AwkIo
             return AwkIoOperationResult.Success;
 
         return AwkIoOperationResult.Failure(AwkErrno.RedirectionNeverOpened);
-    }
-
-    private abstract class MainInputReaderBinding
-    {
-        public static MainInputReaderBinding Unbound { get; } = new Empty();
-
-        public static Bound Bind(IAwkInputRecordReader reader) => new(reader);
-
-        public sealed class Empty : MainInputReaderBinding
-        {
-        }
-
-        public sealed class Bound(IAwkInputRecordReader reader) : MainInputReaderBinding
-        {
-            public IAwkInputRecordReader Reader { get; } = reader;
-        }
     }
 }

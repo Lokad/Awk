@@ -115,7 +115,7 @@ internal static class AwkTestHarness
     {
         var invocation = AwkCommandParser.Parse(BuildInvocation("awk", source));
         var input = new AwkInputScheduler(invocation, executor, state, io, cancellationToken);
-        io.BindMainInputReader(input, input.PreserveStandardInput);
+        io.BindMainInputReader(input);
         return input;
     }
 

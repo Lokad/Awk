@@ -57,7 +57,7 @@ internal static class AwkRuntime
             cancellationToken,
             runtimeOptions.AccessiblePathRoot,
             runtimeOptions.AllowDynamicMainInputPaths);
-        io.BindMainInputReader(inputScheduler, inputScheduler.PreserveStandardInput);
+        io.BindMainInputReader(inputScheduler);
         using var execution = state.PushExecutionContext(actionExecutor.Output, io);
         try
         {
