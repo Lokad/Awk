@@ -59,7 +59,7 @@ public sealed class AwkFieldLoopRegionTests
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function index_value(v){getline v<\"/side\";return v}" +
             "BEGIN{for(i=1;i<2;i++)total+=" + value + "}"));
         Assert.True(binding.Success);
-        var program = binding.Program.Program;
+        var program = binding.Value.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
@@ -123,7 +123,7 @@ public sealed class AwkFieldLoopRegionTests
         var state = State(counters, limits, owner, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(Script));
         Assert.True(binding.Success);
-        var program = binding.Program.Program;
+        var program = binding.Value.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         foreach (var name in new[] { "i", "nonempty", "chars" }) state.AssignVariableValue(AwkVariableName.FromText(name), AwkValue.FromNumber(0));

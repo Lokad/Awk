@@ -34,11 +34,13 @@ public sealed class AwkProfileNameTests
         var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None, mode);
         var binding = AwkBinder.Bind(parse, AwkCompatibilityProfile.Default.WithMode(mode));
         Assert.True(binding.Success);
-        Assert.Contains(binding.SemanticModel.Usages, symbol =>
+        var symbols = AwkSymbolCollector.Collect(parse.Syntax, out _, mode);
+        var model = AwkSemanticModel.Create(symbols);
+        Assert.Contains(model.Usages, symbol =>
             symbol.Name == "and" && symbol.Kind == AwkSemanticSymbolKind.Variable && symbol.IsFunctionLocal);
-        Assert.Contains(binding.SemanticModel.Usages, symbol =>
+        Assert.Contains(model.Usages, symbol =>
             symbol.Name == "SYMTAB" && symbol.Kind == AwkSemanticSymbolKind.Array && symbol.IsFunctionLocal);
-        Assert.Contains(binding.SemanticModel.Usages, symbol => symbol.Name == "SYMTAB" && !symbol.IsFunctionLocal &&
+        Assert.Contains(model.Usages, symbol => symbol.Name == "SYMTAB" && !symbol.IsFunctionLocal &&
             symbol.Kind == (mode == AwkCompatibilityMode.GnuDefault
                 ? AwkSemanticSymbolKind.SpecialArray : AwkSemanticSymbolKind.Array));
     }

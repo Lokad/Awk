@@ -158,7 +158,7 @@ public sealed class AwkFrontendCancellationTests
         var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out var globals);
         var model = AwkSemanticModel.Create(symbols);
         var binding = AwkTestHarness.BindDefaultProfile(parsed);
-        Assert.True(binding.PhaseResult.Success);
+        Assert.True(binding.Success);
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
         void Checkpoint()
@@ -195,7 +195,7 @@ public sealed class AwkFrontendCancellationTests
         var failure = Assert.Throws<OperationCanceledException>(Run);
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal(4, calls);
-        Assert.True(AwkTestHarness.BindDefaultProfile(parsed).PhaseResult.Success);
+        Assert.True(AwkTestHarness.BindDefaultProfile(parsed).Success);
     }
 
     [Theory]

@@ -143,7 +143,7 @@ public sealed class AwkFieldLengthTests
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function field(v){getline v<\"/side\";return " +
             (outcome == "fault" ? "1/0" : "v") + "}BEGIN{target=length($(field()))}"));
         Assert.True(binding.Success);
-        var program = binding.Program.Program;
+        var program = binding.Value.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);

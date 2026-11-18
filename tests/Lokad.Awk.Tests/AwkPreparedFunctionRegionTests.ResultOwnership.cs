@@ -102,7 +102,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue), CancellationToken.None),
             AwkCompatibilityProfile.Default, externalArguments: new([], [], [], AwkPath.Root));
         Assert.True(binding.Success);
-        var program = binding.Program.Program;
+        var program = binding.Value.Program;
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
         using var memory = new CooperativeTestMemory(8 << 20);

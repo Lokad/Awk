@@ -10,7 +10,7 @@ public sealed class AwkSingleCallArgumentTests
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function inner(x){print \"inner\"}" +
             "function caller(x){print \"before\",x;total=inner(observed=x+0*++effects);print \"after\"}BEGIN{caller(42)}"));
         Assert.True(binding.Success);
-        var program = binding.Program.Program;
+        var program = binding.Value.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);

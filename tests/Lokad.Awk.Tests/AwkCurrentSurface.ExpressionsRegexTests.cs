@@ -485,8 +485,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             ["/start/,/end/ {print $0}", "/file.txt"],
             []));
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("/start/,/end/ {print $0}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
-        Assert.True(binding.Program.HasProgram);
-        var program = binding.Program.Program;
+        Assert.True(binding.Value.HasProgram);
+        var program = binding.Value.Program;
 
         var firstRun = new MockFileSystem();
         firstRun.AddFile("/file.txt", "start\nstill-active\n");

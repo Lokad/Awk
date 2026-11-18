@@ -344,7 +344,7 @@ public sealed partial class AwkPrintStagingMemoryTests
     {
         var result = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{" + body + "}"));
         Assert.True(result.Success);
-        var program = result.Program.Program;
+        var program = result.Value.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);

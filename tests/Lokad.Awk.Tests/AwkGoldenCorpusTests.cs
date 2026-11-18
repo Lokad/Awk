@@ -115,7 +115,7 @@ public sealed class AwkGoldenCorpusTests
         }
 
         Assert.True(binding.Diagnostics.Count == 0, string.Join("\n", binding.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        Assert.True(binding.Program.HasProgram);
+        Assert.True(binding.Value.HasProgram);
     }
 
     [Theory]
@@ -399,12 +399,10 @@ public sealed class AwkGoldenCorpusTests
     private static bool IsParserDiagnosticCase(AwkGoldenCase testCase) =>
         testCase.Tags.Contains(AwkGoldenTag.CompilerDiagnostic);
 
-    private static void AssertStructuredParserDiagnostic(AwkGoldenCase testCase, AwkBindingResult binding)
+    private static void AssertStructuredParserDiagnostic(AwkGoldenCase testCase, AwkPhaseResult<AwkProgramResult> binding)
     {
         Assert.True(
-            !binding.Success ||
-            binding.Diagnostics.Count > 0 ||
-            binding.CompatibilityParseFailed,
+            !binding.Success,
             "Expected parser failure for golden case: " + testCase.Name);
 
         var diagnostic = binding.Diagnostics.FirstOrDefault(diagnostic => !diagnostic.IsWarning);

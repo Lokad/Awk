@@ -52,7 +52,7 @@ public sealed class AwkFlushTests
         using var output = new AwkOutputSink(state.MemoryAccounting);
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{print \"held bytes\";continued=1}"));
         Assert.True(binding.Success);
-        var program = binding.Program.Program;
+        var program = binding.Value.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var continued = AwkVariableName.FromText("continued");

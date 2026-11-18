@@ -30,7 +30,7 @@ public sealed class AwkPrintfFieldArgumentTests
         var expected = fieldList ? "before 7\n" : "before:0007\n";
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
         Assert.True(binding.Success);
-        var program = binding.Program.Program;
+        var program = binding.Value.Program;
         using var executor = new AwkRuntimeActionExecutor(program, state);
         var input = AwkTestHarness.BindRegionInput(source, executor, state, io, host, cancellation.Token);
         var run = input.ProcessRemainingInputAsync();

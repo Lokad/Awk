@@ -2,56 +2,31 @@ namespace Lokad.Awk;
 
 internal static class AwkBinder
 {
-    public static AwkBindingResult Bind(
+    public static AwkPhaseResult<AwkProgramResult> Bind(
         AwkParseResult parseResult,
         AwkCompatibilityProfile compatibilityProfile,
         Action? checkpoint = null,
         AwkRuntimeArgumentPlan? externalArguments = null)
     {
         checkpoint?.Invoke();
+        if (!parseResult.Success)
+            return AwkPhaseResult<AwkProgramResult>.Failure(
+                AwkPipelinePhase.Parse, AwkProgramResult.None, parseResult.Errors, []);
+
         var symbols = AwkSymbolCollector.Collect(parseResult.Syntax, out var globalNames, compatibilityProfile.Mode, checkpoint);
         var semanticModel = AwkSemanticModel.Create(symbols, checkpoint);
-        if (parseResult.Errors.Count > 0)
-            return new AwkBindingResult(
-                parseResult.PhaseResult.Phase,
-                parseResult.Errors,
-                symbols,
-                semanticModel,
-                AwkProgramResult.None,
-                compatibilityParseFailed: false);
-
         var semanticDiagnostics = AwkSemanticValidator.Validate(
             parseResult.Syntax,
             semanticModel,
             compatibilityProfile,
             checkpoint);
         if (semanticDiagnostics.Count > 0)
-            return new AwkBindingResult(
-                AwkPipelinePhase.Bind,
-                semanticDiagnostics,
-                symbols,
-                semanticModel,
-                AwkProgramResult.None,
-                compatibilityParseFailed: true);
+            return AwkPhaseResult<AwkProgramResult>.Failure(
+                AwkPipelinePhase.Bind, AwkProgramResult.None, semanticDiagnostics, []);
 
         var lowering = AwkProgramLowerer.Lower(parseResult.Syntax, globalNames, compatibilityProfile.Mode, checkpoint,
             symbols, externalArguments);
-        if (lowering.Diagnostics.Count > 0)
-            return new AwkBindingResult(
-                lowering.PhaseResult.Phase,
-                lowering.Diagnostics,
-                symbols,
-                semanticModel,
-                AwkProgramResult.None,
-                compatibilityParseFailed: true);
-
-        checkpoint?.Invoke();
-        return new AwkBindingResult(
-            lowering.PhaseResult.Phase,
-            [],
-            symbols,
-            semanticModel,
-            lowering.Program,
-            compatibilityParseFailed: false);
+        if (lowering.PhaseResult.Success) checkpoint?.Invoke();
+        return lowering.PhaseResult;
     }
 }

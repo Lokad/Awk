@@ -40,7 +40,7 @@ public sealed class AwkRecordInputMemoryTests
         state.GetFieldNumber(1);
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{values[\"warm\"]+=0;result=(values[$1]+=((ready=1)?$300:0))}"));
         Assert.True(binding.Success);
-        var program = binding.Program.Program;
+        var program = binding.Value.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.AssignVariableValue(AwkVariableName.FromText("ready"), AwkValue.FromNumber(0));

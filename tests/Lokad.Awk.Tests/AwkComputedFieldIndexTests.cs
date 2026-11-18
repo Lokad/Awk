@@ -133,7 +133,7 @@ public sealed class AwkComputedFieldIndexTests
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("function index_value(v){effects++;getline v<\"/side\";return bad}" +
             "BEGIN{$(index_value())=7}"));
         Assert.True(binding.Success);
-        var program = binding.Program.Program;
+        var program = binding.Value.Program;
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);

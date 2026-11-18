@@ -17,13 +17,15 @@ public sealed class AwkBinderTests
             }
             BEGIN{out=f(input)}
             """;
-        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
+        var parsed = AwkTestHarness.ParseSource(source);
+        var binding = AwkTestHarness.BindDefaultProfile(parsed);
         Assert.True(binding.Success);
+        var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out _);
         Assert.Equal(new[] { "f", "local", "local", "left", "a", "x", "right", "b", "y",
             "local", "c", "d", "e", "g", "local", "out", "f", "input" },
-            binding.Symbols.Select(symbol => symbol.Name));
-        Assert.All(binding.Symbols.Where(symbol => symbol.Name == "local"), symbol => Assert.True(symbol.IsFunctionLocal));
-        Assert.All(binding.Symbols.Where(symbol => symbol.Name != "local"), symbol => Assert.False(symbol.IsFunctionLocal));
+            symbols.Select(symbol => symbol.Name));
+        Assert.All(symbols.Where(symbol => symbol.Name == "local"), symbol => Assert.True(symbol.IsFunctionLocal));
+        Assert.All(symbols.Where(symbol => symbol.Name != "local"), symbol => Assert.False(symbol.IsFunctionLocal));
     }
 
     [Fact]
@@ -49,9 +51,8 @@ public sealed class AwkBinderTests
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("BEGIN{print 1}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.True(binding.Success);
-        Assert.True(binding.PhaseResult.Success);
         Assert.Equal(AwkPipelinePhase.Lower, binding.Phase);
-        Assert.True(binding.Program.HasProgram);
+        Assert.True(binding.Value.HasProgram);
         Assert.Empty(binding.Diagnostics);
     }
 
@@ -61,39 +62,41 @@ public sealed class AwkBinderTests
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("BEGIN{print", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.False(binding.Success);
-        Assert.False(binding.PhaseResult.Success);
         Assert.Equal(AwkPipelinePhase.Parse, binding.Phase);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Contains(binding.Diagnostics, diagnostic => diagnostic.Message.Contains("Unterminated action block"));
     }
 
     [Fact]
     public void AwkBinder_CollectsSymbolReferencesFromSyntax()
     {
-        var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("function helper(value, extra){ return value + extra }\n" +
-            "BEGIN{print NF, length($1); a[$1]++; helper(a[$2])}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var parsed = AwkParser.Parse("function helper(value, extra){ return value + extra }\n" +
+            "BEGIN{print NF, length($1); a[$1]++; helper(a[$2])}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
+        Assert.True(parsed.Success);
+        var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out _);
+        var model = AwkSemanticModel.Create(symbols);
 
-        Assert.Contains(binding.Symbols, symbol =>
+        Assert.Contains(symbols, symbol =>
             symbol is { Name: "helper", Kind: AwkSymbolReferenceKind.FunctionDefinition });
-        Assert.Contains(binding.Symbols, symbol =>
+        Assert.Contains(symbols, symbol =>
             symbol is { Name: "value", Kind: AwkSymbolReferenceKind.FunctionParameter });
-        Assert.Contains(binding.Symbols, symbol =>
+        Assert.Contains(symbols, symbol =>
             symbol is { Name: "NF", Kind: AwkSymbolReferenceKind.SpecialVariable });
-        Assert.Contains(binding.Symbols, symbol =>
+        Assert.Contains(symbols, symbol =>
             symbol is { Name: "length", Kind: AwkSymbolReferenceKind.BuiltinFunction });
-        Assert.Contains(binding.Symbols, symbol =>
+        Assert.Contains(symbols, symbol =>
             symbol is { Name: "a", Kind: AwkSymbolReferenceKind.Array });
-        Assert.Contains(binding.Symbols, symbol =>
+        Assert.Contains(symbols, symbol =>
             symbol is { Name: "helper", Kind: AwkSymbolReferenceKind.UserFunction });
-        AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.FunctionParameter, "value");
-        AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.SpecialVariable, "NF");
-        AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.Array, "a");
-        AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.BuiltinFunction, "length");
-        AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.UserFunction, "helper");
-        AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.FunctionDefinition, "helper");
-        AssertSemanticDeclaration(binding.SemanticModel, AwkSemanticSymbolKind.FunctionDefinition, "helper");
-        AssertSemanticDeclaration(binding.SemanticModel, AwkSemanticSymbolKind.FunctionParameter, "value");
-        AssertSemanticUsage(binding.SemanticModel, AwkSemanticSymbolKind.BuiltinFunction, "length");
+        AssertSemanticSymbol(model, AwkSemanticSymbolKind.FunctionParameter, "value");
+        AssertSemanticSymbol(model, AwkSemanticSymbolKind.SpecialVariable, "NF");
+        AssertSemanticSymbol(model, AwkSemanticSymbolKind.Array, "a");
+        AssertSemanticSymbol(model, AwkSemanticSymbolKind.BuiltinFunction, "length");
+        AssertSemanticSymbol(model, AwkSemanticSymbolKind.UserFunction, "helper");
+        AssertSemanticSymbol(model, AwkSemanticSymbolKind.FunctionDefinition, "helper");
+        AssertSemanticDeclaration(model, AwkSemanticSymbolKind.FunctionDefinition, "helper");
+        AssertSemanticDeclaration(model, AwkSemanticSymbolKind.FunctionParameter, "value");
+        AssertSemanticUsage(model, AwkSemanticSymbolKind.BuiltinFunction, "length");
 
         static void AssertSemanticDeclaration(
             AwkSemanticModel model,
@@ -111,7 +114,7 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_ClassifiesImplementedSpecialFormsAsBuiltins()
     {
-        var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("BEGIN{" +
+        var parsed = AwkParser.Parse("BEGIN{" +
             "sub(/a/, \"b\", $0);" +
             "gsub(/a/, \"b\");" +
             "split($0, a, \",\");" +
@@ -119,13 +122,15 @@ public sealed class AwkBinderTests
             "asort(a);" +
             "asorti(a);" +
             "if(match($0, /x/, m)) print typeof(m), isarray(a)" +
-            "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+            "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
-        Assert.True(binding.Success);
+        Assert.True(AwkTestHarness.BindDefaultProfile(parsed).Success);
+        var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out _);
+        var model = AwkSemanticModel.Create(symbols);
         foreach (var name in new[] { "sub", "gsub", "split", "patsplit", "asort", "asorti", "match", "typeof", "isarray" })
         {
-            AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.BuiltinFunction, name);
-            Assert.DoesNotContain(binding.Symbols, symbol =>
+            AssertSemanticSymbol(model, AwkSemanticSymbolKind.BuiltinFunction, name);
+            Assert.DoesNotContain(symbols, symbol =>
                 symbol.Kind == AwkSymbolReferenceKind.UnknownFunction && symbol.Name == name);
         }
     }
@@ -152,7 +157,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(AwkDiagnosticCategory.Bind, diagnostic.Category);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
@@ -184,7 +189,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -205,7 +210,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal("awk: function `rand' requires a call.\n", Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -228,7 +233,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal("awk: undefined function: gensub\n", Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -242,7 +247,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal("awk: undefined function: typeof\n", Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -256,7 +261,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -272,7 +277,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -299,7 +304,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -328,7 +333,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -355,7 +360,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -381,7 +386,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }
@@ -393,7 +398,7 @@ public sealed class AwkBinderTests
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
-        Assert.False(binding.Program.HasProgram);
+        Assert.False(binding.Value.HasProgram);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
         Assert.Equal("awk: undefined function: missing_function\n", Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
     }

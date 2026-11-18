@@ -56,10 +56,8 @@ public sealed class AwkParserTests
         var result = AwkTestHarness.BindDefaultProfile(AwkParser.Parse("BEGIN{print \"x\" >}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.False(result.Success);
-        Assert.False(result.PhaseResult.Success);
         Assert.Equal(AwkPipelinePhase.Lower, result.Phase);
-        Assert.False(result.Program.HasProgram);
-        Assert.True(result.CompatibilityParseFailed);
+        Assert.False(result.Value.HasProgram);
         Assert.NotEmpty(result.Diagnostics);
     }
 

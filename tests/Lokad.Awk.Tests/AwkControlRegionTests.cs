@@ -256,7 +256,7 @@ public sealed class AwkControlRegionTests
     {
         var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{" + body + "}"));
         Assert.True(binding.Success);
-        return binding.Program.Program;
+        return binding.Value.Program;
     }
 
     private static CooperativeTestMemory State(AwkProgram program, AwkRuntimeCounters counters,
