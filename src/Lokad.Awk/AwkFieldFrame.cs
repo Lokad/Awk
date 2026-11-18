@@ -82,11 +82,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         _bufferedStorage = storage;
         _bufferedSlot = slot;
         _bufferedRecord = storage.ContentAt(slot);
-        _recordWasRecomposed = false;
-        _recordValue = default;
-        _recordValueIsCurrent = false;
-        _recordTextIsCurrent = true;
-        ClearSplitFields();
+        FinishRecordPublication();
     }
 
     // Only the owning storage can change this view before retiring a host borrow.
@@ -655,17 +651,13 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan) =>
         PublishRecordText(text, PrepareRecordPublication(text, splitPlan, text.ByteLength));
 
-    internal void PublishRecordText(AwkText text, AwkRecordPublication publication)
+    internal void PublishRecordText(AwkText text, AwkRecordPublication publication, AwkValue? assignedValue = null)
     {
         ReplaceRetainedMemory(publication.RetainedBytes);
         _splitPlan = publication.SplitPlan;
         ClearBufferedRecord();
         _recordText = text;
-        _recordWasRecomposed = false;
-        _recordValue = default;
-        _recordValueIsCurrent = false;
-        _recordTextIsCurrent = true;
-        ClearSplitFields();
+        FinishRecordPublication(assignedValue);
     }
 
     internal AwkRecordPublication PrepareRecordPublication(AwkText text, AwkRecordSplitPlan splitPlan,
@@ -680,13 +672,15 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         AwkRecordSplitPlan splitPlan)
     {
         var text = state.FormatStringByteText(value);
-        ReplaceRetainedMemory(EstimateEmptyRecordBytes(text, splitPlan, text.ByteLength));
-        _splitPlan = splitPlan;
-        ClearBufferedRecord();
-        _recordText = text;
+        PublishRecordText(text, PrepareRecordPublication(text, splitPlan, text.ByteLength), value);
+    }
+
+    private void FinishRecordPublication(AwkValue? assignedValue = null)
+    {
+        // The new payload is live. Use its length to select reusable field storage.
         _recordWasRecomposed = false;
-        _recordValue = value;
-        _recordValueIsCurrent = true;
+        _recordValue = assignedValue.GetValueOrDefault();
+        _recordValueIsCurrent = assignedValue.HasValue;
         _recordTextIsCurrent = true;
         ClearSplitFields();
     }
