@@ -262,8 +262,12 @@ internal readonly struct AwkText : IEquatable<AwkText>
         return CopyTrustedBytes(bytes, counters, governor, checkpoint);
     }
 
-    public string AsString() =>
-        AsString(AwkRuntimeCounters.Disabled);
+    public string AsString(Action? checkpoint = null)
+    {
+        var text = PrepareDecodedString(out var decoded, checkpoint);
+        if (decoded) PublishDecodedString(text, checkpoint);
+        return text;
+    }
 
     // A host-boundary preparation has already decoded and funded this cache.
     // Reading it during the pending operation must not repeat conversion work.
@@ -279,30 +283,26 @@ internal readonly struct AwkText : IEquatable<AwkText>
         return backing is null or TextStorage ? this : new AwkText((byte[])backing);
     }
 
-    public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
+    internal string PrepareDecodedString(out bool decoded, Action? checkpoint)
     {
+        decoded = false;
         checkpoint?.Invoke();
 
         if (ByteLength == 0)
             return string.Empty;
 
-        if (_backing is not TextStorage storage)
-        {
-
-            var converted = AwkUtf8Codec.DecodeRuntimeText(((byte[]?)_backing).AsSpan());
-            counters.Add(AwkCounter.StringDecodes);
-            checkpoint?.Invoke();
-            return converted;
-        }
-
-        var cached = storage.CachedString;
-        if (cached is not null)
+        if (_backing is TextStorage { CachedString: { } cached })
             return cached;
 
-        var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(checkpoint));
-        counters.Add(AwkCounter.StringDecodes);
+        decoded = true;
+        return AwkUtf8Codec.DecodeRuntimeText(_backing is TextStorage
+            ? AsSpan(checkpoint) : ((byte[]?)_backing).AsSpan());
+    }
+
+    internal void PublishDecodedString(string text, Action? checkpoint)
+    {
         checkpoint?.Invoke();
-        return storage.CachedString = decoded;
+        if (_backing is TextStorage storage) storage.CachedString = text;
     }
 
     public int CompareBytes(AwkText other, Action? checkpoint = null) =>

@@ -82,26 +82,23 @@ internal static partial class AwkBuiltins
         static bool TryConvertAsciiCase(
             in AwkByteTextOperand source,
             AwkCaseConversion conversion,
-            bool byteMode,
-            AwkRuntimeCounters counters,
-            AwkMemoryAccounting governor,
+            AwkRuntimeState state,
             AwkMemoryLease destination,
-            Action checkpoint,
             out AwkText result,
             out bool unchanged)
         {
             unchanged = false;
-            var bytes = source.AsSpan(checkpoint);
+            var bytes = source.AsSpan(state.CancellationCheckpoint);
             var firstChange = -1;
             var isAscii = true;
             for (var index = 0; index < bytes.Length;)
             {
-                checkpoint();
+                state.CancellationCheckpoint();
                 var length = Math.Min(bytes.Length - index, AwkRuntimeLimits.CancellationCheckBytes);
                 var chunk = bytes.Slice(index, length);
                 if (!Ascii.IsValid(chunk))
                 {
-                    if (!byteMode)
+                    if (state.StringUnitMode is not AwkStringUnitMode.Byte)
                     {
                         result = default;
                         return false;
@@ -127,16 +124,16 @@ internal static partial class AwkBuiltins
                 return true;
             }
 
-            var converted = AwkText.AllocateOwnedBytes(bytes.Length, governor, destination, checkpoint);
+            var converted = AwkText.AllocateOwnedBytes(bytes.Length, state.MemoryAccounting, destination, state.CancellationCheckpoint);
             // Publish into the admitted result directly instead of copying all
             // bytes and then traversing the changed suffix again in place.
             if (firstChange > 0)
-                AwkText.CopyBytes(bytes[..firstChange], converted.AsSpan(0, firstChange), checkpoint);
+                AwkText.CopyBytes(bytes[..firstChange], converted.AsSpan(0, firstChange), state.CancellationCheckpoint);
             for (var index = firstChange; index < converted.Length;)
             {
                 var chunkOffset = index & (AwkRuntimeLimits.CancellationCheckBytes - 1);
                 if (chunkOffset == 0)
-                    checkpoint();
+                    state.CancellationCheckpoint();
                 var length = Math.Min(converted.Length - index, AwkRuntimeLimits.CancellationCheckBytes - chunkOffset);
                 var input = bytes.Slice(index, length);
                 var chunk = converted.AsSpan(index, length);
@@ -163,19 +160,16 @@ internal static partial class AwkBuiltins
             }
 
             result = isAscii
-                ? AwkText.FromTrustedAsciiOwnedBytes(converted, counters)
-                : AwkText.FromTrustedOwnedBytes(converted, counters);
+                ? AwkText.FromTrustedAsciiOwnedBytes(converted, state.Counters)
+                : AwkText.FromTrustedOwnedBytes(converted, state.Counters);
             return true;
         }
 
         if (TryConvertAsciiCase(
             source,
             conversion,
-            state.StringUnitMode is AwkStringUnitMode.Byte,
-            state.Counters,
-            state.MemoryAccounting,
+            state,
             destination,
-            state.CancellationCheckpoint,
             out var asciiResult,
             out var unchanged))
         {
@@ -185,7 +179,7 @@ internal static partial class AwkBuiltins
         var beforeSource = destination.Bytes;
         var ownedSource = state.OwnStringResult(source, field, destination: destination);
         var sourceBytes = destination.Bytes - beforeSource;
-        var decoded = ownedSource.AsString(state.Counters, state.CancellationCheckpoint);
+        var decoded = state.DecodeText(ownedSource);
         state.ThrowIfCancellationRequested();
         // Invariant casing preserves UTF-16 length. Keep the conversion result funded
         // until its UTF-8 copy is constructed; the source owns its decoding cache.

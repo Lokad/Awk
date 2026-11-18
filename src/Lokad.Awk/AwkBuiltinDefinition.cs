@@ -10,7 +10,7 @@ internal readonly struct AwkBuiltinContext(
     public AwkRuntimeState State => Evaluation.State;
     public AwkValue GetValue(int index) => values[argumentStart + index];
     public string GetString(int index) =>
-        State.FormatStringByteText(GetValue(index)).AsString(State.Counters, State.CancellationCheckpoint);
+        State.DecodeText(State.FormatStringByteText(GetValue(index)));
     public AwkText GetByteText(int index) => State.FormatStringByteText(GetValue(index));
     public double GetNumber(int index) => GetValue(index).AsNumber(State.CancellationCheckpoint);
     public bool TryGetExecutionContext(out AwkExecutionContext context) => Evaluation.TryGetExecutionContext(out context);

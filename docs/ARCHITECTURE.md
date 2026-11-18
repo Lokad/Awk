@@ -59,6 +59,8 @@ arithmetic prefixes into strict numeric-string classification. Text owns immutab
 UTF-8; borrowed byte views stay within their funded owner's synchronous lifetime.
 Capture spelling before later effects. Formatting uses the language conversion point,
 including the then-current CONVFMT/OFMT.
+Runtime text conversion is observed after decoding and before cancellation-checked cache
+publication. Text caches retain decoded strings, never invocation state.
 
 Incoming function storage belongs to its frame, while arguments evaluate in caller scope
 and source order. Known bindings may bypass name lookup only while visibility is valid.

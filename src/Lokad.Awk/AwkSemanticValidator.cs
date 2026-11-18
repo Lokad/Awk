@@ -464,7 +464,7 @@ internal static class AwkSemanticValidator
                 var key = value.TryGetNumber(out var number)
                     ? double.IsInteger(number) ? AwkNumberFormatter.ToString(number)
                         : AwkNumberFormatter.ToDefaultFormatString(number, scope.Checkpoint)
-                    : value.ByteText.AsString(AwkRuntimeCounters.Disabled, scope.Checkpoint);
+                    : value.ByteText.AsString(scope.Checkpoint);
                 if (!values.Add(key)) diagnostics.Add(new AwkDiagnostic(expression.Span,
                     "Duplicate case value in switch.", AwkDiagnosticId.BindInvalidProgram));
             }

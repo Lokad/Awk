@@ -303,8 +303,37 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkValue CreateArrayKeyValue(AwkArrayKey key)
     {
-        var text = key.ToByteText(Counters, MemoryAccounting);
+        var text = MaterializeArrayKeyText(key, MemoryAccounting);
         return key.HasInputOrigin ? CreateNumericStringValue(text) : CreateStringValue(text);
+    }
+
+    internal AwkArrayKey ProjectArrayKeyText(AwkArrayKey key) =>
+        key.RequiresTextMaterialization
+            // The sort snapshot already funds key text, including overlap with its source.
+            ? key.WithTextProjection(MaterializeArrayKeyText(key, AwkMemoryAccounting.Disabled))
+            : key;
+
+    internal AwkText MaterializeArrayKeyText(AwkArrayKey key, AwkMemoryAccounting allocationAccounting)
+    {
+        if (!key.RequiresTextMaterialization)
+            return key.StoredText;
+
+        Span<byte> buffer = stackalloc byte[AwkArrayKey.MaxInt32Utf8ByteLength];
+        var formatted = key.AsSpan(buffer);
+        var bytes = AwkText.AllocateOwnedBytes(formatted.Length, allocationAccounting);
+        formatted.CopyTo(bytes);
+        return AwkText.FromTrustedOwnedBytes(bytes, Counters);
+    }
+
+    internal string DecodeText(AwkText text)
+    {
+        var converted = text.PrepareDecodedString(out var decoded, CancellationCheckpoint);
+        if (decoded)
+        {
+            Counters.Add(AwkCounter.StringDecodes);
+            text.PublishDecodedString(converted, CancellationCheckpoint);
+        }
+        return converted;
     }
 
     internal Action CancellationCheckpoint { get; }
@@ -365,7 +394,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 var name = key.AsString(state.Counters, state.CancellationCheckpoint);
                 var text = state.FormatStringByteText(value, memory);
                 memory.ReserveAdditional(AwkRuntimeMemory.EstimateUtf16StringBytes(text.ByteLength));
-                return new AwkEnvironmentVariable(name, text.AsString(state.Counters, state.CancellationCheckpoint));
+                return new AwkEnvironmentVariable(name, state.DecodeText(text));
             });
         Array.Sort(
             result,
@@ -1329,7 +1358,7 @@ internal sealed class AwkRuntimeState : IDisposable
         }
 
         var text = FormatStringByteText(value);
-        return text.ByteLength > 0 ? text.AsString(Counters, CancellationCheckpoint) : fallback;
+        return text.ByteLength > 0 ? DecodeText(text) : fallback;
     }
 
     public void BeginInputFile(AwkText fileName, AwkArgvIndex argvIndex, bool resetRecord = true)

@@ -215,7 +215,7 @@ internal sealed class AwkInputScheduler(
             string ResolveArgumentString(AwkText text)
             {
 
-                return text.AsString(state.Counters, state.CancellationCheckpoint);
+                return state.DecodeText(text);
             }
 
             async ValueTask<bool> TryActivateInputAsync(

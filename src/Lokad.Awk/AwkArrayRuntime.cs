@@ -690,7 +690,7 @@ internal sealed partial class AwkArrayRuntime
         if (text.ByteLength == 0)
             return false;
 
-        order = AwkArraySortOrder.Parse(text.AsString(_state.Counters, _state.CancellationCheckpoint));
+        order = AwkArraySortOrder.Parse(_state.DecodeText(text));
         return order is not AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.Unsorted };
     }
 
@@ -868,7 +868,7 @@ internal sealed partial class AwkArrayRuntime
             else if (projection.Mode != AwkArraySortMode.UserFunction && value.TryGetUntypedScalar(out _))
                 value = value.AsScalarCopy();
             // Snapshot ownership survives source mutation, including existing text keys/values.
-            if (projection.MaterializeKeys) key = key.WithTextProjection(runtime._state.Counters);
+            if (projection.MaterializeKeys) key = runtime._state.ProjectArrayKeyText(key);
             var stringValueOrder = projection.Mode is AwkArraySortMode.ValueStringAscending or AwkArraySortMode.ValueStringDescending;
             var typeValueOrder = projection.Mode is AwkArraySortMode.ValueTypeAscending or AwkArraySortMode.ValueTypeDescending;
             var valueText = !value.IsArrayValue && (stringValueOrder || typeValueOrder && !value.IsNumberValue)

@@ -17,10 +17,12 @@ public sealed class AwkArrayKeyTests
     [InlineData("2147483647")]
     public void InputOriginPreservesByteIdentityAndFirstInsertedKey(string spelling)
     {
+        using var projectionRuntime = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var ordinary = new AwkArrayKey(spelling);
         var input = ordinary.WithInputOrigin(true);
         var restored = AwkArrayKey.FromStorage(input.StoredText, input.StoredOrdinal, input.StorageTag);
-        var projected = restored.WithTextProjection(AwkRuntimeCounters.Disabled);
+        var projected = projectionRuntime.ProjectArrayKeyText(restored);
         var bytes = AwkUtf8Codec.Encode(spelling).ToArray();
         var comparer = AwkArrayKeyComparer.Instance;
         Assert.True(restored.HasInputOrigin);
@@ -45,6 +47,8 @@ public sealed class AwkArrayKeyTests
     [InlineData(int.MaxValue)]
     public void InputOrdinalOriginSurvivesOwnedBytePreparation(int ordinal)
     {
+        using var projectionRuntime = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var coordinate = AwkArrayKey.FromOrdinal(ordinal).WithInputOrigin(true);
         var prepared = coordinate.PrepareByteLookup();
         var restored = AwkArrayKey.FromStorage(prepared.StoredText, prepared.StoredOrdinal, prepared.StorageTag);
@@ -54,7 +58,7 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(coordinate, restored);
         Assert.Equal(AwkArrayKeyComparer.Instance.GetHashCode(bytes), AwkArrayKeyComparer.Instance.GetHashCode(restored));
         Assert.Equal(spelling, restored.AsString(AwkRuntimeCounters.Disabled));
-        Assert.True(restored.WithTextProjection(AwkRuntimeCounters.Disabled).HasInputOrigin);
+        Assert.True(projectionRuntime.ProjectArrayKeyText(restored).HasInputOrigin);
     }
 
     [Theory]
@@ -157,6 +161,8 @@ public sealed class AwkArrayKeyTests
     [InlineData(int.MaxValue)]
     public void OrdinalKeysRetainIdentityThroughStorageAndByteProjection(int ordinal)
     {
+        using var projectionRuntime = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var coordinate = AwkArrayKey.FromOrdinal(ordinal);
         var spelling = ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var owned = new AwkArrayKey(spelling);
@@ -182,7 +188,7 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(7, entries[prepared]);
         Assert.Equal(7, entries.GetAlternateLookup<ReadOnlySpan<byte>>()[AwkUtf8Codec.Encode(spelling).Span]);
         Assert.Equal(spelling, restored.AsString(AwkRuntimeCounters.Disabled));
-        Assert.Equal(spelling, restored.ToByteText(AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled).AsString());
+        Assert.Equal(spelling, projectionRuntime.MaterializeArrayKeyText(restored, AwkMemoryAccounting.Disabled).AsString());
     }
 
     [Theory]
@@ -216,6 +222,8 @@ public sealed class AwkArrayKeyTests
     [InlineData("ééabcd")]
     public void RetainedByteKeysKeepSpellingHashAndOwnershipAcrossRepresentations(string text)
     {
+        using var projectionRuntime = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var bytes = AwkUtf8Codec.Encode(text).ToArray();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var key = AwkArrayKey.CopyTrustedBytes(bytes, counters, AwkMemoryAccounting.Disabled, null);
@@ -276,7 +284,7 @@ public sealed class AwkArrayKeyTests
             key.RetainedTextMemoryBytes);
         Array.Fill(bytes, (byte)'x');
         Assert.Equal(text, key.AsString(AwkRuntimeCounters.Disabled));
-        Assert.Equal(text, key.ToByteText(AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled).AsString());
+        Assert.Equal(text, projectionRuntime.MaterializeArrayKeyText(key, AwkMemoryAccounting.Disabled).AsString());
         using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled);
         key.AppendTo(builder);
         Assert.Equal(AwkUtf8Codec.Encode(text).ToArray(), builder.AsSpan().ToArray());
@@ -391,6 +399,8 @@ public sealed class AwkArrayKeyTests
     [Fact]
     public void RuntimeOrdinalHashesAgreeAcrossCanonicalSpellingsAndSignedBoundaries()
     {
+        using var projectionRuntime = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var random = new Random(178);
         int[] boundaries = [int.MinValue, int.MaxValue, -1, 0, 1, -10, 10,
             -999999, 999999, -1000000, 1000000, -9999999, 9999999, -10000000, 10000000];
@@ -403,7 +413,7 @@ public sealed class AwkArrayKeyTests
             var comparer = AwkArrayKeyComparer.ForRuntime(null);
             var key = AwkArrayKey.FromOrdinal(ordinal);
             var compactOrText = new AwkArrayKey(text);
-            var projected = compactOrText.WithTextProjection(AwkRuntimeCounters.Disabled);
+            var projected = projectionRuntime.ProjectArrayKeyText(compactOrText);
             var hash = comparer.GetHashCode(key);
             Assert.Equal(hash, comparer.GetHashCode(compactOrText));
             Assert.Equal(hash, comparer.GetHashCode(projected));
@@ -434,10 +444,12 @@ public sealed class AwkArrayKeyTests
     [InlineData("７")]
     public void RuntimeHashesPreserveNoncanonicalKeyIdentity(string text)
     {
+        using var projectionRuntime = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var comparer = AwkArrayKeyComparer.Instance;
         var key = new AwkArrayKey(text);
         var bytes = AwkUtf8Codec.Encode(text).Span;
-        var projected = key.WithTextProjection(AwkRuntimeCounters.Disabled);
+        var projected = projectionRuntime.ProjectArrayKeyText(key);
         Assert.Equal(comparer.GetHashCode(key), comparer.GetHashCode(projected));
         Assert.Equal(comparer.GetHashCode(key), comparer.GetHashCode(bytes));
         var values = new Dictionary<AwkArrayKey, int>(comparer)
@@ -501,6 +513,8 @@ public sealed class AwkArrayKeyTests
     [InlineData(int.MaxValue, "2147483647")]
     public void AwkArrayKey_OrdinalKeysMatchTextKeysWithoutRetainedText(int ordinal, string text)
     {
+        using var projectionRuntime = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var fromOrdinal = AwkArrayKey.FromOrdinal(ordinal);
         var fromText = new AwkArrayKey(text);
         var fromBytes = AwkArrayKey.CopyTrustedBytes(AwkUtf8Codec.Encode(text).Span,
@@ -521,7 +535,7 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(text, fromOrdinal.AsString(AwkRuntimeCounters.Disabled));
         Assert.Equal(
             text,
-            fromOrdinal.ToByteText(AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled).AsString());
+            projectionRuntime.MaterializeArrayKeyText(fromOrdinal, AwkMemoryAccounting.Disabled).AsString());
         Assert.Equal(text.Length, fromOrdinal.ByteLength);
         Assert.Equal(0, fromOrdinal.RetainedTextMemoryBytes);
         Assert.Equal(
@@ -581,11 +595,15 @@ public sealed class AwkArrayKeyTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(1024);
+        memoryForGovernor.Initialize(() => AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None,
+            memoryForGovernor.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc,
+                null, counters, AwkRuntimeLimits.CreateDefault()))));
         var governor = memoryForGovernor.Accounting;
         var baselineAllocations = counters[AwkCounter.TextAllocations];
         var baselineBytes = counters[AwkCounter.TextBytes];
 
-        var text = AwkArrayKey.FromOrdinal(123).ToByteText(counters, governor);
+        var text = memoryForGovernor.State.MaterializeArrayKeyText(AwkArrayKey.FromOrdinal(123), governor);
 
         Assert.Equal("123", text.AsString());
         Assert.Equal(baselineAllocations + 1, counters[AwkCounter.TextAllocations]);

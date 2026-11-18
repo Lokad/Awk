@@ -150,7 +150,17 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
         if (Representation == AwkArrayKeyKind.Ordinal) return _ordinal.ToString(CultureInfo.InvariantCulture);
-        if (Representation == AwkArrayKeyKind.Text) return Text.AsString(counters, checkpoint);
+        if (Representation == AwkArrayKeyKind.Text)
+        {
+            var text = Text;
+            var converted = text.PrepareDecodedString(out var wasDecoded, checkpoint);
+            if (wasDecoded)
+            {
+                counters.Add(AwkCounter.StringDecodes);
+                text.PublishDecodedString(converted, checkpoint);
+            }
+            return converted;
+        }
         checkpoint?.Invoke();
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
         var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(buffer));
@@ -188,22 +198,8 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     // A repeated language consumer keeps one owning projection instead of
     // compacting it again through the ordinary key constructor.
-    internal AwkArrayKey WithTextProjection(AwkRuntimeCounters counters) =>
-        RequiresTextMaterialization
-            ? new(ToByteText(counters, AwkMemoryAccounting.Disabled), 0, (int)(_kind & AwkArrayKeyKind.Input))
-            : this;
-
-    public AwkText ToByteText(AwkRuntimeCounters counters, AwkMemoryAccounting governor)
-    {
-        if (!RequiresTextMaterialization)
-            return Text;
-
-        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        var formatted = AsSpan(buffer);
-        var bytes = AwkText.AllocateOwnedBytes(formatted.Length, governor);
-        formatted.CopyTo(bytes);
-        return AwkText.FromTrustedOwnedBytes(bytes, counters);
-    }
+    internal AwkArrayKey WithTextProjection(AwkText text) =>
+        new(text, 0, (int)(_kind & AwkArrayKeyKind.Input));
 
     public void AppendTo(AwkUtf8Builder builder, Action? checkpoint = null)
     {

@@ -55,7 +55,7 @@ internal sealed class AwkFormattingRuntime(
 
         using var argumentText = state.MemoryAccounting.CreateTransientLease();
         return PrintfEvaluation.FormatByteText(
-            resolveVariable(variable).AsString(state.Counters, state.CancellationCheckpoint), new NumericFormatArguments(number, variable, this, argumentText),
+            state.DecodeText(resolveVariable(variable)), new NumericFormatArguments(number, variable, this, argumentText),
             PrintfMissingArgumentPolicy.OmitDirective, state.Counters, state.MemoryAccounting, state.CompatibilityMode, state.CancellationCheckpoint, retainedTextLease);
     }
 
@@ -121,7 +121,7 @@ internal sealed class AwkFormattingRuntime(
             var bound = state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateUtf16StringBytes(text.ByteLength) : 0;
             if (bound > 0) lease.ReserveAdditional(bound);
             state.ThrowIfCancellationRequested();
-            var converted = text.AsString(state.Counters, state.CancellationCheckpoint);
+            var converted = state.DecodeText(text);
             retainedBytes = state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateUtf16StringBytes(converted.Length) : 0;
             if (bound > retainedBytes) lease.Release(bound - retainedBytes);
             if (nativeBytes > 0) lease.Release(nativeBytes);

@@ -483,7 +483,7 @@ internal sealed class AwkRegionStorage : IDisposable
         // Retain it in scratch until the actual host operation and cleanup finish.
         var text = value.ByteText.WithStringCache();
         _values[index] = value.WithByteText(text);
-        _ = text.AsString(_state.Counters, _state.CancellationCheckpoint);
+        _ = _state.DecodeText(text);
     }
 
     internal AwkResolvedOutputRedirection PreparedOutputTarget(AwkRegionOutput output) =>

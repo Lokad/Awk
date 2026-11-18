@@ -22,7 +22,7 @@ internal static class AwkSubstitutionRuntime
             var number = how.AsNumber(state.CancellationCheckpoint);
             if (number <= 0 && context.TryGetExecutionContext(out var execution))
             {
-                var text = state.FormatStringByteText(how, formatting).AsString(state.Counters, state.CancellationCheckpoint);
+                var text = state.DecodeText(state.FormatStringByteText(how, formatting));
                 execution.Output.ReportDiagnostic(new AwkDiagnostic(default,
                     AwkMessages.FormatGensubThirdArgumentWarningText(text), AwkDiagnosticId.WarningRuntime));
             }

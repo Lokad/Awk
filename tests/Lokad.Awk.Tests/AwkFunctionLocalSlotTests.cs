@@ -404,8 +404,9 @@ public sealed class AwkFunctionLocalSlotTests
         Assert.Equal(AwkRuntimeValueKind.NumericString, value.RuntimeKind);
         Assert.Equal(12, value.AsNumber());
         var counters = AwkRuntimeCounters.CreateEnabled();
-        Assert.Equal("0012", text.AsString(counters));
-        Assert.Same(text.PreparedString, value.ByteText.AsString(counters));
+        using var decodeRuntime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        Assert.Equal("0012", decodeRuntime.DecodeText(text));
+        Assert.Same(text.PreparedString, decodeRuntime.DecodeText(value.ByteText));
 
         static AwkValue RoundTrip(AwkValue value) => AwkValue.ForVariableStorage(value, AwkNumberParsingMode.Decimal)
             .ReadVariableStorage(AwkNumberParsingMode.Decimal);

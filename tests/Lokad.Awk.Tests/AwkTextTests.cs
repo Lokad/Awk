@@ -57,9 +57,10 @@ public sealed class AwkTextTests
         Assert.True(text.AsMemory().Equals(cached.AsMemory()));
         Assert.Equal(text.EstimatedRetainedMemoryBytes, cached.EstimatedRetainedMemoryBytes);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var managed = cached.AsString(counters);
+        using var decodeRuntime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        var managed = decodeRuntime.DecodeText(cached);
         Assert.Same(managed, cached.PreparedString);
-        Assert.Same(managed, cached.AsString(counters));
+        Assert.Same(managed, decodeRuntime.DecodeText(cached));
         Assert.Equal(1, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
     }
@@ -298,12 +299,13 @@ public sealed class AwkTextTests
     public void AwkText_AsStringIsCountedBoundaryDecode()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
+        using var decodeRuntime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
         var text = AwkText.FromHostBytes("caf\u00e9"u8.ToArray(), counters);
 
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
 
-        Assert.Equal("caf\u00e9", text.AsString(counters));
-        Assert.Equal("caf\u00e9", text.AsString(counters));
+        Assert.Equal("caf\u00e9", decodeRuntime.DecodeText(text));
+        Assert.Equal("caf\u00e9", decodeRuntime.DecodeText(text));
 
         Assert.Equal(1, counters[AwkCounter.StringDecodes]);
     }
@@ -312,10 +314,11 @@ public sealed class AwkTextTests
     public void AwkText_RetainedEstimateAllowsForLazyCaches()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
+        using var decodeRuntime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
         var text = AwkText.FromString(new string('\u00e9', 128), counters);
         var retainedBytes = text.EstimatedRetainedMemoryBytes;
 
-        _ = text.AsString(counters);
+        _ = decodeRuntime.DecodeText(text);
         _ = text.CopyRuneSlice(65, 1, counters, AwkMemoryAccounting.Disabled);
 
         Assert.True(retainedBytes > text.ByteLength);

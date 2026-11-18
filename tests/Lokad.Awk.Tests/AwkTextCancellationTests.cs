@@ -190,7 +190,7 @@ public sealed class AwkTextCancellationTests
                 case "compare": _ = text.CompareBytes(text, checkpoint); break;
                 case "text-equality": _ = text.Equals(text, checkpoint); break;
                 case "search": _ = text.IndexOf(AwkText.FromString("1"), checkpoint); break;
-                case "string": _ = text.AsString(counters, checkpoint); break;
+                case "string": _ = text.AsString(checkpoint); break;
                 case "memory": _ = text.AsMemory(checkpoint); break;
                 default: throw new ArgumentOutOfRangeException(nameof(operation));
             }
@@ -265,20 +265,24 @@ public sealed class AwkTextCancellationTests
     [Fact]
     public void CanceledDecodeDoesNotPublishAStringCache()
     {
-        var text = AwkText.FromString(new string('\u754c', LongText));
-        var counters = AwkRuntimeCounters.CreateEnabled();
+        var expected = new string('\u754c', LongText);
+        var text = AwkText.FromString(expected);
+        var prepared = text.PrepareDecodedString(out var decoded, checkpoint: null);
+        Assert.True(decoded);
         using var cancellation = new CancellationTokenSource();
-        Action checkpoint = () =>
-        {
-            if (counters[AwkCounter.StringDecodes] > 0) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        };
-        Assert.Throws<OperationCanceledException>(() => text.AsString(counters, checkpoint));
+        cancellation.Cancel();
+        var error = Assert.Throws<OperationCanceledException>(() =>
+            text.PublishDecodedString(prepared, cancellation.Token.ThrowIfCancellationRequested));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
+        var retried = runtime.DecodeText(text);
+        Assert.Equal(expected, retried);
+        Assert.NotSame(prepared, retried);
         Assert.Equal(1, counters[AwkCounter.StringDecodes]);
-        Assert.Equal(new string('\u754c', LongText), text.AsString(counters));
-        Assert.Equal(2, counters[AwkCounter.StringDecodes]);
-        Assert.Equal(new string('\u754c', LongText), text.AsString(counters));
-        Assert.Equal(2, counters[AwkCounter.StringDecodes]);
+        Assert.Same(retried, runtime.DecodeText(text));
+        Assert.Equal(1, counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
