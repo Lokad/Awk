@@ -925,7 +925,7 @@ internal sealed class AwkFunctionCallStack(
         try
         {
             if (retained > 0) state.CancellationCheckpoint();
-            var text = AwkText.CopyTrustedBytes(source, state.Counters, AwkMemoryAccounting.Disabled, state.CancellationCheckpoint);
+            var text = state.CopyFundedText(source);
 
             var owned = AwkFunctionLocalSlot.Scalar(AwkValue.FromDeferredText(text, state.NumberParsingMode));
             // Admission and polls can retire/reuse a cell. Keep the copy funded

@@ -54,7 +54,7 @@ internal sealed partial class AwkFieldSplitter
     private AwkText DecodeCsvField(ReadOnlySpan<byte> text, CsvField field)
     {
         if (!field.HasEscapes)
-            return AwkText.CopyTrustedBytes(text.Slice(field.Start, field.Length), state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
+            return state.CopyText(text.Slice(field.Start, field.Length));
         using var builder = new AwkUtf8Builder(state.MemoryAccounting, field.DecodedLength);
         var bytes = text.Slice(field.Start, field.Length);
         var start = 0;

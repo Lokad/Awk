@@ -70,8 +70,7 @@ internal static class AwkRegexConstruction
         checkpoint?.Invoke();
         if (builder.Length == 0) return AwkText.Empty;
         results.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(builder.Length));
-        var result = AwkText.CopyTrustedBytes(builder.AsSpan(), AwkRuntimeCounters.Disabled,
-            AwkMemoryAccounting.Disabled, checkpoint);
+        var result = AwkText.FromTrustedOwnedBytes(AwkText.CopyFundedBytes(builder.AsSpan(), checkpoint));
         checkpoint?.Invoke();
         return result;
     }

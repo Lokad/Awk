@@ -161,8 +161,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                 }
                 else
                 {
-                    record = AwkInputRecordResult.Record(AwkText.CopyHostBytes(line.RecordBytes.Span,
-                        _state.Counters, _state.MemoryAccounting, _state.CancellationCheckpoint),
+                    record = AwkInputRecordResult.Record(_state.CopyHostText(line.RecordBytes.Span),
                         line.Terminator, AwkRecordFieldSplittingMode.Ordinary);
                     _state.ThrowIfCancellationRequested();
                 }
@@ -288,8 +287,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                     pattern[written++] = (byte)']';
                     using var heldPattern = _state.MemoryAccounting.ReserveTransient(
                         AwkRuntimeMemory.EstimateTextBytes(written));
-                    var text = AwkText.CopyTrustedBytes(pattern[..written], _state.Counters,
-                        AwkMemoryAccounting.Disabled, _state.CancellationCheckpoint);
+                    var text = _state.CopyFundedText(pattern[..written]);
                     return Regex(_state.CreateRegex(new AwkRegexPattern(text, warningSite: this)));
                 }
                 return first == (byte)'\n'
@@ -464,10 +462,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     }
 
     private AwkText CreateText(ReadOnlySpan<byte> content) =>
-        _state.CsvInput ? CreateCsvText(content) :
-        content.IsEmpty
-            ? AwkText.Empty
-            : AwkText.CopyHostBytes(content, _state.Counters, _state.MemoryAccounting, _state.CancellationCheckpoint);
+        _state.CsvInput ? CreateCsvText(content) : _state.CopyHostText(content);
 
     private AwkText CreateCsvText(ReadOnlySpan<byte> content)
     {
@@ -475,8 +470,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         if (!content.IsEmpty && content[^1] == (byte)'\r') content = content[..^1];
         var first = IndexOfLiteral(content, "\r\n"u8, _scanCheckpoint);
         if (first < 0)
-            return content.IsEmpty ? AwkText.Empty : AwkText.CopyHostBytes(content,
-                _state.Counters, _state.MemoryAccounting, _state.CancellationCheckpoint);
+            return _state.CopyHostText(content);
         using var normalized = new AwkUtf8Builder(_state.MemoryAccounting, content.Length);
         var start = 0;
         do
@@ -489,8 +483,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         } while (true);
         normalized.Append(content[start..], _scanCheckpoint);
         // The builder still contains host input, unlike builders fed only by AwkText.
-        return AwkText.CopyHostBytes(normalized.AsSpan(), _state.Counters,
-            _state.MemoryAccounting, _state.CancellationCheckpoint);
+        return _state.CopyHostText(normalized.AsSpan());
     }
 
     internal static void ValidateSeparator(AwkRuntimeState state, AwkText value)

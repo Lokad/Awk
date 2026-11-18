@@ -749,6 +749,6 @@ internal sealed partial class AwkFieldSplitter
         if (length == 0)
             return AwkText.Empty;
 
-        return AwkText.CopyTrustedBytes(content.Slice(start, length), state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
+        return state.CopyText(content.Slice(start, length));
     }
 }

@@ -17,7 +17,7 @@ public sealed class AwkNumberParserTests
     public void HexConversionRoundsDirectlyToBinary64WithoutTextDecoding(string source, string expectedBits)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var text = AwkText.FromHostBytes(AwkUtf8Codec.Encode(source).ToArray(), counters);
+        var text = AwkText.FromHostBytes(AwkUtf8Codec.Encode(source).ToArray());
         var allocations = counters[AwkCounter.TextAllocations];
 
         Assert.True(text.TryParseNumber(AwkNumberParsingMode.HexadecimalInput, AwkNumberTextExtent.EntireText, out var value));
@@ -101,7 +101,7 @@ public sealed class AwkNumberParserTests
     public void HexStickyBitsAndExponentScanningNeedNoMagnitudeSizedStorage()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var text = AwkText.FromHostBytes(AwkUtf8Codec.Encode("0x1." + new string('0', 20_000) + "1p-1075").ToArray(), counters);
+        var text = AwkText.FromHostBytes(AwkUtf8Codec.Encode("0x1." + new string('0', 20_000) + "1p-1075").ToArray());
         var allocations = counters[AwkCounter.TextAllocations];
         Assert.True(text.TryParseNumber(AwkNumberParsingMode.HexadecimalInput, AwkNumberTextExtent.EntireText, out var value));
         Assert.Equal(double.Epsilon, value);

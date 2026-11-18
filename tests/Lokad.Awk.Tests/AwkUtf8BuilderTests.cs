@@ -117,16 +117,13 @@ public sealed class AwkUtf8BuilderTests
         builder.Append("abc"u8);
 
         var input = builder.AsMemory();
-        var ownedCopy = AwkText.CopyTrustedBytes(
-            input.Span,
-            AwkRuntimeCounters.Disabled,
-            AwkMemoryAccounting.Disabled);
+        var ownedCopy = builder.CopyToOwnedBytes();
 
         Assert.Equal("abc"u8.ToArray(), input.ToArray());
         builder.RemovePrefix(3);
         builder.Append("replacement"u8);
         Assert.True(input.Span.StartsWith("rep"u8));
-        Assert.Equal("abc"u8.ToArray(), ownedCopy.AsSpan().ToArray());
+        Assert.Equal("abc"u8.ToArray(), ownedCopy);
     }
 
     [Fact]

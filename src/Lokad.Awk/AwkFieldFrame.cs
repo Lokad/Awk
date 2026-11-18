@@ -53,7 +53,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var retained = AdjustEstimate(_retainedMemoryBytes, 0,
             AwkRuntimeMemory.EstimateTextBytes(BufferedRecord.Length));
         using var admission = state.MemoryAccounting.AdmitMutation(Math.Max(0, retained - _retainedMemoryBytes));
-        var text = AwkText.CopyTrustedBytes(BufferedRecord.Span, state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
+        var text = state.CopyText(BufferedRecord.Span);
         state.CancellationCheckpoint?.Invoke();
         ReplaceRetainedMemory(retained);
         _recordText = text;
@@ -71,7 +71,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         if (!HasBufferedRecord)
             return _recordText.CopyByteSlice(field.RecordStart, field.ByteLength(), state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
         return _recordTextIsCurrent && field.IsWholeRecord(RecordByteLength) ? OwnedRecordText() :
-            AwkText.CopyTrustedBytes(field.BytesInRecord(RecordBytes()), state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
+            state.CopyText(field.BytesInRecord(RecordBytes()));
     }
 
     internal void SetBufferedRecord(AwkRecordStorage storage, int slot, AwkRecordPublication publication)
@@ -354,7 +354,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var admitted = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateTextBytes(field.ByteLength()),
             capacity != _fieldValueCache.Capacity ? EstimateFieldCacheBufferBytes(capacity) : 0);
         using var admission = state.MemoryAccounting.AdmitMutation(admitted);
-        var text = AwkText.CopyTrustedBytes(field.BytesInRecord(RecordBytes()), state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
+        var text = state.CopyText(field.BytesInRecord(RecordBytes()));
         var classified = field.HasInputClassification;
         var facts = classified ? field.InputClassification :
             field.TryGetNumericValue(out var number) ? AwkValue.FromNumber(number) : default;

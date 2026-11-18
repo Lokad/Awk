@@ -20,8 +20,7 @@ internal readonly ref struct AwkByteTextOperand
     }
 
     internal AwkText Own(AwkRuntimeState state, AwkMemoryLease? destination = null) =>
-        _owned.Backing is not null ? _owned : AwkText.CopyTrustedBytes(_bytes, state.Counters,
-            state.MemoryAccounting, state.CancellationCheckpoint, destination);
+        _owned.Backing is not null ? _owned : state.CopyText(_bytes, destination);
 
     internal bool HasUnitAt(int index, bool bytes, Action? checkpoint)
     {

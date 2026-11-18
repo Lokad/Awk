@@ -709,8 +709,7 @@ internal static class PrintfEvaluation
                 return _state.AdoptText(_builder.CopyToOwnedBytes(_state.CancellationCheckpoint));
 
             _retainedTextLease.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(_builder.Length));
-            return AwkText.CopyTrustedBytes(_builder.AsSpan(), _state.Counters,
-                AwkMemoryAccounting.Disabled, _state.CancellationCheckpoint);
+            return _state.CopyFundedText(_builder.AsSpan());
         }
 
     }

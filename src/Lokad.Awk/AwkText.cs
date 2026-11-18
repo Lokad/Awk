@@ -154,16 +154,10 @@ internal readonly struct AwkText : IEquatable<AwkText>
     internal static AwkText FromEncodedStringBytes(byte[] bytes) =>
         bytes.Length == 0 ? Empty : new AwkText(bytes);
 
-    public static AwkText FromHostBytes(ReadOnlyMemory<byte> bytes) =>
-        FromHostBytes(bytes, AwkRuntimeCounters.Disabled);
-
-    public static AwkText FromHostBytes(ReadOnlyMemory<byte> bytes, AwkRuntimeCounters counters, Action? checkpoint = null)
+    public static AwkText FromHostBytes(ReadOnlyMemory<byte> bytes)
     {
-        if (bytes.IsEmpty)
-            return Empty;
-
-        ThrowIfInvalidUtf8(bytes.Span, checkpoint);
-        return CopyTrustedBytes(bytes.Span, counters, AwkMemoryAccounting.Disabled, checkpoint);
+        ThrowIfInvalidUtf8(bytes.Span, null);
+        return FromTrustedOwnedBytes(bytes.ToArray());
     }
 
     public static AwkText FromOwnedBytes(byte[] bytes, AwkRuntimeCounters counters, Action? checkpoint = null)
@@ -189,32 +183,16 @@ internal readonly struct AwkText : IEquatable<AwkText>
         return text;
     }
 
-    internal static AwkText CopyTrustedBytes(
-        ReadOnlySpan<byte> bytes,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null,
-        AwkMemoryLease? destination = null)
+    // The caller has already admitted the destination.
+    internal static byte[] CopyFundedBytes(ReadOnlySpan<byte> bytes, Action? checkpoint)
     {
         if (bytes.IsEmpty)
-            return Empty;
+            return [];
 
         checkpoint?.Invoke();
-        var ownedBytes = destination is null ? AllocateOwnedBytes(bytes.Length, governor) :
-            AllocateOwnedBytes(bytes.Length, governor, destination, checkpoint);
+        var ownedBytes = new byte[bytes.Length];
         CopyBytes(bytes, ownedBytes, checkpoint);
-        counters.ObserveTextAllocation(ownedBytes.Length);
-        return FromTrustedOwnedBytes(ownedBytes);
-    }
-
-    internal static AwkText CopyHostBytes(
-        ReadOnlySpan<byte> bytes,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null)
-    {
-        ThrowIfInvalidUtf8(bytes, checkpoint);
-        return CopyTrustedBytes(bytes, counters, governor, checkpoint);
+        return ownedBytes;
     }
 
     public string AsString(Action? checkpoint = null)

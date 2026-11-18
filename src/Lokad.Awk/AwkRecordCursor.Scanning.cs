@@ -267,11 +267,7 @@ internal sealed partial class AwkRecordCursor
                 var remainingLength = buffer.Length - _bufferStart;
                 return _descriptorReachedEof
                     ? ConsumeExistingText(
-                        AwkText.CopyTrustedBytes(
-                            input.Span.Slice(recordStart, remainingLength),
-                            _state.Counters,
-                            _state.MemoryAccounting,
-                            _state.CancellationCheckpoint),
+                        _state.CopyText(input.Span.Slice(recordStart, remainingLength)),
                         remainingLength,
                         AwkRecordTerminator.Empty)
                     : AwkRecordReadStatus.Pending;
@@ -282,16 +278,8 @@ internal sealed partial class AwkRecordCursor
 
             var recordLength = match.ByteIndex - recordStart;
             // The prefix and provider capture boundaries are already validated.
-            var record = AwkText.CopyTrustedBytes(
-                input.Span.Slice(recordStart, recordLength),
-                _state.Counters,
-                _state.MemoryAccounting,
-                _state.CancellationCheckpoint);
-            var terminator = AwkRecordTerminator.FromText(AwkText.CopyTrustedBytes(
-                input.Span.Slice(match.ByteIndex, match.ByteLength),
-                _state.Counters,
-                _state.MemoryAccounting,
-                _state.CancellationCheckpoint));
+            var record = _state.CopyText(input.Span.Slice(recordStart, recordLength));
+            var terminator = AwkRecordTerminator.FromText(_state.CopyText(input.Span.Slice(match.ByteIndex, match.ByteLength)));
             var next = AwkRegexMatchSpan.AfterMatch(input.Span, match, _state.CancellationCheckpoint);
             var consumedLength = next - recordStart;
             _bufferStart += consumedLength;

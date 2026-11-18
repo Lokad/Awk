@@ -19,26 +19,18 @@ public sealed class AwkTextCancellationTests
         var bytes = new byte[prefix + invalid.Length];
         bytes.AsSpan(0, prefix).Fill((byte)'a');
         invalid.CopyTo(bytes.AsSpan(prefix));
-        foreach (var ingress in new[] { "host", "owned", "copy" })
-        {
-            var counters = AwkRuntimeCounters.CreateEnabled();
-            using var memoryForGovernor = Governor();
-            var governor = memoryForGovernor.Accounting;
-            var error = Assert.Throws<AwkRuntimeException>(() =>
-            {
-                _ = ingress switch
-                {
-                    "host" => AwkText.FromHostBytes(bytes, counters),
-                    "owned" => AwkText.FromOwnedBytes(bytes, counters),
-                    _ => AwkText.CopyHostBytes(bytes, counters, governor)
-                };
-            });
-            Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal(0, counters[AwkCounter.TextAllocations]);
-            Assert.Equal(0, counters[AwkCounter.TextBytes]);
-            Assert.Equal(0, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
-        }
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = Governor().InitializeRuntime(counters);
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        var error = Assert.Throws<AwkRuntimeException>(() => memory.State.CopyHostText(bytes));
+        Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        var ownedError = Assert.Throws<AwkRuntimeException>(() => AwkText.FromOwnedBytes(bytes, counters));
+        Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(ownedError.MessageBytes));
+        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, counters[AwkCounter.TextBytes]);
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -60,9 +52,6 @@ public sealed class AwkTextCancellationTests
         var bytes = new byte[prefix + tail.Length];
         bytes.AsSpan(0, prefix).Fill((byte)'a');
         tail.CopyTo(bytes.AsSpan(prefix));
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
-        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         void Check()
@@ -73,20 +62,14 @@ public sealed class AwkTextCancellationTests
 
         if (cancellationWins)
         {
-            var error = Assert.Throws<OperationCanceledException>(() => AwkText.CopyHostBytes(bytes, counters, governor, Check));
+            var error = Assert.Throws<OperationCanceledException>(() => AwkText.ThrowIfInvalidUtf8(bytes, Check));
             Assert.Equal(cancellation.Token, error.CancellationToken);
-            Assert.Equal(2, checks);
         }
         else
         {
-            var error = Assert.Throws<AwkRuntimeException>(() => AwkText.CopyHostBytes(bytes, counters, governor, Check));
+            var error = Assert.Throws<AwkRuntimeException>(() => AwkText.ThrowIfInvalidUtf8(bytes, Check));
             Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal(1, checks);
         }
-        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
-        Assert.Equal(0, counters[AwkCounter.TextBytes]);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
     }
 
     [Theory]
@@ -103,16 +86,21 @@ public sealed class AwkTextCancellationTests
     {
         var input = AwkUtf8Codec.Encode(new string('a', prefix) + (supplementary ? "😀" : "")).ToArray();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
-        var governor = memoryForGovernor.Accounting;
-        var text = AwkText.CopyHostBytes(input, counters, governor);
+        using var memory = Governor().InitializeRuntime(counters);
+        var committed = memory.Accounting.CurrentCommittedBytes;
+        var text = memory.State.CopyHostText(input);
         Assert.True(text.AsSpan().SequenceEqual(input));
+        if (input.Length > 0)
+        {
+            input[0] = 0xFF;
+            Assert.NotEqual(input[0], text.AsSpan()[0]);
+        }
         Assert.Equal(input.Length == 0 ? 0 : 1, counters[AwkCounter.TextAllocations]);
         Assert.Equal(input.Length, counters[AwkCounter.TextBytes]);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(committed, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Accounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -210,19 +198,14 @@ public sealed class AwkTextCancellationTests
         var unit = scenario switch { "ascii" => "a", "bmp" => "\u754c", "supplementary" => "\ud83d\ude00", _ => throw new ArgumentOutOfRangeException(nameof(scenario)) };
         var expected = new string('a', 4_095) + string.Concat(Enumerable.Repeat(unit, LongText));
         var bytes = AwkUtf8Codec.Encode(expected).ToArray();
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
-        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
 
-        Assert.Throws<OperationCanceledException>(() => AwkText.CopyHostBytes(bytes, counters, governor, CancelOnCheck(cancellation, 2)));
+        Assert.Throws<OperationCanceledException>(() => AwkText.ThrowIfInvalidUtf8(bytes, CancelOnCheck(cancellation, 2)));
 
-        Assert.Equal(0, counters[AwkCounter.TextAllocations]);
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(expected, AwkText.CopyHostBytes(bytes, counters, governor).AsString());
+        using var memory = Governor().InitializeRuntime(AwkRuntimeCounters.Disabled);
+        Assert.Equal(expected, memory.State.CopyHostText(bytes).AsString());
         bytes[^1] = 0xFF;
-        var error = Assert.Throws<AwkRuntimeException>(() => AwkText.CopyHostBytes(bytes, counters, governor));
+        var error = Assert.Throws<AwkRuntimeException>(() => memory.State.CopyHostText(bytes));
         Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
     }
 

@@ -367,6 +367,7 @@ public sealed class AwkFunctionLocalSlotTests
     public void ShortOwnedAsciiCopiesDoNotAllocateMandatoryMetadata()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
+        using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
         var sample = "field001"u8.ToArray();
         for (var index = 0; index < 100; index++) Copy();
         var before = GC.GetAllocatedBytesForCurrentThread();
@@ -379,7 +380,7 @@ public sealed class AwkFunctionLocalSlotTests
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
 
-        AwkText Copy() => AwkText.CopyTrustedBytes(sample, counters, AwkMemoryAccounting.Disabled);
+        AwkText Copy() => runtime.CopyText(sample);
     }
 
     [Fact]

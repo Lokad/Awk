@@ -246,16 +246,18 @@ public sealed class AwkTextTests
     public void AwkText_GovernedCopyFailsBeforeCreatingText()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(3);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters);
+        memoryForGovernor.Budget.SetAvailableBytes(3);
         var governor = memoryForGovernor.Accounting;
+        var committed = governor.CurrentCommittedBytes;
 
         var exception = Assert.Throws<AwkRuntimeException>(() =>
-            AwkText.CopyTrustedBytes("abcd"u8, counters, governor));
+            memoryForGovernor.State.CopyText("abcd"u8));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal(0, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(committed, governor.CurrentCommittedBytes);
     }
 
     [Fact]
@@ -302,7 +304,7 @@ public sealed class AwkTextTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var decodeRuntime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
-        var text = AwkText.FromHostBytes("caf\u00e9"u8.ToArray(), counters);
+        var text = AwkText.FromHostBytes("caf\u00e9"u8.ToArray());
 
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
 

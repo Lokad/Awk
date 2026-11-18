@@ -311,8 +311,7 @@ internal sealed class AwkRuntimeState : IDisposable
             return AwkArrayKey.FromInlineBytes(bytes);
         }
 
-        return new AwkArrayKey(AwkText.CopyTrustedBytes(bytes, Counters, MemoryAccounting, CancellationCheckpoint),
-            CancellationCheckpoint);
+        return new AwkArrayKey(CopyText(bytes), CancellationCheckpoint);
     }
 
     internal string DecodeArrayKey(AwkArrayKey key)
@@ -354,6 +353,28 @@ internal sealed class AwkRuntimeState : IDisposable
         Counters.ObserveTextAllocation(ownedBytes.Length);
         return AwkText.FromTrustedOwnedBytes(ownedBytes, knownAscii);
     }
+
+    internal AwkText CopyHostText(ReadOnlySpan<byte> bytes)
+    {
+        AwkText.ThrowIfInvalidUtf8(bytes, CancellationCheckpoint);
+        return CopyText(bytes);
+    }
+
+    internal AwkText CopyText(ReadOnlySpan<byte> bytes, AwkMemoryLease? destination = null)
+    {
+        if (bytes.IsEmpty)
+            return AwkText.Empty;
+
+        ThrowIfCancellationRequested();
+        var ownedBytes = destination is null
+            ? AwkText.AllocateOwnedBytes(bytes.Length, MemoryAccounting)
+            : AwkText.AllocateOwnedBytes(bytes.Length, MemoryAccounting, destination, CancellationCheckpoint);
+        AwkText.CopyBytes(bytes, ownedBytes, CancellationCheckpoint);
+        return AdoptText(ownedBytes);
+    }
+
+    internal AwkText CopyFundedText(ReadOnlySpan<byte> bytes) =>
+        AdoptText(AwkText.CopyFundedBytes(bytes, CancellationCheckpoint));
 
     internal string DecodeText(AwkText text)
     {

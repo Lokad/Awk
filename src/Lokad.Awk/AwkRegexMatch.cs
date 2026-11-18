@@ -120,9 +120,13 @@ internal readonly record struct AwkRegexMatch
             {
                 if ((index & 1023) == 0) checkpoint();
                 var capture = captures[index];
-                var value = capture.Success
-                    ? AwkText.CopyTrustedBytes(input.Slice(capture.ByteIndex, capture.ByteLength),
-                        counters, AwkMemoryAccounting.Disabled, checkpoint) : AwkText.Empty;
+                var value = AwkText.Empty;
+                if (capture.Success)
+                {
+                    var bytes = AwkText.CopyFundedBytes(input.Slice(capture.ByteIndex, capture.ByteLength), checkpoint);
+                    counters.ObserveTextAllocation(bytes.Length);
+                    value = AwkText.FromTrustedOwnedBytes(bytes);
+                }
                 var start = coordinateCount == 0 ? capture.ByteIndex : positions[(index + 1) * 2];
                 var length = coordinateCount == 0 ? capture.ByteLength : positions[(index + 1) * 2 + 1] - start;
                 groups[index] = new(capture.Success, start, length, value);
