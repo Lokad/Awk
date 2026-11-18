@@ -8,7 +8,7 @@ internal static class GnuDateFormatting
     private static readonly CultureInfo Culture = CultureInfo.InvariantCulture;
 
     public static string Format(DateTimeOffset value, string format,
-        AwkMemoryPeakAdmission admission = default, Action? checkpoint = null)
+        AwkMemoryLease? admission = null, Action? checkpoint = null)
     {
         var builder = new StringBuilder();
         var admittedBytes = 0L;
@@ -31,7 +31,7 @@ internal static class GnuDateFormatting
             var bytes = AwkRuntimeMemory.CheckedAdd(192, AwkRuntimeMemory.CheckedMultiply(ownedCharacters, sizeof(char)));
             if (bytes > admittedBytes)
             {
-                admission.Resize(bytes);
+                admission?.Resize(bytes);
                 admittedBytes = bytes;
             }
             if (grows) builder.EnsureCapacity(capacity);

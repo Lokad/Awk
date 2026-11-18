@@ -14,7 +14,7 @@ public sealed class AwkDateFormattingMemoryTests
     {
         _ = GnuDateFormatting.Format(DateTimeOffset.UnixEpoch, "%Y");
         using var memory = new CooperativeTestMemory(4096);
-        using (var admission = memory.Accounting.ReserveAllocationPeak(128))
+        using (var admission = memory.Accounting.ReserveTransient(128))
         {
             var before = GC.GetAllocatedBytesForCurrentThread();
             var error = Assert.Throws<AwkRuntimeException>(() =>

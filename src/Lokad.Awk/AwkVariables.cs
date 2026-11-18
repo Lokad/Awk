@@ -568,7 +568,7 @@ internal sealed partial class AwkVariables
             bytes = AwkRuntimeMemory.CheckedAdd(bytes,
                 EstimateElementBytes(pair.Key, AwkValue.ForVariableStorage(pair.Value, _state.NumberParsingMode)));
         }
-        using var allocationPeak = _state.MemoryAccounting.ReserveAllocationPeak(bytes);
+        using var allocationPeak = _state.MemoryAccounting.ReserveTransient(bytes);
         var slots = CreateArraySlots(values.Count);
         foreach (var pair in values)
             slots[pair.Key] = AwkValue.ForVariableStorage(pair.Value, _state.NumberParsingMode);
@@ -589,7 +589,7 @@ internal sealed partial class AwkVariables
                 AwkRuntimeMemory.EstimateExternalArrayElementBytes(0, valueBytes));
         }
 
-        using var allocationPeak = _state.MemoryAccounting.ReserveAllocationPeak(prospectiveBytes);
+        using var allocationPeak = _state.MemoryAccounting.ReserveTransient(prospectiveBytes);
         ReplaceArraySlots(
             name,
             CreateIndexedArraySlots(values, firstIndex, static (text, _) => AwkValue.ForStoredInputText(text)));
@@ -602,7 +602,7 @@ internal sealed partial class AwkVariables
         Func<TValue, string> selectValue)
     {
         var prospectiveBytes = AwkRuntimeMemory.EstimateDictionaryBufferBytes(values.Count);
-        using var allocationPeak = _state.MemoryAccounting.ReserveAllocationPeak(prospectiveBytes);
+        using var allocationPeak = _state.MemoryAccounting.ReserveTransient(prospectiveBytes);
         var slots = CreateArraySlots(values.Count);
         for (var index = 0; index < values.Count; index++)
         {
@@ -626,7 +626,7 @@ internal sealed partial class AwkVariables
         int count,
         IEnumerable<string> names)
     {
-        using var construction = _state.MemoryAccounting.ReserveAllocationPeak(
+        using var construction = _state.MemoryAccounting.ReserveTransient(
             AwkRuntimeMemory.EstimateArrayConstructionBytes(AwkRuntimeMemory.BoundArrayCapacity(count), count));
         var slots = CreateArraySlots(count);
         foreach (var value in names)

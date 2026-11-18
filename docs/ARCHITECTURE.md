@@ -52,7 +52,9 @@ needed, including user comparators and pending output.
 
 Admission funds actual retained owners, temporary overlap and pending users. Preflight
 mutations before publication; refusal fails without retry or partially replacing a
-record, field, array, capture array or output payload. Capture source values before
+record, field, array, capture array or output payload. Temporary construction peaks
+and retained scratch use the same resizable lease. Compound mutations set an admitted
+floor that their component charges can consume. Capture source values before
 admission callbacks and re-locate mutable destinations afterward. Retire all funding
 and descriptors on success, failure and cancellation; cleanup must not abandon owners
 because the execution token is canceled.

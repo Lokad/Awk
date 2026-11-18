@@ -131,7 +131,7 @@ internal sealed class AwkSpecialVariableDispatcher(
         if (csv)
         {
             // Assignments remain observable as values; they do not change CSV parsing.
-            using var staging = memoryAccounting.ReserveAllocationPeak(variables.EstimateScalarValueMemoryGrowth(name, value));
+            using var staging = memoryAccounting.ReserveTransient(variables.EstimateScalarValueMemoryGrowth(name, value));
             var records = id == AwkSpecialVariableId.RecordSeparator;
             ref var warned = ref (records ? ref _csvRecordsWarned : ref _csvFieldsWarned);
             if (!warned)
@@ -197,7 +197,7 @@ internal sealed class AwkSpecialVariableDispatcher(
         if (publish)
             growth = AwkRuntimeMemory.CheckedAdd(growth,
                 variables.EstimateArrayValueMemoryGrowth(ProcInfo, FieldModeKey, fieldMode));
-        using var allocationPeak = memoryAccounting.ReserveAllocationPeak(AwkRuntimeMemory.CheckedAdd(growth, widthBytes));
+        using var allocationPeak = memoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(growth, widthBytes));
         if (id == AwkSpecialVariableId.FieldWidths)
             widths = fieldSplitter.PrepareFieldWidths(text);
 

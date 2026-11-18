@@ -468,7 +468,7 @@ internal static partial class AwkBuiltins
                 string format,
                 AwkUnixTimestampSeconds timestamp,
                 TimeZoneInfo timeZone,
-                AwkMemoryPeakAdmission admission,
+                AwkMemoryLease admission,
                 Action checkpoint)
             {
                 var value = TimeZoneInfo.ConvertTime(
@@ -493,7 +493,7 @@ internal static partial class AwkBuiltins
                 : context.State.TimeZone;
             try
             {
-                using var admission = context.State.MemoryAccounting.ReserveAllocationPeak(128);
+                using var admission = context.State.MemoryAccounting.ReserveTransient(128);
                 return context.State.CreateStringValue(
                     FormatTime(format, timestamp, timeZone, admission, context.State.CancellationCheckpoint));
             }

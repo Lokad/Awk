@@ -181,7 +181,7 @@ internal static partial class AwkBuiltins
         state.ThrowIfCancellationRequested();
         // Invariant casing preserves UTF-16 length. Keep the conversion result funded
         // until its UTF-8 copy is constructed; the source owns its decoding cache.
-        using var scratch = state.MemoryAccounting.ReserveAllocationPeak(
+        using var scratch = state.MemoryAccounting.ReserveTransient(
             AwkRuntimeMemory.EstimateUtf16StringBytes(decoded.Length));
         state.ThrowIfCancellationRequested();
         var converted = conversion is AwkCaseConversion.Upper

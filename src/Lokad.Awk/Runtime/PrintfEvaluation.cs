@@ -148,7 +148,7 @@ internal static class PrintfEvaluation
                 else if (directive.Conversion is PrintfConversion.HexFloatLower or PrintfConversion.HexFloatUpper)
                 {
                     var hexadecimal = AwkHexFloatFormat.CreateFinite(number, precision, flags, directive.Conversion.IsUppercase());
-                    using var scratch = governor.ReserveAllocationPeak(
+                    using var scratch = governor.ReserveTransient(
                         AwkRuntimeMemory.EstimatePrintfConversionScratchBytes(hexadecimal.ByteCount));
                     output.PreflightAdditionalBytes(Math.Max(width.Value, hexadecimal.ByteCount));
                     checkpoint?.Invoke();
@@ -159,7 +159,7 @@ internal static class PrintfEvaluation
                 else
                 {
                     var estimatedBytes = EstimateFloatByteCount(number, directive.Conversion, precision, flags.AlternateForm);
-                    using var scratch = governor.ReserveAllocationPeak(
+                    using var scratch = governor.ReserveTransient(
                         AwkRuntimeMemory.EstimatePrintfConversionScratchBytes(estimatedBytes));
                     output.PreflightAdditionalBytes(Math.Max(width.Value, estimatedBytes));
                     var formatted = FormatFloat(number, directive.Conversion, precision, flags, checkpoint);

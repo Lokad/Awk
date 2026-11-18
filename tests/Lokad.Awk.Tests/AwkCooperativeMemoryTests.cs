@@ -182,9 +182,10 @@ public sealed class AwkCooperativeMemoryTests
     {
         var budget = new CooperativeTestBudget(100);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var first = owner.ReservePeak(30);
+        var accounting = AwkMemoryAccounting.Create(owner);
+        var first = accounting.ReserveTransient(30);
         var copy = first;
-        var second = owner.ReservePeak(40);
+        var second = accounting.ReserveTransient(40);
         Assert.Equal(70, budget.Reserved);
         copy.Resize(50);
         Assert.Equal(90, budget.Reserved);
@@ -209,8 +210,8 @@ public sealed class AwkCooperativeMemoryTests
         Assert.Throws<AwkRuntimeException>(() => accounting.Reserve(31));
         Assert.Equal(70, accounting.CurrentReservedBytes);
         Assert.Equal(70, budget.Reserved);
-        Assert.Throws<AwkRuntimeException>(() => accounting.ReserveAllocationPeak(31));
-        using (accounting.ReserveAllocationPeak(30))
+        Assert.Throws<AwkRuntimeException>(() => accounting.ReserveTransient(31));
+        using (accounting.ReserveTransient(30))
             Assert.Equal(100, budget.Reserved);
         Assert.Equal(70, budget.Reserved);
         accounting.ReleaseReserved(70);

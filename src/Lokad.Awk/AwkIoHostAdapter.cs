@@ -15,13 +15,13 @@ internal sealed class AwkIoHostAdapter(
 {
     private CancellationTokenSource? _commandCancellation;
 
-    public AwkMemoryPeakAdmission AdmitPathRequest(string path, bool hasDisplay = false)
+    public AwkMemoryLease AdmitPathRequest(string path, bool hasDisplay = false)
     {
-        if (!accounting.IsEnabled || !AwkPathRequest.IsValidPath(path)) return default;
+        if (!accounting.IsEnabled || !AwkPathRequest.IsValidPath(path)) return AwkMemoryLease.Disabled;
         // Original display UTF-8 and the request; cwd/root are borrowed immutable values.
         cancellationToken.ThrowIfCancellationRequested();
         var displayBytes = hasDisplay ? 0 : AwkUtf8Codec.GetEncodedByteCount(path);
-        return accounting.ReserveAllocationPeak(AwkRuntimeMemory.CheckedAdd(128, displayBytes));
+        return accounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(128, displayBytes));
     }
 
     public AwkFileOperand PreparePath(string path)

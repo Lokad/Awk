@@ -40,11 +40,6 @@ internal sealed class AwkMemoryAccounting
 
     }
 
-    public AwkMemoryPeakAdmission ReserveAllocationPeak(long byteCount)
-    {
-        return _owner.ReservePeak(byteCount);
-    }
-
     public AwkMemoryMutationAdmission AdmitMutation(long byteCount)
     {
         return _owner.AdmitMutation(byteCount);
@@ -81,11 +76,7 @@ internal sealed class AwkMemoryAccounting
         if (!IsEnabled || byteCount <= 0)
             return;
 
-        if (byteCount > CurrentCommittedBytes)
-            throw new InvalidOperationException("Cannot release more committed bytes than are currently committed.");
-
-        ResizeOwner(AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, CurrentCommittedBytes - byteCount));
-        CurrentCommittedBytes -= byteCount;
+        ResizeCommitted(byteCount, 0);
     }
 
     public AwkMemoryLease ReserveTransient(long byteCount)
@@ -93,8 +84,9 @@ internal sealed class AwkMemoryAccounting
         if (!IsEnabled || byteCount <= 0)
             return AwkMemoryLease.Disabled;
 
-        ReserveAndCommit(byteCount);
-        return new AwkMemoryLease(this, byteCount);
+        var lease = new AwkMemoryLease(this);
+        lease.Resize(byteCount);
+        return lease;
     }
 
     // Evaluation can keep a scalar after a later operand replaces its original slot.
@@ -109,15 +101,20 @@ internal sealed class AwkMemoryAccounting
         if (!IsEnabled || byteCount <= 0)
             return;
 
-        var committed = AwkRuntimeMemory.CheckedAdd(CurrentCommittedBytes, byteCount);
-        var liveBytes = AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, committed);
-        ResizeOwner(liveBytes);
-        CurrentCommittedBytes = committed;
-
+        ResizeCommitted(0, byteCount);
     }
 
-    public AwkMemoryLease CreateTransientLease() =>
-        IsEnabled ? new AwkMemoryLease(this, 0) : AwkMemoryLease.Disabled;
+    internal void ResizeCommitted(long previousBytes, long bytes)
+    {
+        if (previousBytes > CurrentCommittedBytes)
+            throw new InvalidOperationException("Cannot release more committed bytes than are currently committed.");
+
+        var committed = AwkRuntimeMemory.CheckedAdd(CurrentCommittedBytes - previousBytes, bytes);
+        ResizeOwner(AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, committed));
+        CurrentCommittedBytes = committed;
+    }
+
+    public AwkMemoryLease CreateTransientLease() => IsEnabled ? new AwkMemoryLease(this) : AwkMemoryLease.Disabled;
 
     private void ResizeOwner(long liveBytes)
     {
@@ -136,15 +133,20 @@ internal sealed class AwkMemoryLease : IDisposable
     {
     }
 
-    public AwkMemoryLease(AwkMemoryAccounting accounting, long byteCount)
-    {
-        _accounting = accounting;
-        _byteCount = byteCount;
-    }
+    public AwkMemoryLease(AwkMemoryAccounting accounting) => _accounting = accounting;
 
     public static AwkMemoryLease Disabled { get; } = new();
 
     internal long Bytes => _byteCount;
+
+    internal void Resize(long bytes)
+    {
+        if (ReferenceEquals(this, Disabled)) return;
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        var accounting = _accounting ?? throw new ObjectDisposedException(nameof(AwkMemoryLease));
+        accounting.ResizeCommitted(_byteCount, bytes);
+        _byteCount = bytes;
+    }
 
     public void ReserveAdditional(long byteCount)
     {

@@ -9,7 +9,6 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
     private readonly CancellationTokenSource? _cancellation;
     private readonly List<Task> _hostTasks = [];
     private long _trackedBytes;
-    private long _temporaryBytes;
     private long _mutationFloor;
     private bool _disposed;
 
@@ -69,26 +68,18 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         return task;
     }
 
-    public bool TryResizeTracked(long bytes) => TryResizeCharge(bytes, _temporaryBytes);
-
-    private bool TryResizeCharge(long trackedBytes, long temporaryBytes)
+    public bool TryResizeTracked(long bytes)
     {
         var reservation = _reservation;
         if (reservation is null) return true;
-        var current = AwkRuntimeMemory.CheckedAdd(trackedBytes, temporaryBytes);
-        var charge = Math.Max(_mutationFloor, current);
-        // A live mutation owns its admitted floor. Components consume that funding
-        // without calling the provider again. Crossing back from above the floor
-        // still refunds the excess; the previous validated sum cannot overflow.
-        var admitted = _mutationFloor > 0 && current <= _mutationFloor &&
-            _trackedBytes + _temporaryBytes <= _mutationFloor;
-        var unchanged = trackedBytes == _trackedBytes && temporaryBytes == _temporaryBytes;
-        // Outside the admitted region, unchanged/zero requests must still detect
-        // disposed reservations or ancestors rather than concealing lost funding.
-        if (!admitted && (!unchanged || charge == 0 || charge != AwkMemoryCallbacks.Bytes(reservation)) &&
+        var charge = Math.Max(_mutationFloor, bytes);
+        // Components of a mutation consume its admitted floor without contacting
+        // the provider again. Crossing back from above the floor refunds the excess.
+        var admitted = _mutationFloor > 0 && bytes <= _mutationFloor && _trackedBytes <= _mutationFloor;
+        // Outside the floor, check unchanged requests too when funding may have ended.
+        if (!admitted && (bytes != _trackedBytes || charge == 0 || charge != AwkMemoryCallbacks.Bytes(reservation)) &&
             !AwkMemoryCallbacks.TryResize(reservation, charge)) return false;
-        _trackedBytes = trackedBytes;
-        _temporaryBytes = temporaryBytes;
+        _trackedBytes = bytes;
         return true;
     }
 
@@ -98,8 +89,7 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
     {
         if (_reservation is not { } reservation || growth <= 0) return default;
         var previous = _mutationFloor;
-        var floor = Math.Max(previous, AwkRuntimeMemory.CheckedAdd(
-            AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes), growth));
+        var floor = Math.Max(previous, AwkRuntimeMemory.CheckedAdd(_trackedBytes, growth));
         // If the floor grows, it exceeds both the prior floor and actual live
         // charges. Otherwise the existing owned admission already funds it.
         if (floor > previous && !AwkMemoryCallbacks.TryResize(reservation, floor))
@@ -112,27 +102,9 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
     {
         var heldFloor = _mutationFloor;
         _mutationFloor = previousFloor;
-        var charge = Math.Max(previousFloor, AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes));
+        var charge = Math.Max(previousFloor, _trackedBytes);
         if (charge < heldFloor && _reservation is { } reservation && !AwkMemoryCallbacks.TryResize(reservation, charge))
             throw new InvalidOperationException("Releasing mutation admission cannot require more memory.");
-    }
-
-    public AwkMemoryPeakAdmission ReservePeak(long bytes)
-    {
-        if (_scope is null || bytes <= 0) return default;
-        var lease = new AwkMemoryPeakLease(this, bytes);
-        if (!TryResizeCharge(_trackedBytes, AwkRuntimeMemory.CheckedAdd(_temporaryBytes, bytes)))
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-        return new(lease);
-    }
-
-    internal bool TryResizePeak(long previousBytes, long bytes) =>
-        TryResizeCharge(_trackedBytes, AwkRuntimeMemory.CheckedAdd(_temporaryBytes - previousBytes, bytes));
-
-    internal void ReleasePeak(long bytes)
-    {
-        if (!TryResizePeak(bytes, 0))
-            throw new InvalidOperationException("Releasing peak admission cannot require more memory.");
     }
 
     public async ValueTask DisposeAsync()
@@ -170,36 +142,4 @@ internal readonly struct AwkMemoryMutationAdmission(AwkExecutionMemoryOwner? own
 {
     public bool IsActive => owner is not null;
     public void Dispose() => owner?.EndMutation(previousFloor);
-}
-
-// A coarse temporary construction peak, distinct from the retained execution estimate.
-internal readonly struct AwkMemoryPeakAdmission(AwkMemoryPeakLease? lease) : IDisposable
-{
-    public void Resize(long bytes) => lease?.Resize(bytes);
-    public void Dispose() => lease?.Dispose();
-}
-
-// Copies of the scoped handle share its resize/dispose state; host admission remains
-// one execution reservation, including simultaneous construction peaks and pending I/O.
-internal sealed class AwkMemoryPeakLease(AwkExecutionMemoryOwner owner, long bytes) : IDisposable
-{
-    private AwkExecutionMemoryOwner? _owner = owner;
-    private long _bytes = bytes;
-
-    public void Resize(long bytes)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
-        var owner = _owner ?? throw new ObjectDisposedException(nameof(AwkMemoryPeakLease));
-        if (!owner.TryResizePeak(_bytes, bytes))
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-        _bytes = bytes;
-    }
-
-    public void Dispose()
-    {
-        if (_owner is not { } owner) return;
-        owner.ReleasePeak(_bytes);
-        _bytes = 0;
-        _owner = null;
-    }
 }

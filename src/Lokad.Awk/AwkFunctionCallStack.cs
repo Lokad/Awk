@@ -497,7 +497,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
         {
             var localArrayName = AwkArrayName.FunctionLocal(frame.Layout.Parameters[slotId.Index].Identifier, frame.Id);
-            using var allocationPeak = state.MemoryAccounting.ReserveAllocationPeak(AwkRuntimeMemory.EstimateUntypedScalarBytes());
+            using var allocationPeak = state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateUntypedScalarBytes());
             var value = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
             ReplaceLocalSlot(
                 frame,

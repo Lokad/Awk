@@ -81,7 +81,7 @@ internal sealed class AwkIo
         return _host.WriteStandardOutputAsync(content);
     }
 
-    internal AwkMemoryPeakAdmission AdmitPathRequest(string path, bool hasDisplay = false) =>
+    internal AwkMemoryLease AdmitPathRequest(string path, bool hasDisplay = false) =>
         _host.AdmitPathRequest(path, hasDisplay);
 
     public Task WriteStandardErrorAsync(ReadOnlyMemory<byte> content)
