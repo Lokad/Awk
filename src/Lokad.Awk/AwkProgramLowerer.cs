@@ -30,8 +30,7 @@ internal static partial class AwkProgramLowerer
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
         IReadOnlyList<AwkSymbolReference>? symbols = null,
-        AwkRuntimeArgumentPlan? externalArguments = null,
-        AwkStringUnitMode stringUnits = AwkStringUnitMode.Utf8Rune)
+        AwkRuntimeArgumentPlan? externalArguments = null)
     {
         checkpoint?.Invoke();
         List<AwkDiagnostic>? syntaxErrors = null;
@@ -83,8 +82,6 @@ internal static partial class AwkProgramLowerer
         AwkValueConsumption.Prepare(syntax, functions, mode, checkpoint, globalReads,
             externalArguments is null ? null : symbols);
 
-        var scratchResults = AwkResultPreparation.Prepare(syntax, functions, symbols, externalArguments, mode, stringUnits, checkpoint);
-
         // All named targets have one identity, including forward and recursive calls.
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
         {
@@ -92,7 +89,7 @@ internal static partial class AwkProgramLowerer
             var functionSyntax = syntax.Functions[functionIndex];
             var function = functions[AwkFunctionName.FromText(functionSyntax.Name)];
             var scope = AwkLoweringScope.Function(function.LocalLayout, mode, checkpoint, globalReads, functions);
-            if (!AwkRegionCompiler.TryCompile(functionSyntax.BodyStatements, scope, out var region, out var diagnostic, function))
+            if (!AwkRegionCompiler.TryCompile(functionSyntax.BodyStatements, scope, out var region, out var diagnostic))
                 return AwkLoweringResult.Failure([diagnostic]);
             function.PrepareRegion(region);
         }
@@ -109,8 +106,7 @@ internal static partial class AwkProgramLowerer
             var rangeIndex = rule.PatternSyntax is AwkRangePatternSyntax ? rangeCount++ : -1;
             if (rule.Kind == AwkRuleKind.Main)
             {
-                scratchResults.TryGetValue(ruleIndex, out var results);
-                if (!main.AppendMainRule(rule, rangeIndex, out var diagnostic, results))
+                if (!main.AppendMainRule(rule, rangeIndex, out var diagnostic))
                     return AwkLoweringResult.Failure([diagnostic]);
                 continue;
             }

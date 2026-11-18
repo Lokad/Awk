@@ -27,7 +27,7 @@ public sealed partial class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ClosedCallResultsKeepFullValuesWithoutNamedPublication(bool governed)
+    public async Task CallResultsKeepFullValuesAcrossObservations(bool governed)
     {
         const int records = 128;
         foreach (var observed in new[] { false, true })
@@ -46,7 +46,6 @@ public sealed partial class AwkBenchmarkCounterTests
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(observed ? "896 string 000700000000\n" : "896\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(observed ? records : 0, counters.CallAssignments);
             Assert.Equal(records, counters.BoundFunctionRuns);
             Assert.Equal(0, counters.StringDecodes);
             Assert.Equal(0, counters.Utf8Encodes);

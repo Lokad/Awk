@@ -52,15 +52,6 @@ internal static partial class AwkBuiltins
         whole = slice.ByteLength == source.ByteLength;
     }
 
-    internal static int CountSubstring(AwkRuntimeState state, int sourceLength,
-        in AwkValue start, in AwkValue length, int argumentCount)
-    {
-        var offset = SubstringStart(state, in start);
-        if (offset >= sourceLength) return 0;
-        var count = SubstringLength(state, in length, argumentCount);
-        return count <= 0 ? 0 : Math.Min(sourceLength - offset, count);
-    }
-
     private static int SubstringStart(AwkRuntimeState state, in AwkValue value)
     {
         var start = (int)(value.TryGetNumberValue(out var number) ? number : value.AsNumber(state.CancellationCheckpoint));

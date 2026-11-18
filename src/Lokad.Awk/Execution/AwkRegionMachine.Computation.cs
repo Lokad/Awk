@@ -124,17 +124,6 @@ internal partial struct AwkRegionMachine
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-        internal void ExecuteSubstringLength(in AwkRegionInstruction instruction)
-        {
-            var operation = region.Strings[instruction.Left];
-            var length = (int)numbers[operands[operation.First].Index];
-            var second = InputValue(operation.Second, operation.SecondInput);
-            var third = instruction.Detail == 3 ? InputValue(operation.Third, operation.ThirdInput) : default;
-            state.ThrowIfCancellationRequested();
-            numbers[instruction.Target] = AwkBuiltins.CountSubstring(state, length, second, third, instruction.Detail);
-        }
-
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         internal void ExecuteCase(in AwkRegionInstruction instruction)
         {
             // Unary consumers have no later argument across which to defer formatting.

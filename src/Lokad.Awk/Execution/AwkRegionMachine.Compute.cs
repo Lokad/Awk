@@ -137,12 +137,6 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.Length:
                     computationView.ExecuteLength(in instruction);
                     break;
-                case AwkRegionInstructionKind.SubstringLength:
-                    computationView.ExecuteSubstringLength(in instruction);
-                    break;
-                case AwkRegionInstructionKind.RetireLocal:
-                    computationView.State.RetireFunctionLocalScalar(in computationView.Operands[instruction.Target]);
-                    break;
                 case AwkRegionInstructionKind.InspectVariable:
                     computationView.ExecuteVariableInspection(in instruction);
                     break;

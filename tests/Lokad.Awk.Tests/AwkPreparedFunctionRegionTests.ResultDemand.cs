@@ -4,15 +4,15 @@ public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public Task CountedReturnKeepsItsCalleeFundedThroughPendingDiagnostics(bool cancel) =>
-        VerifyCountedReturnDiagnostics(cancel, local: false);
+    public Task TextReturnKeepsItsCalleeFundedThroughPendingDiagnostics(bool cancel) =>
+        VerifyTextReturnDiagnostics(cancel, local: false);
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public Task CountedLocalReturnKeepsItsCalleeFundedThroughPendingDiagnostics(bool cancel) =>
-        VerifyCountedReturnDiagnostics(cancel, local: true);
+    public Task LocalTextReturnKeepsItsCalleeFundedThroughPendingDiagnostics(bool cancel) =>
+        VerifyTextReturnDiagnostics(cancel, local: true);
 
-    private static async Task VerifyCountedReturnDiagnostics(bool cancel, bool local)
+    private static async Task VerifyTextReturnDiagnostics(bool cancel, bool local)
     {
         const string warning = "awk: warning: sqrt: received negative argument -1\n";
         var source = (local ? "function part(s,t){t=tolower(s);return substr(t,1,sqrt(-1)?4:4)}" :

@@ -92,8 +92,7 @@ internal sealed partial class AwkRegionCompiler
         }
     }
 
-    private sealed class StringCallWork(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition,
-        int sourceLength = -1) : PreparationWork<int>
+    private sealed class StringCallWork(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition) : PreparationWork<int>
     {
         private readonly int[] _arguments = [-1, -1, -1];
         private int _position;
@@ -102,11 +101,6 @@ internal sealed partial class AwkRegionCompiler
             [NotNullWhen(true)] out PreparationWork? next)
         {
             next = null;
-            if (!_waiting && sourceLength >= 0)
-            {
-                _arguments[0] = sourceLength;
-                _position = 1;
-            }
             if (_waiting)
             {
                 var value = CompletedResult<int>(completed);
@@ -122,12 +116,12 @@ internal sealed partial class AwkRegionCompiler
                 next = compiler.CreateOperandWork(syntax.Children[_position + 1]);
                 return true;
             }
-            var numeric = definition.Id == AwkBuiltinId.Index || sourceLength >= 0;
+            var numeric = definition.Id == AwkBuiltinId.Index;
             var target = numeric ? compiler._numbers++ : compiler._texts++;
             var kind = definition.Id switch
             {
                 AwkBuiltinId.Index => AwkRegionInstructionKind.Index,
-                AwkBuiltinId.Substr => sourceLength >= 0 ? AwkRegionInstructionKind.SubstringLength : AwkRegionInstructionKind.Substring,
+                AwkBuiltinId.Substr => AwkRegionInstructionKind.Substring,
                 _ => AwkRegionInstructionKind.Case
             };
             var site = _arguments[0];
