@@ -3,6 +3,26 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkCooperativeMemoryTests
 {
     [Fact]
+    public void RuntimeFixturePreservesAdmissionAcrossItsAccountingViews()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var options = memory.Configure(AwkTestHarness.CreateRuntimeOptions());
+        memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None, options));
+
+        using (memory.Accounting.ReserveTransient(memory.Budget.Limit - memory.Budget.Reserved - 64))
+        {
+            var held = memory.Budget.Reserved;
+            var failure = Assert.Throws<AwkRuntimeException>(() =>
+                memory.State.MemoryAccounting.ReserveTransient(65));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+            Assert.Equal(held, memory.Budget.Reserved);
+        }
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Fact]
     public async Task ReturningBelowAnAdmittedFloorRefundsOnlyTheExcess()
     {
         var budget = new CooperativeTestBudget(100);

@@ -4,30 +4,38 @@ namespace Lokad.Awk.Tests;
 internal sealed class CooperativeTestMemory : IDisposable
 {
     private AwkRuntimeState? _state;
+    private AwkMemoryAccounting? _standaloneAccounting;
 
     public CooperativeTestMemory(long bytes, bool enabled = true)
     {
         Budget = new CooperativeTestBudget(bytes);
         Owner = AwkExecutionMemoryOwner.Create(enabled ? Budget : null, CancellationToken.None);
-        Accounting = AwkMemoryAccounting.Create(Owner);
     }
 
     public CooperativeTestBudget Budget { get; }
     public AwkExecutionMemoryOwner Owner { get; }
-    public AwkMemoryAccounting Accounting { get; }
+    public AwkMemoryAccounting Accounting => _state?.MemoryAccounting ??
+        (_standaloneAccounting ??= AwkMemoryAccounting.Create(Owner));
     public AwkRuntimeState State => _state ?? throw new InvalidOperationException("No direct runtime was created.");
 
     public CooperativeTestMemory Initialize(AwkRuntimeState state)
     {
-        if (_state is not null) throw new InvalidOperationException("A fixture owns one runtime.");
+        RequireUninitialized();
         _state = state;
         return this;
     }
 
     public CooperativeTestMemory Initialize(Func<AwkRuntimeState> create)
     {
+        RequireUninitialized();
         try { return Initialize(create()); }
         catch { Dispose(); throw; }
+    }
+
+    private void RequireUninitialized()
+    {
+        if (_state is not null || _standaloneAccounting is not null)
+            throw new InvalidOperationException("Initialize a fixture before using its accounting.");
     }
 
     public AwkRuntimeOptions Configure(AwkRuntimeOptions options) => options with
