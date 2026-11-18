@@ -1186,7 +1186,8 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
                 fields.UnpublishedTail(targetCount), out var addedCount, out var addedPayloadBytes);
             complete = position < 0;
             if (requireComplete && !complete) return false;
-            var payloadBytes = AwkRuntimeMemory.CheckedAdd(_fieldPayloadByteLength, addedPayloadBytes);
+            // An incremental tail adds disjoint slices of the current record.
+            var payloadBytes = _fieldPayloadByteLength + addedPayloadBytes;
             // Incremental slices leave cached/owned payload unchanged. Only capacity
             // replacement or split-plan retirement changes the retained estimate.
             var retained = state.MemoryAccounting.IsEnabled && grows ? AdjustEstimate(_retainedMemoryBytes,
@@ -1403,8 +1404,10 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             ? AwkRuntimeMemory.EstimateRecordFieldListBytes(_fieldTexts.Capacity) : 0) +
             (ReuseFieldBuffer(spareCapacity, recordByteLength) ? AwkRuntimeMemory.EstimateRecordFieldListBytes(spareCapacity) : 0) +
             (ReuseCacheBuffer(recordByteLength) ? EstimateFieldCacheBufferBytes(_fieldValueCache.Capacity) : 0);
-        return AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(
-            AwkRuntimeMemory.EstimateTextBytes(text), plan.RetainedMemoryBytes), buffers);
+        var bytes = plan.RetainedMemoryBytes;
+        var textBytes = text.EstimatedRetainedMemoryBytes;
+        if (textBytes != 0) bytes = AwkRuntimeMemory.CheckedAdd(bytes, textBytes);
+        return buffers == 0 ? bytes : AwkRuntimeMemory.CheckedAdd(bytes, buffers);
     }
 
     private long EstimateRetainedBytes(long recordTextBytes, int fieldCount, int fieldCapacity, int spareCapacity,
@@ -1447,7 +1450,8 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         if (removedBytes > currentBytes)
             throw new InvalidOperationException("The field memory estimate is inconsistent.");
 
-        return AwkRuntimeMemory.CheckedAdd(currentBytes - removedBytes, addedBytes);
+        var remainingBytes = currentBytes - removedBytes;
+        return addedBytes == 0 ? remainingBytes : AwkRuntimeMemory.CheckedAdd(remainingBytes, addedBytes);
     }
 
     private static int EstimateComposedRecordByteLength(

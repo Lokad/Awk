@@ -82,8 +82,10 @@ internal static class AwkRuntimeMemory
             return 0;
 
         // Preserve the original int header bound; the remaining long sum stays below 7 GiB.
-        var payloadBytes = CheckedAdd(AwkTextObjectBytes + ByteArrayObjectBytes, byteLength);
-        return (long)payloadBytes + StringObjectBytes + ArrayObjectBytes +
+        const int payloadHeaders = AwkTextObjectBytes + ByteArrayObjectBytes;
+        if (byteLength > int.MaxValue - payloadHeaders)
+            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+        return (long)byteLength + payloadHeaders + StringObjectBytes + ArrayObjectBytes +
             (long)byteLength * sizeof(char) +
             ((long)byteLength / TextRuneCheckpointStride + 2) * sizeof(int);
     }
