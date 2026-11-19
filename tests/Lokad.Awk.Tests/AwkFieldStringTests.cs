@@ -234,21 +234,33 @@ public sealed class AwkFieldStringTests
     public void LongBorrowedStringScansObserveCancellationBeforeCompleting(bool range)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(new string('é', 32_768));
+        var shortPolls = 0;
+        Scan(512, () => shortPolls++);
+
         using var cancellation = new CancellationTokenSource();
         var polls = 0;
         void Checkpoint()
         {
-            if (++polls == 3) cancellation.Cancel();
+            if (++polls > shortPolls) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var failure = Assert.ThrowsAny<OperationCanceledException>(() =>
-        {
-            var operand = new AwkByteTextOperand(bytes.AsSpan());
-            if (range) AwkText.ResolveRuneByteRange(bytes, 16_384, 2, Checkpoint, out _, out _);
-            else _ = operand.HasUnitAt(16_384, false, Checkpoint);
-        });
+        var failure = Assert.ThrowsAny<OperationCanceledException>(() => Scan(16_384, Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
 
+        void Scan(int index, Action checkpoint)
+        {
+            if (range)
+            {
+                AwkText.ResolveRuneByteRange(bytes, index, 2, checkpoint, out var start, out var end);
+                Assert.Equal(index * 2, start);
+                Assert.Equal((index + 2) * 2, end);
+            }
+            else
+            {
+                var operand = new AwkByteTextOperand(bytes.AsSpan());
+                Assert.True(operand.HasUnitAt(index, false, checkpoint));
+            }
+        }
     }
 
     private static AwkRegion Bind(string expression)
