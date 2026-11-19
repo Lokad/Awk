@@ -98,23 +98,26 @@ public sealed class AwkNumericByteEscapeTests
     [InlineData(2, true)]
     public void LongNumericStreamsObserveCancellation(int profile, bool regex)
     {
-        var text = string.Concat(Enumerable.Repeat(@"\360\237\230\200", 8192));
+        const string escape = @"\360\237\230\200";
+        var mode = (AwkCompatibilityMode)profile;
+        var shortChecks = 0;
+        Assert.Equal("😀", Decode(escape, () => shortChecks++));
+
+        var text = string.Concat(Enumerable.Repeat(escape, 8192));
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         void Check()
         {
-            if (++checks == 20) cancellation.Cancel();
+            if (++checks > shortChecks) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var failure = Assert.Throws<OperationCanceledException>(() =>
-        {
-            if (regex)
-                AwkRegexEscapes.Decode(AwkText.FromString(text), (AwkCompatibilityMode)profile, Check, AwkMemoryAccounting.Disabled, AwkMemoryLease.Disabled);
-            else
-                AwkEscapes.DecodeSourceString(text, (AwkCompatibilityMode)profile, Check);
-        });
+        var failure = Assert.Throws<OperationCanceledException>(() => Decode(text, Check));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal(20, checks);
+
+        string Decode(string input, Action checkpoint) => regex
+            ? AwkRegexEscapes.Decode(AwkText.FromString(input), mode, checkpoint,
+                AwkMemoryAccounting.Disabled, AwkMemoryLease.Disabled).AsString()
+            : AwkEscapes.DecodeSourceString(input, mode, checkpoint);
     }
 
     [Theory]
@@ -123,18 +126,21 @@ public sealed class AwkNumericByteEscapeTests
     public void ByteAggregationAcrossRemovedContinuationsIsBounded(bool crlf)
     {
         var continuation = crlf ? "\\\r\n" : "\\\n";
+        var shortChecks = 0;
+        Assert.Equal("é", AwkEscapes.DecodeSourceString(@"\303" + continuation + @"\251",
+            AwkCompatibilityMode.GnuDefault, () => shortChecks++));
+
         var text = @"\303" + string.Concat(Enumerable.Repeat(continuation, 8192)) + @"\251";
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         void Check()
         {
-            if (++checks == 5) cancellation.Cancel();
+            if (++checks > shortChecks) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
         var failure = Assert.Throws<OperationCanceledException>(() =>
             AwkEscapes.DecodeSourceString(text, AwkCompatibilityMode.GnuDefault, Check));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal(5, checks);
         Assert.Equal("é", AwkEscapes.DecodeSourceString(text, AwkCompatibilityMode.GnuDefault));
     }
 
