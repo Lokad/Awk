@@ -60,7 +60,7 @@ internal sealed class AwkSourceLoadPlan
         AwkRuntimeOptions options,
         CancellationToken cancellationToken = default) =>
         new(
-            invocation.SourcePlan.Sources,
+            invocation.Sources,
             invocation.RuntimeArgumentsPlan.Environment,
             invocation.RuntimeArgumentsPlan.CurrentDirectory,
             options,

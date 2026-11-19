@@ -37,15 +37,18 @@ internal sealed class AwkSourceInputPlanner
     }
 
     // The command owns an immutable environment snapshot; only mutable planner lists need copying.
-    public AwkInvocationPlan BuildPlan(AwkCommandInvocation command) =>
+    public AwkInvocation BuildInvocation(AwkCommandInvocation command, AwkExecutionOptions executionOptions) =>
         new(
-            new AwkSourcePlan(AwkCollectionSnapshots.Copy(_sources, _cancellationToken)),
-            new AwkInputPlan(AwkCollectionSnapshots.Copy(_inputArguments, _cancellationToken)),
+            command,
+            AwkCollectionSnapshots.Copy(_sources, _cancellationToken),
+            AwkCollectionSnapshots.Copy(_inputArguments, _cancellationToken),
             new AwkRuntimeArgumentPlan(
                 AwkCollectionSnapshots.Copy(_runtimeArguments, _cancellationToken),
                 AwkCollectionSnapshots.Copy(_variables, _cancellationToken),
                 command.Environment,
-                _currentDirectory));
+                _currentDirectory),
+            executionOptions,
+            AwkTerminalInvocationResult.None);
 
     public void AddInlineScript(string source)
     {

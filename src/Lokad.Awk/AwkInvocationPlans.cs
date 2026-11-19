@@ -1,23 +1,5 @@
 namespace Lokad.Awk;
 
-internal sealed record AwkInvocationPlan(
-    AwkSourcePlan Source,
-    AwkInputPlan Input,
-    AwkRuntimeArgumentPlan RuntimeArguments);
-
-internal sealed class AwkSourcePlan
-{
-    public AwkSourcePlan(IReadOnlyList<AwkSourceReference> sources)
-    {
-        Sources = sources;
-    }
-
-    public IReadOnlyList<AwkSourceReference> Sources { get; }
-}
-
-internal sealed record AwkInputPlan(
-    IReadOnlyList<AwkInputArgument> InputArguments);
-
 internal sealed record AwkRuntimeArgumentPlan(
     IReadOnlyList<string> RuntimeArguments,
     IReadOnlyList<AwkVariableAssignment> Variables,

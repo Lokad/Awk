@@ -200,10 +200,10 @@ internal sealed class AwkInputScheduler(
             AwkInputArgument? GetOriginalInputArgument(AwkArgvIndex index)
             {
                 var planIndex = index.Value - 1;
-                if (planIndex >= invocation.InputPlan.InputArguments.Count)
+                if (planIndex >= invocation.InputArguments.Count)
                     return null;
 
-                var original = invocation.InputPlan.InputArguments[planIndex];
+                var original = invocation.InputArguments[planIndex];
                 return original.ArgvIndex == index ? original : null;
             }
 

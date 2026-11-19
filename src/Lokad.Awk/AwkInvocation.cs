@@ -3,24 +3,24 @@ namespace Lokad.Awk;
 internal sealed class AwkInvocation
 {
     public AwkInvocation(
-        AwkSourcePlan sourcePlan,
-        AwkInputPlan inputPlan,
+        AwkCommandInvocation command,
+        IReadOnlyList<AwkSourceReference> sources,
+        IReadOnlyList<AwkInputArgument> inputArguments,
         AwkRuntimeArgumentPlan runtimeArguments,
-        AwkStdioPlan stdio,
         AwkExecutionOptions executionOptions,
         AwkTerminalInvocationResult terminalResult)
     {
-        SourcePlan = sourcePlan;
-        InputPlan = inputPlan;
+        Sources = sources;
+        InputArguments = inputArguments;
         RuntimeArgumentsPlan = runtimeArguments;
-        Stdio = stdio;
+        Stdio = new(command.StdIn, command.StdOut, command.StdErr);
         ExecutionOptions = executionOptions;
         TerminalResult = terminalResult;
     }
 
-    public AwkSourcePlan SourcePlan { get; }
+    public IReadOnlyList<AwkSourceReference> Sources { get; }
 
-    public AwkInputPlan InputPlan { get; }
+    public IReadOnlyList<AwkInputArgument> InputArguments { get; }
 
     public AwkRuntimeArgumentPlan RuntimeArgumentsPlan { get; }
 
@@ -29,6 +29,11 @@ internal sealed class AwkInvocation
     public AwkExecutionOptions ExecutionOptions { get; }
 
     public AwkTerminalInvocationResult TerminalResult { get; }
+
+    public static AwkInvocation ForTerminal(AwkCommandInvocation command, AwkTerminalInvocationResult result,
+        bool sandbox = false, bool csv = false) =>
+        new(command, [], [], new AwkRuntimeArgumentPlan([], [], [], command.CurrentDirectory),
+            new AwkExecutionOptions(AwkCompatibilityProfile.Default, sandbox, csv), result);
 
     public IReadOnlyList<AwkDiagnostic> GetOptionWarnings(CancellationToken cancellationToken,
         AwkStringEscapeWarnings? stringEscapeWarnings = null)

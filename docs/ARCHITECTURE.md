@@ -23,6 +23,8 @@ publication funding.
 Each invocation parses, prepares and executes its own program. Programs, token caches
 and concatenation owners are not shared between executions. Concurrent invocations
 remain independent; observational counters can be shared explicitly.
+Command parsing publishes source and input snapshots directly to the invocation.
+Help, version and option errors retain their terminal outcome and standard descriptors.
 
 Parser results carry syntax, errors and warnings. Binding validates function
 declarations and builtin call shapes before lowering and returns a prepared program

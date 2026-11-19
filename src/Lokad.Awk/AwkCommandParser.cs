@@ -10,9 +10,8 @@ internal static class AwkCommandParser
         try { return new Parser(invocation, cancellationToken).Parse(); }
         catch (FormatException)
         {
-            return new AwkInvocationBuilder(invocation)
-                .WithErrorMessage(AwkMessages.ErrorInvalidPath, AwkDiagnosticId.OptionInvalid)
-                .Build();
+            return AwkInvocation.ForTerminal(invocation,
+                AwkTerminalInvocationResult.Error(AwkMessages.ErrorInvalidPath, AwkDiagnosticId.OptionInvalid));
         }
     }
 
@@ -83,10 +82,7 @@ internal static class AwkCommandParser
             if (_csv && _profile.Mode == AwkCompatibilityMode.Posix)
                 return BuildErrorInvocation(AwkMessages.ErrorCsvPosixConflict, AwkDiagnosticId.OptionInvalid);
             _sourceInputPlanner.PrepareCompatibility(_profile.Mode);
-            return CreateInvocationBuilder()
-                .WithPlan(_sourceInputPlanner.BuildPlan(invocation))
-                .WithCompatibilityProfile(_profile)
-                .Build();
+            return _sourceInputPlanner.BuildInvocation(invocation, new(_profile, _sandbox, _csv));
 
             void AddRemainingInputArguments(CommandLineOptionParser parser)
             {
@@ -105,22 +101,18 @@ internal static class AwkCommandParser
                     _sourceInputPlanner.AddInputArgument(argument);
             }
 
-            AwkInvocation BuildErrorInvocation(ReadOnlyMemory<byte> message, AwkDiagnosticId id)
-            {
-                return CreateInvocationBuilder()
-                    .WithErrorMessage(message, id)
-                    .Build();
-            }
+            AwkInvocation BuildErrorInvocation(ReadOnlyMemory<byte> message, AwkDiagnosticId id) =>
+                AwkInvocation.ForTerminal(invocation, AwkTerminalInvocationResult.Error(message, id), _sandbox, _csv);
 
             AwkInvocation BuildTerminalInvocation(AwkCommandTerminal terminal)
             {
-                var builder = CreateInvocationBuilder();
-                return terminal switch
+                var result = terminal switch
                 {
-                    AwkCommandTerminal.Help => builder.WithHelp().Build(),
-                    AwkCommandTerminal.Version => builder.WithVersion().Build(),
+                    AwkCommandTerminal.Help => AwkTerminalInvocationResult.Help,
+                    AwkCommandTerminal.Version => AwkTerminalInvocationResult.Version,
                     _ => throw new InvalidOperationException("Unknown terminal awk invocation.")
                 };
+                return AwkInvocation.ForTerminal(invocation, result, _sandbox, _csv);
             }
 
             AwkCommandParseResult ParseShortOption(CommandLineOptionParser parser, char option)
@@ -235,13 +227,6 @@ internal static class AwkCommandParser
                         (out string requiredValue) => AwkOptionValueReader.TryReadLong(parser, item, out requiredValue));
                 }
             }
-        }
-
-        private AwkInvocationBuilder CreateInvocationBuilder()
-        {
-            var builder = new AwkInvocationBuilder(invocation);
-            if (_csv) builder.WithCsv();
-            return _sandbox ? builder.WithSandbox() : builder;
         }
 
         private AwkCommandParseResult ApplyOption(
