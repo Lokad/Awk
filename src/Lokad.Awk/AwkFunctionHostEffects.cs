@@ -49,23 +49,25 @@ internal static class AwkFunctionHostEffects
     internal static void PrepareCalls(AwkRegion region, Action? checkpoint)
     {
         if (!region.Calls.Any(static call => call.Function.LocalLayout.HasTextInput)) return;
-        var prefix = new int[region.Instructions.Length + 1];
-        var first = new int[region.Calls.Length];
-        Array.Fill(first, -1);
+        // One-based positions leave zero for calls with no separately staged arguments.
+        var firstArguments = new int[region.Calls.Length];
+        var lastHost = 0;
         for (var index = 0; index < region.Instructions.Length; index++)
         {
             if ((index & 127) == 0) checkpoint?.Invoke();
-            var instruction = region.Instructions[index];
-            var host = instruction.Kind == AwkRegionInstructionKind.Call
-                ? region.Calls[instruction.Left].Function.MayInvokeHost : DirectHost(in instruction);
-            prefix[index + 1] = prefix[index] + (host ? 1 : 0);
-            if (instruction.Kind == AwkRegionInstructionKind.Arguments && first[instruction.Target] < 0)
-                first[instruction.Target] = index;
-            if (instruction.Kind != AwkRegionInstructionKind.Call) continue;
-            var site = instruction.Left;
-            var call = region.Calls[site];
-            var start = first[site] < 0 ? index : first[site];
-            region.Calls[site] = call with { CanBorrowRecordText = !call.Function.MayInvokeHost && prefix[index] == prefix[start] };
+            ref readonly var instruction = ref region.Instructions[index];
+            if (instruction.Kind == AwkRegionInstructionKind.Call)
+            {
+                ref var call = ref region.Calls[instruction.Left];
+                var start = firstArguments[instruction.Left];
+                var host = call.Function.MayInvokeHost;
+                call = call with { CanBorrowRecordText = !host && (start == 0 || lastHost < start) };
+                if (host) lastHost = index + 1;
+                continue;
+            }
+            if (instruction.Kind == AwkRegionInstructionKind.Arguments && firstArguments[instruction.Target] == 0)
+                firstArguments[instruction.Target] = index + 1;
+            if (DirectHost(in instruction)) lastHost = index + 1;
         }
     }
 
