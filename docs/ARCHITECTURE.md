@@ -174,6 +174,8 @@ Current records may borrow host bytes. Promote retained slices before retiring t
 escaping values own their spelling. Rebuilding/output prepares the full byte length and
 admits destination storage before copying/publication. Field/cache identities survive
 split completion and reconstruction; failed staging leaves earlier observations valid.
+Bounded CSV current records use the same funded slots after newline normalization and
+strict UTF-8 validation. Reading into a scalar still returns owned text.
 Reconstruction stages numeric spellings in field order under the active `CONVFMT`.
 After destination admission, it resolves the source bytes and rebases the field
 descriptors during the synchronous copy.

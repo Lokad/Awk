@@ -16,8 +16,9 @@ public sealed class AwkCsvHostTests
     public async Task ReusedBatchesPreserveQuotesNewlinesAndUtf8(string source, bool governed)
     {
         var input = Encoding.UTF8.GetBytes("a,\"b,\r\nc\",\"x\"\"y\"\r\né,\"😀\",0007\n,\nlast\r");
-        const string body = "printf \"%d|%s|%s|%s\\n\",NF,$1,$2,$3";
+        const string body = "if(!seen++){saved=$0; savedField=$2} printf \"%d|%s|%s|%s\\n\",NF,$1,$2,$3";
         var script = source == "pipe" ? "BEGIN{while((\"source\"|getline)>0){" + body + "} close(\"source\")}" : "{" + body + "}";
+        script += " END{printf \"saved:[%s]|[%s]\\n\",saved,savedField}";
         for (var chunk = 1; chunk <= input.Length; chunk++)
         {
             var host = new CsvHost(input, chunk, source);
@@ -25,7 +26,8 @@ public sealed class AwkCsvHostTests
             string[] args = source == "file" ? ["--csv", script, "/input"] : ["-k", script];
             var exit = await Execute(host, args, governed ? budget : null);
             Assert.Equal(0, exit.Value);
-            Assert.Equal("3|a|b,\nc|x\"y\n3|é|😀|0007\n2|||\n1|last||\n", host.Output);
+            Assert.Equal("3|a|b,\nc|x\"y\n3|é|😀|0007\n2|||\n1|last||\n" +
+                "saved:[a,\"b,\nc\",\"x\"\"y\"]|[b,\nc]\n", host.Output);
             Assert.Equal("", host.Error);
             Assert.Empty(host.OpenDescriptors);
             Assert.Equal(0, budget.Reserved);
