@@ -87,8 +87,8 @@ public sealed class AwkGetlineExpressionTests
     public void RedirectionSyntaxRetainsTheWholeExpressionSpanAndSourceKind(
         string text, string operation, bool hasTarget)
     {
-        var tokens = AwkTestHarness.TokenizeSource(text, out var source);
-        var expression = AwkExpressionSyntaxParser.Parse(source, tokens);
+        var tokens = AwkTestHarness.TokenizeSource(text);
+        var expression = AwkExpressionSyntaxParser.Parse(text, tokens);
         Assert.NotNull(expression);
         Assert.Equal(AwkExpressionKind.FunctionCall, expression.Kind);
         Assert.Equal(0, expression.Span.Start);

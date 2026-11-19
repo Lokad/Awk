@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 
 // The contextual lexer consumes descriptors in source order, including those
 // covered by a quoted literal, regexp or comment. Keep only the next descriptor.
-internal struct AwkLexemeCursor(string source, Action? checkpoint, List<int> newlines)
+internal struct AwkLexemeCursor(string source, Action? checkpoint)
 {
     private static readonly IReadOnlyList<LexerRule<AwkTokenKind>> Rules =
         new ReflectionTokenReader<AwkTokenKind>().Rules;
@@ -25,7 +25,6 @@ internal struct AwkLexemeCursor(string source, Action? checkpoint, List<int> new
             var first = source[start];
             if (first == '\n')
             {
-                newlines.Add(start);
                 _position++;
                 if (!_sawToken) continue;
                 _lastWasNewLine = true;

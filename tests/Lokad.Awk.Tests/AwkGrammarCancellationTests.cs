@@ -32,8 +32,8 @@ public sealed class AwkGrammarCancellationTests
             "statements" => string.Concat(Enumerable.Repeat("x=x+1;", 128)),
             _ => string.Join('+', Enumerable.Repeat("1", 128))
         };
-        var tokens = AwkTestHarness.TokenizeSource(text, out var source);
-        var lexer = AwkParsingSupport.ToLexerResult(source, tokens);
+        var tokens = AwkTestHarness.TokenizeSource(text);
+        var lexer = AwkParsingSupport.ToLexerResult(text, tokens);
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
         void Checkpoint()
@@ -50,12 +50,12 @@ public sealed class AwkGrammarCancellationTests
             switch (grammar)
             {
                 case "top-level":
-                    var top = CreateParser<AwkTopLevelSyntaxParser>(source, tokens, checkpoint);
+                    var top = CreateParser<AwkTopLevelSyntaxParser>(text, tokens, checkpoint);
                     SetTokens(top, lexer);
                     Assert.Equal(128, AwkTopLevelSyntaxParser.StreamParser(top, lexer).Items.Count);
                     break;
                 case "statements":
-                    var statements = CreateParser<AwkStatementSyntaxParser>(source, tokens, checkpoint);
+                    var statements = CreateParser<AwkStatementSyntaxParser>(text, tokens, checkpoint);
                     SetTokens(statements, lexer);
                     Assert.Equal(128, AwkStatementSyntaxParser.StreamParser(statements, lexer).Statements.Count);
                     break;
@@ -308,23 +308,23 @@ public sealed class AwkGrammarCancellationTests
             "statements" => string.Concat(Enumerable.Repeat("x=1+2;", 64)),
             _ => string.Join('+', Enumerable.Repeat("1", 64))
         };
-        var tokens = AwkTestHarness.TokenizeSource(text, out var source);
+        var tokens = AwkTestHarness.TokenizeSource(text);
         object Parse(Action checkpoint)
         {
             if (grammar == "top-level")
             {
-                Assert.True(AwkTopLevelSyntaxParser.TryParse(source, tokens, out var result, out _, checkpoint));
+                Assert.True(AwkTopLevelSyntaxParser.TryParse(text, tokens, out var result, out _, checkpoint));
                 return Assert.IsType<AwkTopLevelSyntaxParser.ParseResult>(result);
             }
             if (grammar == "statements")
             {
                 var diagnostics = new List<AwkDiagnostic>();
-                var result = AwkStatementSyntaxParser.ParseStatements(source, tokens, diagnostics, "invalid", checkpoint);
+                var result = AwkStatementSyntaxParser.ParseStatements(text, tokens, diagnostics, "invalid", checkpoint);
                 Assert.Empty(diagnostics);
                 Assert.Equal(64, result.Count);
                 return result;
             }
-            return Assert.IsType<AwkExpressionSyntax>(AwkExpressionSyntaxParser.Parse(source, tokens, checkpoint));
+            return Assert.IsType<AwkExpressionSyntax>(AwkExpressionSyntaxParser.Parse(text, tokens, checkpoint));
         }
         var total = 0;
         Parse(() => total++);

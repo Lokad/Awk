@@ -20,7 +20,7 @@ internal static class AwkParsingSupport
     }
 
     public static LexerResult<AwkTokenKind> ToLexerResult(
-        AwkParsingSource source,
+        string source,
         IReadOnlyList<AwkToken> tokens,
         Action? checkpoint = null,
         bool ensureEndOfFile = false)
@@ -43,12 +43,14 @@ internal static class AwkParsingSupport
         if (appendEnd)
             lexerTokens[^1] = new LexerToken<AwkTokenKind>(AwkTokenKind.EndOfFile, end, 0);
 
-        return new LexerResult<AwkTokenKind>(
-            source.Text,
-            lexerTokens,
-            source.NewLines,
-            hasInvalidTokens);
+        return CreateGrammarInput(source, lexerTokens, hasInvalidTokens);
     }
+
+    // Awk grammar results and failures use absolute offsets. Public line and
+    // column coordinates are computed from the original source segments.
+    internal static LexerResult<AwkTokenKind> CreateGrammarInput(
+        string source, IReadOnlyList<LexerToken<AwkTokenKind>> tokens, bool hasInvalidTokens) =>
+        new(source, tokens, [], hasInvalidTokens);
 
     public static AwkToken ToToken(AwkTokenKind kind, Pos<string> value, Action? checkpoint = null)
     {
@@ -62,11 +64,11 @@ internal static class AwkParsingSupport
     internal static AwkTextSpan SourceSpan(Pos<string> token) =>
         new(token.Location.Location.Position, token.Location.Length);
 
-    internal static AwkTextSpan FailureSpan(ParseException error, AwkParsingSource source)
+    internal static AwkTextSpan FailureSpan(ParseException error, string source)
     {
         // The dependency gives its synthetic EOF token a length of one.
-        var position = Math.Clamp(error.Location.Location.Position, 0, source.Text.Length);
-        return new(position, Math.Clamp(error.Location.Length, 0, source.Text.Length - position));
+        var position = Math.Clamp(error.Location.Location.Position, 0, source.Length);
+        return new(position, Math.Clamp(error.Location.Length, 0, source.Length - position));
     }
 
     // Generic grammar leaves must retain the lexical classification selected by the
@@ -299,20 +301,6 @@ internal static class AwkParsingSupport
             return true;
         }
     }
-}
-
-internal sealed class AwkParsingSource
-{
-    internal AwkParsingSource(string text, IReadOnlyList<int> newLines)
-    {
-        Text = text;
-        NewLines = newLines;
-    }
-
-    public string Text { get; }
-
-    // Every grammar receives the same absolute newline offsets from the lexer.
-    public IReadOnlyList<int> NewLines { get; }
 }
 
 internal sealed class AwkTokenNamer : ITokenNamer<AwkTokenKind>

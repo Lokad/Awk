@@ -15,17 +15,17 @@ internal sealed class AwkExpressionSyntaxParser
         _checkpoint = checkpoint;
     }
 
-    public static AwkExpressionSyntax? Parse(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
+    public static AwkExpressionSyntax? Parse(string source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
         Parse(source, tokens, out _, checkpoint);
 
-    internal static AwkExpressionSyntax? Parse(AwkParsingSource source, IReadOnlyList<AwkToken> tokens,
+    internal static AwkExpressionSyntax? Parse(string source, IReadOnlyList<AwkToken> tokens,
         out AwkTextSpan? failureSpan, Action? checkpoint) =>
         (ParseCore(source, tokens, out failureSpan, checkpoint) as RootParseResult.Expression)?.Syntax;
 
-    public static AwkExpressionSyntax? ParseList(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
+    public static AwkExpressionSyntax? ParseList(string source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
         ParseCore(source, tokens, out _, checkpoint)?.Syntax;
 
-    private static RootParseResult? ParseCore(AwkParsingSource source, IReadOnlyList<AwkToken> tokens,
+    private static RootParseResult? ParseCore(string source, IReadOnlyList<AwkToken> tokens,
         out AwkTextSpan? failureSpan, Action? checkpoint)
     {
         failureSpan = null;
@@ -55,7 +55,7 @@ internal sealed class AwkExpressionSyntaxParser
     }
 
     private static LexerResult<AwkTokenKind> CreateLexerResult(
-        AwkParsingSource source,
+        string source,
         IReadOnlyList<AwkToken> tokens,
         int count,
         bool hasEndOfFile,
@@ -83,7 +83,7 @@ internal sealed class AwkExpressionSyntaxParser
         if (!hasEndOfFile)
             lexerTokens[^1] = new LexerToken<AwkTokenKind>(AwkTokenKind.EndOfFile, end, 0);
 
-        return new LexerResult<AwkTokenKind>(source.Text, lexerTokens, source.NewLines, hasInvalidTokens);
+        return AwkParsingSupport.CreateGrammarInput(source, lexerTokens, hasInvalidTokens);
     }
 
     internal static bool TryGetSeparatorDiagnostic(

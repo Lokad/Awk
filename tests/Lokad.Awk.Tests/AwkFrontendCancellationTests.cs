@@ -257,17 +257,6 @@ public sealed class AwkFrontendCancellationTests
     }
 
     [Theory]
-    [InlineData("xx")]
-    [InlineData("x\r\nx\nx\r")]
-    public void LexerProvidesAbsoluteSourceNewlineOffsets(string segment)
-    {
-        var source = string.Concat(Enumerable.Repeat(segment, 6_000));
-        AwkTestHarness.TokenizeSource(source, out var metadata);
-        Assert.Equal(source.Select((character, index) => (character, index))
-            .Where(item => item.character == '\n').Select(item => item.index), metadata.NewLines);
-    }
-
-    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void SyntaxDepthAuditsObserveTraversalCancellation(bool tree)

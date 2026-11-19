@@ -17,7 +17,7 @@ internal static class AwkSyntaxParser
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         checkpoint?.Invoke();
-        var tokens = AwkLexer.Tokenize(source, checkpoint, out var newLines, compatibilityMode, budget.Memory);
+        var tokens = AwkLexer.Tokenize(source, checkpoint, compatibilityMode, budget.Memory);
         checkpoint?.Invoke();
         if (AwkSyntaxNesting.TryFindExcessiveDelimiterDepth(
                 tokens,
@@ -33,7 +33,7 @@ internal static class AwkSyntaxParser
         }
 
         var parser = new Parser(
-            new AwkParsingSource(source, newLines),
+            source,
             tokens,
             budget,
             checkpoint,
@@ -42,13 +42,13 @@ internal static class AwkSyntaxParser
     }
 
     private sealed class Parser(
-        AwkParsingSource source,
+        string source,
         IReadOnlyList<AwkToken> tokens,
         AwkFrontendBudget budget,
         Action? checkpoint,
         AwkCompatibilityMode compatibilityMode)
     {
-        private readonly AwkParsingSource _source = source;
+        private readonly string _source = source;
         private readonly IReadOnlyList<AwkToken> _tokens = tokens;
         private readonly List<AwkRuleSyntax> _rules = [];
         private readonly List<AwkFunctionSyntax> _functions = [];
@@ -76,7 +76,7 @@ internal static class AwkSyntaxParser
                 }
                 checkpoint?.Invoke();
                 var program = new AwkSyntaxProgram(
-                    _source.Text,
+                    _source,
                     _rules,
                     _functions,
                     _directives,
@@ -93,7 +93,7 @@ internal static class AwkSyntaxParser
             }
 
             AddTopLevelParseFailureDiagnostic();
-            return new AwkSyntaxProgram(_source.Text, _rules, _functions, _directives, _diagnostics);
+            return new AwkSyntaxProgram(_source, _rules, _functions, _directives, _diagnostics);
 
             void AddTopLevelParseFailureDiagnostic()
             {
@@ -236,7 +236,7 @@ internal static class AwkSyntaxParser
 
             void AddLexicalDiagnostics() =>
                 AwkFrontendDiagnosticPolicy.AddLexicalDiagnostics(
-                    _source.Text,
+                    _source,
                     _tokens,
                     _diagnostics,
                     budget,

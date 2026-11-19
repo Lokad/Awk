@@ -17,13 +17,6 @@ internal static class AwkTestHarness
 
     public static List<AwkToken> TokenizeSource(string source) => AwkLexer.Tokenize(source, CancellationToken.None);
 
-    public static List<AwkToken> TokenizeSource(string text, out AwkParsingSource source)
-    {
-        var tokens = AwkLexer.Tokenize(text, null, out var newLines);
-        source = new(text, newLines);
-        return tokens;
-    }
-
     public static AwkValue NumericInput(string text, AwkNumberParsingMode mode = AwkNumberParsingMode.Decimal) =>
         NumericInput(AwkText.FromString(text), mode);
 

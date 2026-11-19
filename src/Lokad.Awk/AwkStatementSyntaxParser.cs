@@ -8,10 +8,10 @@ internal sealed class AwkStatementSyntaxParser
 {
     private readonly IReadOnlyList<AwkToken> _originalTokens;
 
-    private readonly AwkParsingSource _source;
+    private readonly string _source;
     private readonly Action? _checkpoint;
 
-    private AwkStatementSyntaxParser(AwkParsingSource source, IReadOnlyList<AwkToken> originalTokens, Action? checkpoint)
+    private AwkStatementSyntaxParser(string source, IReadOnlyList<AwkToken> originalTokens, Action? checkpoint)
         : base(AwkTokenNamer.Instance)
     {
         _source = source;
@@ -20,7 +20,7 @@ internal sealed class AwkStatementSyntaxParser
     }
 
     public static IReadOnlyList<AwkStatementSyntax> ParseStatements(
-        AwkParsingSource source,
+        string source,
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
         string invalidMessage,

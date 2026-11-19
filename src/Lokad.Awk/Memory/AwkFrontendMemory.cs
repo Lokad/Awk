@@ -52,7 +52,7 @@ internal sealed class AwkFrontendMemory(IMemoryBudget? budget) : IDisposable
         _sourceBytes = bytes;
     }
 
-    // Fund the lexer token buffer and newline offsets before scanning, then use
+    // Fund the lexer token buffer before scanning, then use
     // the observed token count for syntax and lowering.
     public void AdmitLexing(int characters)
     {

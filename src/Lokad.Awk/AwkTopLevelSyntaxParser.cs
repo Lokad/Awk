@@ -9,10 +9,10 @@ internal sealed class AwkTopLevelSyntaxParser
 {
     private readonly IReadOnlyList<AwkToken> _originalTokens;
 
-    private readonly AwkParsingSource _source;
+    private readonly string _source;
     private readonly Action? _checkpoint;
 
-    private AwkTopLevelSyntaxParser(AwkParsingSource source, IReadOnlyList<AwkToken> originalTokens, Action? checkpoint)
+    private AwkTopLevelSyntaxParser(string source, IReadOnlyList<AwkToken> originalTokens, Action? checkpoint)
         : base(AwkTokenNamer.Instance)
     {
         _source = source;
@@ -21,7 +21,7 @@ internal sealed class AwkTopLevelSyntaxParser
     }
 
     public static bool TryParse(
-        AwkParsingSource source,
+        string source,
         IReadOnlyList<AwkToken> tokens,
         [NotNullWhen(true)] out ParseResult? result,
         out AwkTextSpan failureSpan,
