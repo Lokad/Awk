@@ -199,7 +199,7 @@ internal sealed partial class AwkRecordCursor
         var scanStart = GetRelativeScanStart(content);
         var candidate = content[scanStart..];
         var separatorBytes = separator.Value.AsSpan(_state.CancellationCheckpoint);
-        var relativeIndex = IndexOfLiteral(candidate, separatorBytes, _scanCheckpoint);
+        var relativeIndex = AwkRecordLine.IndexOfLiteral(candidate, separatorBytes, _scanCheckpoint);
         _state.ThrowIfCancellationRequested();
         if (relativeIndex < 0)
         {

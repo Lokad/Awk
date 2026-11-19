@@ -61,7 +61,7 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
         return buffer;
     }
 
-    // The cursor proves UTF-8 validity before entering either storage writer.
+    // The cursor proves UTF-8 validity before staging unchanged input.
     internal void StageValidated(ReadOnlySpan<byte> bytes)
     {
         var nextSlot = _currentSlot ^ 1;
@@ -70,11 +70,28 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
         buffer.Clear();
         buffer.Append(bytes, state.CancellationCheckpoint);
         state.ThrowIfCancellationRequested();
+        PublishOwned(nextSlot, ref next, buffer.Length);
+    }
+
+    internal void StageNormalizedCsv(ReadOnlySpan<byte> bytes, int firstCrLf, Action checkpoint)
+    {
+        var nextSlot = _currentSlot ^ 1;
+        ref var next = ref BufferAt(nextSlot);
+        var buffer = Prepare(ref next, bytes.Length);
+        state.ThrowIfCancellationRequested();
+        buffer.Clear();
+        AwkRecordLine.AppendNormalizedCsv(buffer, bytes, firstCrLf, checkpoint);
+        AwkText.ThrowIfInvalidUtf8(buffer.AsSpan(), state.CancellationCheckpoint);
+        PublishOwned(nextSlot, ref next, buffer.Length);
+    }
+
+    private void PublishOwned(int nextSlot, ref RecordBuffer next, int length)
+    {
         next.SetOwned();
         next.IsKnownAscii = false;
         _currentSlot = nextSlot;
 
-        state.Counters.Add(AwkCounter.InputRecordBytesCopied, bytes.Length);
+        state.Counters.Add(AwkCounter.InputRecordBytesCopied, length);
     }
 
     internal void StageBorrowed(AwkByteReader reader, ReadOnlyMemory<byte> bytes)

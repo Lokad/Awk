@@ -474,21 +474,18 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     {
         // Match GNU's EOF/record terminator treatment without depending on host batch boundaries.
         if (!content.IsEmpty && content[^1] == (byte)'\r') content = content[..^1];
-        var first = IndexOfLiteral(content, "\r\n"u8, _scanCheckpoint);
+        var first = AwkRecordLine.IndexOfLiteral(content, "\r\n"u8, _scanCheckpoint);
         if (first < 0)
             return PrepareRecord(content, terminator, AwkRecordFieldSplittingMode.Ordinary, storage);
-        using var normalized = new AwkUtf8Builder(_state.MemoryAccounting, content.Length);
-        var start = 0;
-        do
+        // Raw length bounds the normalized bytes. Larger records still use
+        // the ordinary preparation path, which tests their actual length.
+        if (storage is not null && AwkRecordStorage.CanStage(content.Length))
         {
-            normalized.Append(content[start..first], _scanCheckpoint);
-            start = first + 1;
-            var next = IndexOfLiteral(content[start..], "\r\n"u8, _scanCheckpoint);
-            if (next < 0) break;
-            first = start + next;
-        } while (true);
-        normalized.Append(content[start..], _scanCheckpoint);
-        // The builder still contains host input, unlike builders fed only by AwkText.
+            storage.StageNormalizedCsv(content, first, _scanCheckpoint);
+            return AwkInputRecordResult.Buffered(storage, terminator);
+        }
+        using var normalized = new AwkUtf8Builder(_state.MemoryAccounting, content.Length);
+        AwkRecordLine.AppendNormalizedCsv(normalized, content, first, _scanCheckpoint);
         return PrepareRecord(normalized.AsSpan(), terminator, AwkRecordFieldSplittingMode.Ordinary, storage);
     }
 
@@ -688,33 +685,6 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
             if (found >= 0)
                 return offset + found;
             offset += length;
-        }
-        return -1;
-    }
-
-    private static int IndexOfLiteral(ReadOnlySpan<byte> content, ReadOnlySpan<byte> value, Action checkpoint)
-    {
-        if (value.Length > AwkRuntimeLimits.CancellationCheckBytes)
-        {
-            // Keep the framework's long-needle algorithm rather than repeatedly
-            // searching a large overlap. This remains an indivisible boundary.
-            checkpoint();
-            var found = content.IndexOf(value);
-            checkpoint();
-            return found;
-        }
-        var offset = 0;
-        var candidates = content.Length - value.Length + 1;
-        while (offset < candidates)
-        {
-            checkpoint();
-            var candidateCount = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, candidates - offset);
-            // Include the overlap so a separator may start at the last candidate.
-            // Large needles remain a framework boundary, not a new local matcher.
-            var found = content.Slice(offset, candidateCount + value.Length - 1).IndexOf(value);
-            if (found >= 0)
-                return offset + found;
-            offset += candidateCount;
         }
         return -1;
     }

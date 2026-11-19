@@ -17,6 +17,49 @@ internal static class AwkRecordLine
 
         return new AwkRecordLineResult(rawLine[..end], terminator);
     }
+
+    internal static void AppendNormalizedCsv(AwkUtf8Builder destination, ReadOnlySpan<byte> content,
+        int firstCrLf, Action checkpoint)
+    {
+        var start = 0;
+        var carriageReturn = firstCrLf;
+        while (true)
+        {
+            destination.Append(content[start..carriageReturn], checkpoint);
+            start = carriageReturn + 1;
+            var next = IndexOfLiteral(content[start..], "\r\n"u8, checkpoint);
+            if (next < 0) break;
+            carriageReturn = start + next;
+        }
+        destination.Append(content[start..], checkpoint);
+    }
+
+    internal static int IndexOfLiteral(ReadOnlySpan<byte> content, ReadOnlySpan<byte> value, Action checkpoint)
+    {
+        if (value.Length > AwkRuntimeLimits.CancellationCheckBytes)
+        {
+            // Keep the framework's long-needle algorithm rather than repeatedly
+            // searching a large overlap. This remains an indivisible boundary.
+            checkpoint();
+            var found = content.IndexOf(value);
+            checkpoint();
+            return found;
+        }
+        var offset = 0;
+        var candidates = content.Length - value.Length + 1;
+        while (offset < candidates)
+        {
+            checkpoint();
+            var candidateCount = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, candidates - offset);
+            // Include the overlap so a separator may start at the last candidate.
+            // Large needles remain a framework boundary, not a new local matcher.
+            var found = content.Slice(offset, candidateCount + value.Length - 1).IndexOf(value);
+            if (found >= 0)
+                return offset + found;
+            offset += candidateCount;
+        }
+        return -1;
+    }
 }
 
 internal readonly struct AwkRecordLineResult(

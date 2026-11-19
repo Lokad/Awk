@@ -69,6 +69,41 @@ public sealed class AwkCsvHostTests
         Assert.Equal(0, budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InterruptedNormalizationLeavesEarlierOutputAndRefundsStorage(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var input = Encoding.UTF8.GetBytes("first,\"a\r\nb\"\r\nsecond,\"" + new string('x', 8192) + "\r\ny\"\r\n");
+        var host = new CsvHost(input, input.Length)
+        {
+            AfterOutput = () =>
+            {
+                if (cancel)
+                {
+                    budget.OnGrowth = growth =>
+                    {
+                        if (growth >= 8192) cancellation.Cancel();
+                    };
+                }
+                else budget.RefuseNextAdmissionMinimumGrowth = 8192;
+            }
+        };
+
+        var execution = Execute(host, ["--csv", "{print $1} END{print \"end\"}"], budget, cancellation.Token);
+        if (cancel)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+        else
+            Assert.Equal(2, (await execution).Value);
+
+        Assert.Equal("first\n", host.Output);
+        Assert.Equal(cancel ? "" : "awk: memory limit exceeded\n", host.Error);
+        Assert.Empty(host.OpenDescriptors);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Fact]
     public async Task RefusedCsvSplitDoesNotRunFollowingSideEffects()
     {
