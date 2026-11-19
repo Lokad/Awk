@@ -5,6 +5,36 @@ internal static class AwkTokenNavigation
     public static bool IsSignificant(AwkTokenKind kind) =>
         kind is not AwkTokenKind.NewLine and not AwkTokenKind.Semicolon and not AwkTokenKind.Comment;
 
+    public static IReadOnlyList<AwkToken> WithoutKind(
+        IReadOnlyList<AwkToken> tokens, AwkTokenKind excludedKind, Action? checkpoint)
+    {
+        for (var index = 0; index < tokens.Count; index++)
+        {
+            checkpoint?.Invoke();
+            if (tokens[index].Kind == excludedKind)
+                return CopyWithoutKind(tokens, excludedKind, index, checkpoint);
+        }
+        return tokens;
+    }
+
+    private static List<AwkToken> CopyWithoutKind(
+        IReadOnlyList<AwkToken> tokens, AwkTokenKind excludedKind, int firstExcluded, Action? checkpoint)
+    {
+        var filtered = new List<AwkToken>(tokens.Count - 1);
+        for (var index = 0; index < firstExcluded; index++)
+        {
+            checkpoint?.Invoke();
+            filtered.Add(tokens[index]);
+        }
+        for (var index = firstExcluded + 1; index < tokens.Count; index++)
+        {
+            checkpoint?.Invoke();
+            var token = tokens[index];
+            if (token.Kind != excludedKind) filtered.Add(token);
+        }
+        return filtered;
+    }
+
     public static int SkipNonSignificant(
         IReadOnlyList<AwkToken> tokens,
         int startIndex,

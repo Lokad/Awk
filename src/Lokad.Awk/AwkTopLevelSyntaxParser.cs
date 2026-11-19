@@ -286,8 +286,8 @@ internal sealed class AwkTopLevelSyntaxParser
         _checkpoint?.Invoke();
         var startSource = PatternTokens(start);
         var endSource = PatternTokens(end);
-        var startTokens = WithoutComments(startSource);
-        var endTokens = WithoutComments(endSource);
+        var startTokens = AwkTokenNavigation.WithoutKind(startSource, AwkTokenKind.Comment, _checkpoint);
+        var endTokens = AwkTokenNavigation.WithoutKind(endSource, AwkTokenKind.Comment, _checkpoint);
         var tokens = PatternTokens(start[0].First, end[^1].Last);
         if (!ReferenceEquals(startSource, startTokens) || !ReferenceEquals(endSource, endTokens))
         {
@@ -307,7 +307,7 @@ internal sealed class AwkTopLevelSyntaxParser
     public AwkPatternSyntax SinglePattern([AwkL(Min = 1)] PatternPart[] parts)
     {
         _checkpoint?.Invoke();
-        var tokens = WithoutComments(PatternTokens(parts));
+        var tokens = AwkTokenNavigation.WithoutKind(PatternTokens(parts), AwkTokenKind.Comment, _checkpoint);
         return new AwkSinglePatternSyntax(tokens, AwkExpressionSyntaxParser.ParseList(_source, tokens, _checkpoint));
     }
 
@@ -358,34 +358,6 @@ internal sealed class AwkTopLevelSyntaxParser
 
     private IReadOnlyList<AwkToken> PatternTokens(AwkTextSpan first, AwkTextSpan last) =>
         AwkParsingSupport.ResolveTokenGroup(_originalTokens, first, last, _checkpoint).FullTokens;
-
-    private IReadOnlyList<AwkToken> WithoutComments(IReadOnlyList<AwkToken> tokens)
-    {
-        for (var index = 0; index < tokens.Count; index++)
-        {
-            _checkpoint?.Invoke();
-            if (tokens[index].Kind == AwkTokenKind.Comment)
-                return CopyWithoutComments(tokens, index);
-        }
-        return tokens;
-    }
-
-    private List<AwkToken> CopyWithoutComments(IReadOnlyList<AwkToken> tokens, int firstComment)
-    {
-        var filtered = new List<AwkToken>(tokens.Count - 1);
-        for (var index = 0; index < firstComment; index++)
-        {
-            _checkpoint?.Invoke();
-            filtered.Add(tokens[index]);
-        }
-        for (var index = firstComment + 1; index < tokens.Count; index++)
-        {
-            _checkpoint?.Invoke();
-            var token = tokens[index];
-            if (token.Kind != AwkTokenKind.Comment) filtered.Add(token);
-        }
-        return filtered;
-    }
 
     private AwkToken[] DirectiveTokens(IReadOnlyList<DirectiveArgument> arguments)
     {

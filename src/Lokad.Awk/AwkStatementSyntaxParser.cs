@@ -796,7 +796,7 @@ internal sealed class AwkStatementSyntaxParser
         var expressions = ResolveStatementExpressions(tokens, kind, outputParts);
         return CreateStatement(
             kind,
-            CopyStatementTokens(tokens),
+            AwkTokenNavigation.WithoutKind(tokens, AwkTokenKind.NewLine, _checkpoint),
             expressions,
             [],
             [],
@@ -1133,19 +1133,6 @@ internal sealed class AwkStatementSyntaxParser
                     AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(targetTokens))));
         }
 
-        List<AwkToken> CopyStatementTokens(IReadOnlyList<AwkToken> tokens)
-        {
-            var result = new List<AwkToken>(tokens.Count);
-            for (var index = 0; index < tokens.Count; index++)
-            {
-                _checkpoint?.Invoke();
-                var token = tokens[index];
-                if (token.Kind is not AwkTokenKind.NewLine)
-                    result.Add(token);
-            }
-
-            return result;
-        }
     }
 
     private AwkStatementSyntax CreateStatement(
