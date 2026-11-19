@@ -65,6 +65,57 @@ public sealed class AwkStdinBorrowingTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BufferedMainRecordLeavesTheUnconsumedAliasSuffixWithTheHost(bool buffered)
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        var host = new AliasHost(true, true);
+        var source = (buffered ? "BEGIN{RS=\"[\\n]\"}" : "") +
+            "{print;if(NR==1){getline x<\"/dev/stdin\";print x}else exit}";
+
+        Assert.Equal(AwkExitCode.Success, await Execute(source, host, budget));
+        Assert.Equal("a\nd\nb\n", host.Output);
+        Assert.Equal("", host.Error);
+        Assert.Equal(2, host.Reads);
+        Assert.Equal([6, 2], host.CommittedPrefixes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
+    public async Task MainRefillPreservesTheAliasTailBeforeReadingAgain()
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        var host = new AliasHost(false, true, "a\n");
+        const string source = "{print;getline x<\"/dev/stdin\";print x}END{while((getline x<\"/dev/fd/0\")>0)print x}";
+
+        Assert.Equal(AwkExitCode.Success, await Execute(source, host, budget));
+        Assert.Equal("a\nd\ne\n", host.Output);
+        Assert.Equal("", host.Error);
+        Assert.Equal(3, host.Reads);
+        Assert.Equal([2, 4], host.CommittedPrefixes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
+    public async Task CancellationWhenTheOtherBorrowEndsPreventsTheNextHostRead()
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var host = new AliasHost(true, true) { AfterBorrow = cancellation.Cancel };
+
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Execute(
+            "{print \"before\";getline x<\"/dev/stdin\";print \"after\"}", host, budget, cancellation.Token));
+
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal("before\n", host.Output);
+        Assert.Equal("", host.Error);
+        Assert.Equal(1, host.Reads);
+        Assert.Equal([6], host.CommittedPrefixes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Fact]
     public async Task RefusalPrecedesTheReadThatWouldInvalidateAnUnreadTail()
     {
@@ -137,10 +188,13 @@ public sealed class AwkStdinBorrowingTests
     private sealed class AliasHost(bool reuse, bool moreData, string input = "a\nb\nc\n") : IAwkHost
     {
         private readonly byte[] _bytes = Encoding.UTF8.GetBytes(input);
+        private bool _hasBorrow;
         public int Reads { get; private set; }
+        public List<int> CommittedPrefixes { get; } = [];
         public string Output { get; private set; } = "";
         public string Error { get; private set; } = "";
         public Action? Before { get; init; }
+        public Action? AfterBorrow { get; init; }
         public Func<Task>? PendingRead { get; init; }
 
         public Task<AwkAppendResult> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
@@ -157,11 +211,11 @@ public sealed class AwkStdinBorrowingTests
         public async ValueTask<AwkReadBuffer> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
         {
             Assert.Equal(AwkFileDescriptor.StdIn, descriptor);
+            Assert.False(_hasBorrow);
             Reads++;
             if (Reads == 1)
             {
-                return AwkReadBuffer.FromContent(_bytes,
-                    moreData ? AwkReadCompletion.MoreData : AwkReadCompletion.EndOfFile, static _ => { });
+                return Borrow(_bytes, moreData ? AwkReadCompletion.MoreData : AwkReadCompletion.EndOfFile);
             }
             if (PendingRead is { } pending) await pending().ConfigureAwait(false);
             if (reuse) _bytes.AsSpan().Fill((byte)'z');
@@ -169,9 +223,20 @@ public sealed class AwkStdinBorrowingTests
             {
                 var next = reuse ? _bytes : new byte[6];
                 "d\ne\n"u8.CopyTo(next);
-                return AwkReadBuffer.FromContent(next.AsMemory(0, 4), AwkReadCompletion.EndOfFile, static _ => { });
+                return Borrow(next.AsMemory(0, 4), AwkReadCompletion.EndOfFile);
             }
             return AwkReadBuffer.EndOfFile;
+        }
+
+        private AwkReadBuffer Borrow(ReadOnlyMemory<byte> bytes, AwkReadCompletion completion)
+        {
+            _hasBorrow = true;
+            return AwkReadBuffer.FromContent(bytes, completion, consumed =>
+            {
+                _hasBorrow = false;
+                CommittedPrefixes.Add(consumed);
+                AfterBorrow?.Invoke();
+            });
         }
 
         public Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode, CancellationToken token) => Task.FromResult(AwkOpenedFile.Failure(new(AwkOperationErrorKind.NotFound, "No such file or directory")));

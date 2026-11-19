@@ -350,6 +350,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     // read-ahead into funded storage before releasing the descriptor borrow.
     public void PreserveBorrowedInput(bool releaseDescriptor = false)
     {
+        if (releaseDescriptor && !_reader.HasBorrow) return;
         if (_buffer is null)
         {
             var tail = _reader.Content;

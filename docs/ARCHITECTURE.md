@@ -243,6 +243,9 @@ diagnostic through include expansion and wins over a later close failure. Resolv
 script text can be shared while each request keeps the selected candidate's spelling.
 The main-input executor holds the action phase through the record loop and any pending
 host operation. File actions enter their own phases and restore the enclosing phase.
+The main and redirected stdin cursors preserve each other's unread tails before a host
+read on their shared descriptor. Each cursor can consume its own buffered records
+without transferring the other cursor's borrow.
 Main input and redirections share the host adapter for opening and closing files.
 An owned main-input close checks cancellation before starting and awaits
 retirement with an independent token.

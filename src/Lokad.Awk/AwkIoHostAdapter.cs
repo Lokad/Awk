@@ -123,8 +123,8 @@ internal sealed class AwkIoHostAdapter(
         _commandCancellation = null;
     }
 
-    public AwkByteReader CreateByteReader(AwkFileDescriptor descriptor) =>
-        new(host, descriptor, cancellationToken, options);
+    public AwkByteReader CreateByteReader(AwkFileDescriptor descriptor, Action? beforeHostRead = null) =>
+        new(host, descriptor, cancellationToken, options, beforeHostRead);
 
     public async Task<AwkOpenedFile> OpenFileAsync(AwkPathRequest path, AwkFileOpenMode mode)
     {

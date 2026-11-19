@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 // Owns the current descriptor borrow. Record/source storage remains in its existing owners.
 internal sealed class AwkByteReader(
     IAwkHost host, AwkFileDescriptor descriptor, CancellationToken cancellationToken,
-    AwkRuntimeOptions options) : IDisposable
+    AwkRuntimeOptions options, Action? beforeHostRead = null) : IDisposable
 {
     internal const int ReadSize = 64 << 10;
     private AwkReadBuffer? _borrow;
@@ -18,6 +18,7 @@ internal sealed class AwkByteReader(
     public ReadOnlyMemory<byte> Content => _borrow is { } borrow ? borrow.Content[_offset..] : default;
     public bool ReachedEof => _completion == AwkReadCompletion.EndOfFile;
     internal bool ContentIsAscii => _borrowIsAscii;
+    internal bool HasBorrow => _borrow is not null;
 
     internal bool TryCaptureText(ReadOnlySpan<byte> bytes,
         [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkReadBuffer? borrow, out int offset)
@@ -39,6 +40,11 @@ internal sealed class AwkByteReader(
         if (ReachedEof) return false;
         ReleaseBorrow();
         cancellationToken.ThrowIfCancellationRequested();
+        if (beforeHostRead is not null)
+        {
+            beforeHostRead();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
         options.Counters.Add(AwkCounter.HostCalls);
         var borrow = await host.ReadAsync(descriptor, ReadSize, cancellationToken).ConfigureAwait(false);
         _borrow = borrow;

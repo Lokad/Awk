@@ -60,7 +60,6 @@ internal sealed class AwkInputScheduler(
             return AwkRecordReadStatus.Pending;
         }
 
-        if (_ownedDescriptor is null) io.PreserveRedirectedStandardInput();
         var status = input.MoveNext(storage, ref pending);
         // The cursor checks host/admission completion; language publication owns
         // its post-admission, pre-effect check. This handoff adds no new boundary.
@@ -81,7 +80,6 @@ internal sealed class AwkInputScheduler(
                     return false;
                 var input = _currentInput ??
                     throw new InvalidOperationException("Main input was not initialized after a successful open.");
-                if (_ownedDescriptor is null) io.PreserveRedirectedStandardInput();
                 pending = input.MoveNextAsync(storage);
             }
             if (await pending.ConfigureAwait(false))
@@ -141,7 +139,7 @@ internal sealed class AwkInputScheduler(
                 {
                     state.BeginInputFile(argumentText, argumentIndex, actionExecutor.HasBeginFileActions);
                     if (await TryActivateInputAsync(
-                            CreateRecordCursor(invocation.Stdio.StdIn))
+                            io.CreateMainInputCursor(invocation.Stdio.StdIn))
                         .ConfigureAwait(false))
                     {
                         return true;
@@ -176,7 +174,7 @@ internal sealed class AwkInputScheduler(
                 _ownedInputDisplay = path.Display;
                 pendingDisplay.MoveTo(_inputDisplayMemory, displayBytes);
                 if (await TryActivateInputAsync(
-                        CreateRecordCursor(opened.FileDescriptor))
+                        io.CreateMainInputCursor(opened.FileDescriptor))
                     .ConfigureAwait(false))
                 {
                     return true;
@@ -192,7 +190,7 @@ internal sealed class AwkInputScheduler(
             _usedStandardInputFallback = true;
             state.BeginInputFile(StandardInputFileName, new AwkArgvIndex(0), actionExecutor.HasBeginFileActions);
             return await TryActivateInputAsync(
-                    CreateRecordCursor(invocation.Stdio.StdIn))
+                    io.CreateMainInputCursor(invocation.Stdio.StdIn))
                 .ConfigureAwait(false);
 
             AwkInputArgument? GetOriginalInputArgument(AwkArgvIndex index)
@@ -246,13 +244,6 @@ internal sealed class AwkInputScheduler(
                         AwkDiagnosticId.HostIoFailure);
             }
 
-            AwkRecordCursor CreateRecordCursor(AwkFileDescriptor descriptor)
-            {
-                var cursor = io.CreateRecordCursor(descriptor);
-                if (descriptor == invocation.Stdio.StdIn)
-                    io.PreserveStandardInputIfRedirected(cursor);
-                return cursor;
-            }
         }
     }
 

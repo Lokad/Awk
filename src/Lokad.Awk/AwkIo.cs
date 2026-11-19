@@ -140,13 +140,11 @@ internal sealed class AwkIo
 
         if (_specialPaths.TryResolveInput(path, out var specialDescriptor))
         {
-            _mainInput?.PreserveStandardInput();
             if (_standardInputReader is null)
             {
-                _standardInputReader = CreateRecordCursor(specialDescriptor);
+                _standardInputReader = CreateRecordCursor(specialDescriptor, beforeHostRead: PreserveMainStandardInput);
                 _standardInputOrder = NextRedirectionOrder();
             }
-            _standardInputReader.PreserveBorrowedInput(releaseDescriptor: true);
             return ReadGetlineRecordAsync(_standardInputReader);
         }
 
@@ -190,18 +188,15 @@ internal sealed class AwkIo
 
     public void ClearMainInputReader() => _mainInput = null;
 
-    public void PreserveStandardInputIfRedirected(AwkRecordCursor cursor)
-    {
-        if (_standardInputReader is not null) cursor.PreserveBorrowedInput(releaseDescriptor: true);
-    }
+    private void PreserveMainStandardInput() => _mainInput?.PreserveStandardInput();
 
-    public void PreserveRedirectedStandardInput() =>
+    private void PreserveRedirectedStandardInput() =>
         _standardInputReader?.PreserveBorrowedInput(releaseDescriptor: true);
 
     private void ReleaseStandardInputBorrow(AwkFileDescriptor descriptor)
     {
         if (descriptor != _stdIn) return;
-        _mainInput?.PreserveStandardInput();
+        PreserveMainStandardInput();
         PreserveRedirectedStandardInput();
     }
 
@@ -244,17 +239,20 @@ internal sealed class AwkIo
         }
     }
 
-    internal AwkRecordCursor CreateRecordCursor(AwkFileDescriptor descriptor) =>
-        CreateRecordCursor(descriptor, AwkParagraphLeaderPolicy.Discard);
+    internal AwkRecordCursor CreateMainInputCursor(AwkFileDescriptor descriptor) =>
+        CreateRecordCursor(descriptor,
+            beforeHostRead: descriptor == _stdIn ? PreserveRedirectedStandardInput : null);
 
     private AwkRecordCursor CreatePipeRecordCursor(AwkFileDescriptor descriptor) =>
         CreateRecordCursor(descriptor, AwkParagraphLeaderPolicy.Retain);
 
     private AwkRecordCursor CreateRecordCursor(
-        AwkFileDescriptor descriptor, AwkParagraphLeaderPolicy paragraphLeaderPolicy) =>
+        AwkFileDescriptor descriptor,
+        AwkParagraphLeaderPolicy paragraphLeaderPolicy = AwkParagraphLeaderPolicy.Discard,
+        Action? beforeHostRead = null) =>
         new(
             _state,
-            _host.CreateByteReader(descriptor),
+            _host.CreateByteReader(descriptor, beforeHostRead),
             paragraphLeaderPolicy);
 
     private void ThrowIfFileRedirectionDisabled()
