@@ -273,7 +273,7 @@ public sealed class AwkSyntaxParserTests
     }
 
     [Fact]
-    public void AwkSyntaxParser_ClassifiesSpecialFormStatementOutlines()
+    public void AwkSyntaxParser_ParsesStandaloneBuiltinCallsAsExpressions()
     {
         var program = AwkSyntaxParser.Parse("BEGIN{" +
             "getline x < \"in\";" +
@@ -289,20 +289,13 @@ public sealed class AwkSyntaxParserTests
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
-        Assert.Equal(
-            [
-                AwkStatementKind.Getline,
-                AwkStatementKind.Close,
-                AwkStatementKind.Fflush,
-                AwkStatementKind.Sub,
-                AwkStatementKind.Gsub,
-                AwkStatementKind.Split,
-                AwkStatementKind.Patsplit,
-                AwkStatementKind.Asort,
-                AwkStatementKind.Asorti
-            ],
-            statements.Select(statement => statement.Kind).ToArray());
-        Assert.All(statements, statement => Assert.NotEmpty(statement.Expressions));
+        Assert.Equal(9, statements.Count);
+        Assert.Equal(AwkStatementKind.Getline, statements[0].Kind);
+        Assert.All(statements.Skip(1), statement =>
+        {
+            Assert.Equal(AwkStatementKind.Expression, statement.Kind);
+            Assert.Equal(AwkExpressionKind.FunctionCall, Assert.Single(statement.Expressions).Kind);
+        });
     }
 
     [Theory]

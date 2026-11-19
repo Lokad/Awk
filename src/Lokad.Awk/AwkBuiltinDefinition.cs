@@ -80,7 +80,6 @@ internal sealed class AwkBuiltinDefinition(
     AwkArity arity,
     AwkCallableKind kind,
     AwkBuiltinCompatibility compatibility,
-    AwkStatementKind statementKind,
     AwkBuiltinLoweringKind loweringKind,
     IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
     AwkBuiltinImplementation implementation)
@@ -95,7 +94,6 @@ internal sealed class AwkBuiltinDefinition(
 
     public AwkBuiltinCompatibility Compatibility { get; } = compatibility;
 
-    public AwkStatementKind StatementKind { get; } = statementKind;
 
     public AwkBuiltinLoweringKind LoweringKind { get; } = loweringKind;
 

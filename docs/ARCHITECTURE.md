@@ -39,6 +39,8 @@ Pattern expressions filter comments while retaining continuation newlines.
 The statement grammar uses the same ranges for balanced headers, expression
 groups, braced bodies, switch blocks and simple statements. Expression and
 redirection consumers still interpret separators.
+Builtin calls use expression preparation in every position. A direct
+one-argument `close` statement flushes before evaluating its argument.
 Indexed subranges address the same token owner, including when sliced again.
 Validation reads collected symbols in source order. Collection, validation and
 lowering use the same invocation-local function layouts and parameter slots.

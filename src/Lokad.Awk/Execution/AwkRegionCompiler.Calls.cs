@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 
 internal sealed partial class AwkRegionCompiler
 {
-    private PreparationWork<int> CreateCallWork(AwkExpressionSyntax syntax)
+    private PreparationWork<int> CreateCallWork(AwkExpressionSyntax syntax, bool standalone = false)
     {
         if (AwkExpressionSyntaxFacts.TryGetCallableTarget(syntax, out var target) &&
             !_scope.TryGetFunctionLocalSlot(new(target.Identifier), out _))
@@ -28,7 +28,12 @@ internal sealed partial class AwkRegionCompiler
                     return new StringCallWork(syntax, builtin);
                 if (builtin.TryGetScalarComputation(out var computation))
                     return new ScalarBuiltinWork(syntax, builtin, computation);
-                if (builtin.TryGetHostComputation(out var host)) return new HostBuiltinWork(syntax, builtin, host, false);
+                if (builtin.TryGetHostComputation(out var host))
+                {
+                    // A direct one-argument close statement flushes before evaluating its path.
+                    var flushBeforeArguments = standalone && builtin.Id == AwkBuiltinId.Close && syntax.Children.Count == 2;
+                    return new HostBuiltinWork(syntax, builtin, host, flushBeforeArguments);
+                }
             }
             else if (_scope.Functions is { } functions && functions.TryGetValue(new(target.Identifier), out var function))
                 return new UserCallWork(syntax, function);

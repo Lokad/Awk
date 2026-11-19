@@ -36,28 +36,6 @@ internal static class AwkBuiltinCallShape
         return true;
     }
 
-    public static bool TryCreateStatementCall(
-        AwkStatementSyntax statement,
-        AwkBuiltinId id,
-        out AwkBuiltinCallSyntax call)
-    {
-        call = default;
-        if (statement.Expressions.Count != 1 ||
-            !AwkBuiltins.TryGetStatementDefinition(statement.Kind, out var definition) ||
-            definition.Id != id)
-        {
-            return false;
-        }
-
-        var expression = statement.Expressions[0];
-        if (!AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) ||
-            !string.Equals(target.Name, definition.Name, StringComparison.Ordinal) ||
-            !definition.Arity.Accepts(expression.Children.Count - 1))
-            return false;
-        call = new AwkBuiltinCallSyntax(definition, expression, target);
-        return true;
-    }
-
     public static bool TryGetDiagnostic(
         AwkBuiltinCallSyntax call,
         AwkLoweringScope scope,

@@ -16,25 +16,6 @@ internal static class AwkStatementKindFacts
         kind is AwkStatementKind.Return or AwkStatementKind.Exit;
 }
 
-internal static class AwkStatementSyntaxFacts
-{
-    public static bool TryResolveIdentifier(string name, out AwkStatementKind kind)
-    {
-        if (AwkBuiltins.TryGetStatementKind(name, out kind))
-            return true;
-
-        kind = AwkStatementKind.Expression;
-        return false;
-    }
-
-    public static bool HasWholeStatementExpression(AwkStatementKind kind) =>
-        AwkBuiltins.TryGetStatementDefinition(kind, out _);
-
-    public static bool RequiresCallBoundary(AwkStatementKind kind) =>
-        AwkBuiltins.TryGetStatementDefinition(kind, out var definition) &&
-        definition.Kind != AwkCallableKind.SpecialSyntax;
-}
-
 internal static class AwkStatementNames
 {
     public static bool TryGetKeyword(AwkStatementKind kind, out string keyword)
@@ -53,16 +34,8 @@ internal static class AwkStatementNames
             AwkStatementKind.Switch => "switch",
             AwkStatementKind.Delete => "delete",
             AwkStatementKind.Getline => AwkBuiltins.Name(AwkBuiltinId.Getline),
-            AwkStatementKind.Close => AwkBuiltins.Name(AwkBuiltinId.Close),
-            AwkStatementKind.Fflush => AwkBuiltins.Name(AwkBuiltinId.Fflush),
             AwkStatementKind.Print => "print",
             AwkStatementKind.Printf => "printf",
-            AwkStatementKind.Sub => AwkBuiltins.Name(AwkBuiltinId.Sub),
-            AwkStatementKind.Gsub => AwkBuiltins.Name(AwkBuiltinId.Gsub),
-            AwkStatementKind.Split => AwkBuiltins.Name(AwkBuiltinId.Split),
-            AwkStatementKind.Patsplit => AwkBuiltins.Name(AwkBuiltinId.Patsplit),
-            AwkStatementKind.Asort => AwkBuiltins.Name(AwkBuiltinId.Asort),
-            AwkStatementKind.Asorti => AwkBuiltins.Name(AwkBuiltinId.Asorti),
             _ => string.Empty
         };
         return keyword.Length > 0;
@@ -126,13 +99,4 @@ internal static class AwkStatementValidationFacts
 
     public static bool IsSwitchBodyKind(AwkStatementKind kind) =>
         kind == AwkStatementKind.Switch;
-}
-
-internal static class AwkStatementLoweringFacts
-{
-    public static bool IsExpressionBackedStatement(AwkStatementKind kind) =>
-        kind == AwkStatementKind.Expression ||
-        AwkBuiltins.TryGetStatementDefinition(kind, out var definition) &&
-        definition.Kind == AwkCallableKind.SpecialForm;
-
 }

@@ -35,14 +35,6 @@ internal enum AwkStatementKind
     NextFile,
     Delete,
     Getline,
-    Close,
-    Fflush,
-    Sub,
-    Gsub,
-    Split,
-    Patsplit,
-    Asort,
-    Asorti,
     Exit,
     Return
 }

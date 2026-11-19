@@ -95,45 +95,4 @@ public sealed class AwkBuiltinsTests
         Assert.DoesNotContain("getline", AwkBuiltins.Names);
         Assert.False(AwkBuiltins.TryGetCallable("getline", out _));
     }
-
-    [Fact]
-    public void AwkBuiltins_StatementMetadataDrivesSyntaxShapeFacts()
-    {
-        Assert.True(AwkBuiltins.TryGetStatementDefinition(AwkStatementKind.Sub, out var sub));
-        Assert.Equal(AwkCallableKind.SpecialForm, sub.Kind);
-        Assert.True(AwkStatementSyntaxFacts.HasWholeStatementExpression(AwkStatementKind.Sub));
-        Assert.True(AwkStatementSyntaxFacts.RequiresCallBoundary(AwkStatementKind.Sub));
-        Assert.True(AwkStatementLoweringFacts.IsExpressionBackedStatement(AwkStatementKind.Sub));
-
-        Assert.True(AwkBuiltins.TryGetStatementDefinition(AwkStatementKind.Close, out var close));
-        Assert.Equal(AwkCallableKind.Function, close.Kind);
-        Assert.True(AwkStatementSyntaxFacts.HasWholeStatementExpression(AwkStatementKind.Close));
-        Assert.True(AwkStatementSyntaxFacts.RequiresCallBoundary(AwkStatementKind.Close));
-        Assert.False(AwkStatementLoweringFacts.IsExpressionBackedStatement(AwkStatementKind.Close));
-
-        Assert.True(AwkBuiltins.TryGetStatementDefinition(AwkStatementKind.Getline, out var getline));
-        Assert.Equal(AwkCallableKind.SpecialSyntax, getline.Kind);
-        Assert.True(AwkStatementSyntaxFacts.HasWholeStatementExpression(AwkStatementKind.Getline));
-        Assert.False(AwkStatementSyntaxFacts.RequiresCallBoundary(AwkStatementKind.Getline));
-        Assert.False(AwkStatementLoweringFacts.IsExpressionBackedStatement(AwkStatementKind.Getline));
-
-        Assert.False(AwkBuiltins.TryGetStatementDefinition(AwkStatementKind.Expression, out _));
-        Assert.True(AwkStatementLoweringFacts.IsExpressionBackedStatement(AwkStatementKind.Expression));
-    }
-
-    [Fact]
-    public void AwkBuiltinCallShape_ClassifiesWholeStatementCallsFromMetadata()
-    {
-        var syntax = AwkSyntaxParser.Parse("BEGIN{close(\"x\"); fflush()}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
-        var statements = syntax.Rules.Single().ActionStatements;
-
-        Assert.True(AwkBuiltinCallShape.TryCreateStatementCall(statements[0], AwkBuiltinId.Close, out var close));
-        Assert.Equal(AwkBuiltinId.Close, close.Definition.Id);
-        Assert.Equal(1, close.ArgumentCount);
-        Assert.False(AwkBuiltinCallShape.TryCreateStatementCall(statements[0], AwkBuiltinId.Fflush, out _));
-
-        Assert.True(AwkBuiltinCallShape.TryCreateStatementCall(statements[1], AwkBuiltinId.Fflush, out var fflush));
-        Assert.Equal(AwkBuiltinId.Fflush, fflush.Definition.Id);
-        Assert.Equal(0, fflush.ArgumentCount);
-    }
 }

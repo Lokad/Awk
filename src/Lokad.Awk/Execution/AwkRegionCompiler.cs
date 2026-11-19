@@ -265,7 +265,10 @@ internal sealed partial class AwkRegionCompiler
                 if (!statement.Expression.TryGetValue(out var expression)) return false;
                 if (!CopyField(expression))
                 {
-                    if (!Expression(expression, out var value)) return false;
+                    var work = expression.Kind == AwkExpressionKind.FunctionCall
+                        ? CreateCallWork(expression, standalone: true)
+                        : CreateOperandWork(expression);
+                    if (!PrepareOperandWork(work, out var value)) return false;
                     Discard(value);
                 }
                 break;
@@ -362,25 +365,6 @@ internal sealed partial class AwkRegionCompiler
                     !AwkGetlineSyntaxFacts.TryResolveStatementParts(getline, out var parts) ||
                     !Getline(parts, isExpression: false, out _)) return false;
                 break;
-            case AwkStatementKind.Close:
-            case AwkStatementKind.Fflush:
-                var builtinId = statement.Kind == AwkStatementKind.Close ? AwkBuiltinId.Close : AwkBuiltinId.Fflush;
-                if (!AwkStatementLoweringShapes.TryGetWholeStatementCall(statement, builtinId, out var hostCall) ||
-                    !hostCall.Definition.TryGetHostComputation(out var hostImplementation) ||
-                    !HostBuiltin(hostCall.Expression, hostCall.Definition, hostImplementation, out var hostResult,
-                        flushBeforeArguments: builtinId == AwkBuiltinId.Close && hostCall.ArgumentCount == 1)) return false;
-                Discard(hostResult);
-                break;
-            case AwkStatementKind.Split:
-            case AwkStatementKind.Patsplit:
-            case AwkStatementKind.Asort:
-            case AwkStatementKind.Asorti:
-            case AwkStatementKind.Sub:
-            case AwkStatementKind.Gsub:
-                if (!AwkStatementLoweringShapes.SingleExpression(statement).TryGetValue(out var splitCall) ||
-                    !Expression(splitCall, out var splitResult)) return false;
-                Discard(splitResult);
-                break;
             default: return false;
         }
         return true;
@@ -443,13 +427,6 @@ internal sealed partial class AwkRegionCompiler
 
     private bool Getline(AwkGetlineParts parts, bool isExpression, out int result) =>
         PrepareOperandWork(new GetlineWork(parts, isExpression), out result);
-
-    private bool HostBuiltin(AwkExpressionSyntax syntax, AwkBuiltinDefinition definition,
-        AwkBuiltinImplementation.AsyncBuiltinImplementation implementation, out int result,
-        bool flushBeforeArguments = false)
-    {
-        return PrepareOperandWork(new HostBuiltinWork(syntax, definition, implementation, flushBeforeArguments), out result);
-    }
 
     private void CaptureStringArguments(Span<int> arguments, int count, AwkBuiltinDefinition definition)
     {

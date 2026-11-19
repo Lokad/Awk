@@ -24,8 +24,7 @@ internal static class AwkPreparationDiagnostics
                 AwkDiagnosticId.BindInvalidProgram);
         }
 
-        if ((AwkStatementLoweringFacts.IsExpressionBackedStatement(syntax.Kind) ||
-                syntax.Kind is AwkStatementKind.Close or AwkStatementKind.Fflush) &&
+        if (syntax.Kind == AwkStatementKind.Expression &&
             AwkStatementLoweringShapes.SingleExpression(syntax).TryGetValue(out var expression))
         {
             return ForExpression(expression, checkpoint);

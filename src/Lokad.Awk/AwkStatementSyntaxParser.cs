@@ -605,11 +605,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] SimpleTail[] tails)
     {
         _checkpoint?.Invoke();
-        var identifierToken = ToToken(AwkTokenKind.Identifier, identifier);
-        var kind = AwkStatementSyntaxFacts.TryResolveIdentifier(identifierToken.Text, out var resolvedKind)
-            ? resolvedKind
-            : AwkStatementKind.Expression;
-        return CreateSimpleStatement(kind, identifierToken, tails);
+        return CreateSimpleStatement(AwkStatementKind.Expression, ToToken(AwkTokenKind.Identifier, identifier), tails);
     }
 
     [Rule]
@@ -778,17 +774,13 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<SimpleTail> tails)
     {
         var tokens = tails.Count == 0 ? firstTokens : GroupTokens(firstTokens[0].Span, tails[^1].End).FullTokens;
-        var wholeExpression = kind == AwkStatementKind.Expression || AwkStatementSyntaxFacts.HasWholeStatementExpression(kind)
+        var wholeExpression = kind is AwkStatementKind.Expression or AwkStatementKind.Getline
             ? ParseExpression(tokens) : null;
         if (kind == AwkStatementKind.Getline && wholeExpression is { Kind: not AwkExpressionKind.Unknown } &&
             (!AwkExpressionSyntaxFacts.TryGetCallableTarget(wholeExpression, out var getlineCall) ||
                 getlineCall.Name != AwkBuiltins.Name(AwkBuiltinId.Getline) ||
                 !AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(wholeExpression, out var getlineParts) ||
                 getlineParts.SourceKind == AwkGetlineSourceKind.InputPipe))
-            kind = AwkStatementKind.Expression;
-        if (AwkStatementSyntaxFacts.RequiresCallBoundary(kind) &&
-            wholeExpression is { Kind: not AwkExpressionKind.Unknown } &&
-            !AwkExpressionSyntaxFacts.TryGetCallableTarget(wholeExpression, out _))
             kind = AwkStatementKind.Expression;
         var outputParts = ResolveOutputStatementParts(tokens, kind);
         var getline = ResolveGetlineSyntax(tokens, kind);
@@ -815,7 +807,7 @@ internal sealed class AwkStatementSyntaxParser
             AwkStatementKind kind,
             OutputStatementParts outputParts)
         {
-            if (kind == AwkStatementKind.Expression || AwkStatementSyntaxFacts.HasWholeStatementExpression(kind))
+            if (kind is AwkStatementKind.Expression or AwkStatementKind.Getline)
                 return ExpressionListFromParsed(wholeExpression);
 
             if (kind is AwkStatementKind.Print or AwkStatementKind.Printf)
@@ -876,13 +868,6 @@ internal sealed class AwkStatementSyntaxParser
                             ? new BoundaryDiagnostic(getlineTrailing, "Unexpected token after getline target.")
                             : null;
 
-                if (AwkStatementSyntaxFacts.RequiresCallBoundary(kind) &&
-                    FirstExpression(expressions).TryGetValue(out var callExpression) &&
-                    FindUnexpectedCallTrailingToken(callExpression, tokens[0].Text) is { } callTrailing)
-                {
-                    return new BoundaryDiagnostic(callTrailing, "Unexpected token after " + tokens[0].Text + " statement.");
-                }
-
                 return null;
 
                 AwkSyntaxOptional<AwkExpressionSyntax> FirstExpression(IReadOnlyList<AwkExpressionSyntax> expressions) =>
@@ -922,24 +907,6 @@ internal sealed class AwkStatementSyntaxParser
                             AwkExpressionKind.Group;
                 }
 
-                AwkToken? FindUnexpectedCallTrailingToken(AwkExpressionSyntax expression, string name)
-                {
-                    if (IsCallExpression(expression, name))
-                        return null;
-
-                    if (expression.Kind == AwkExpressionKind.Concatenation &&
-                        expression.Children.Count > 1 &&
-                        IsCallExpression(expression.Children[0], name))
-                    {
-                        return FirstToken(expression.Children[1]);
-                    }
-
-                    return null;
-
-                    bool IsCallExpression(AwkExpressionSyntax expression, string name) =>
-                        AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
-                        string.Equals(target.Name, name, StringComparison.Ordinal);
-                }
             }
         }
 

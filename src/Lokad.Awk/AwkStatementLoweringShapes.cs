@@ -55,10 +55,4 @@ internal static class AwkStatementLoweringShapes
 
         return payload.Getline;
     }
-
-    public static bool TryGetWholeStatementCall(
-        AwkStatementSyntax syntax,
-        AwkBuiltinId id,
-        out AwkBuiltinCallSyntax call) =>
-        AwkBuiltinCallShape.TryCreateStatementCall(syntax, id, out call);
 }
