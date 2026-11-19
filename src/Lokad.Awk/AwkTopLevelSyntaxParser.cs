@@ -308,12 +308,7 @@ internal sealed class AwkTopLevelSyntaxParser
     {
         _checkpoint?.Invoke();
         var tokens = WithoutComments(PatternTokens(parts));
-        return new AwkSinglePatternSyntax(
-            tokens,
-            ParseExpression(tokens) ?? ParseExpressionList(tokens));
-
-        AwkExpressionSyntax? ParseExpressionList(IReadOnlyList<AwkToken> tokens) =>
-            AwkExpressionSyntaxParser.ParseList(_source, tokens, _checkpoint);
+        return new AwkSinglePatternSyntax(tokens, AwkExpressionSyntaxParser.ParseList(_source, tokens, _checkpoint));
     }
 
     [Rule]

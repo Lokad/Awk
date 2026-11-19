@@ -17,12 +17,12 @@ internal sealed class AwkExpressionSyntaxParser
     }
 
     public static AwkExpressionSyntax? Parse(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
-        SingleExpressionOrNull(ParseCore(source, tokens, checkpoint));
+        (ParseCore(source, tokens, checkpoint) as RootParseResult.Expression)?.Syntax;
 
     public static AwkExpressionSyntax? ParseList(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
-        ParsedExpressionOrNull(ParseCore(source, tokens, checkpoint));
+        ParseCore(source, tokens, checkpoint)?.Syntax;
 
-    private static AwkExpressionParseResult ParseCore(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint)
+    private static RootParseResult? ParseCore(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint)
     {
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
@@ -35,7 +35,7 @@ internal sealed class AwkExpressionSyntaxParser
                 var token = tokens[index];
                 if (token.Span.Start == separatorDiagnostic.Span.Start &&
                     token.Span.Length == separatorDiagnostic.Span.Length)
-                    return AwkExpressionParseResult.Single(parser.CreateTokenNode(AwkExpressionKind.Unknown, token));
+                    return new RootParseResult.Expression(parser.CreateTokenNode(AwkExpressionKind.Unknown, token));
             }
             throw new InvalidOperationException("A separator diagnostic must reference a lexical token.");
         }
@@ -105,7 +105,7 @@ internal sealed class AwkExpressionSyntaxParser
         }
 
         if (!TryCreateLexerResult(source, tokens, out var lexerResult, checkpoint))
-            return AwkExpressionParseResult.EmptyResult;
+            return null;
 
         parser.Tokens = lexerResult;
         try
@@ -113,18 +113,11 @@ internal sealed class AwkExpressionSyntaxParser
             checkpoint?.Invoke();
             var parsed = StreamParser(parser, parser.Tokens);
             checkpoint?.Invoke();
-            return parsed switch
-            {
-                RootParseResult.Expression expression =>
-                    AwkExpressionParseResult.Single(expression.Syntax),
-                RootParseResult.ExpressionList expressionList =>
-                    AwkExpressionParseResult.List(expressionList.Syntax),
-                _ => AwkExpressionParseResult.InvalidResult
-            };
+            return parsed;
         }
         catch (ParseException)
         {
-            return AwkExpressionParseResult.InvalidResult;
+            return null;
         }
     }
 
@@ -287,19 +280,6 @@ internal sealed class AwkExpressionSyntaxParser
             return position;
         }
     }
-
-    private static AwkExpressionSyntax? SingleExpressionOrNull(AwkExpressionParseResult result) =>
-        result is AwkExpressionParseResult.Expression expression
-            ? expression.Syntax
-            : null;
-
-    private static AwkExpressionSyntax? ParsedExpressionOrNull(AwkExpressionParseResult result) =>
-        result switch
-        {
-            AwkExpressionParseResult.Expression expression => expression.Syntax,
-            AwkExpressionParseResult.ExpressionList expressionList => expressionList.Syntax,
-            _ => null
-        };
 
     [Rule]
     public RootParseResult ExpressionRoot(
@@ -1159,46 +1139,13 @@ internal sealed class AwkExpressionSyntaxParser
     private AwkToken ToToken(AwkTokenKind kind, Pos<string> token) =>
         AwkParsingSupport.ToToken(kind, token, _checkpoint);
 
-    private abstract class AwkExpressionParseResult
+    internal abstract class RootParseResult(AwkExpressionSyntax syntax)
     {
-        public static Empty EmptyResult { get; } = new();
+        public AwkExpressionSyntax Syntax { get; } = syntax;
 
-        public static Invalid InvalidResult { get; } = new();
+        internal sealed class Expression(AwkExpressionSyntax syntax) : RootParseResult(syntax);
 
-        public static Expression Single(AwkExpressionSyntax expression) => new(expression);
-
-        public static ExpressionList List(AwkExpressionSyntax expression) => new(expression);
-
-        public sealed class Empty : AwkExpressionParseResult;
-
-        public sealed class Invalid : AwkExpressionParseResult;
-
-        public sealed class Expression(AwkExpressionSyntax syntax) : AwkExpressionParseResult
-        {
-            public AwkExpressionSyntax Syntax { get; } = syntax;
-        }
-
-        public sealed class ExpressionList(AwkExpressionSyntax syntax) : AwkExpressionParseResult
-        {
-            public AwkExpressionSyntax Syntax { get; } = syntax;
-        }
-    }
-
-    internal abstract class RootParseResult
-    {
-        private RootParseResult()
-        {
-        }
-
-        internal sealed class Expression(AwkExpressionSyntax syntax) : RootParseResult
-        {
-            public AwkExpressionSyntax Syntax { get; } = syntax;
-        }
-
-        internal sealed class ExpressionList(AwkExpressionSyntax syntax) : RootParseResult
-        {
-            public AwkExpressionSyntax Syntax { get; } = syntax;
-        }
+        internal sealed class ExpressionList(AwkExpressionSyntax syntax) : RootParseResult(syntax);
     }
 
     internal sealed class ExpressionListSyntax(AwkExpressionSyntax expression)
