@@ -95,10 +95,10 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
     // these bounded copies cannot allocate or call admission/cancellation callbacks.
     internal void PreserveBorrowedRecords(AwkByteReader reader)
     {
-        Preserve(ref _first, 0);
-        Preserve(ref _second, 1);
+        Preserve(ref _first);
+        Preserve(ref _second);
 
-        void Preserve(ref RecordBuffer slot, int index)
+        void Preserve(ref RecordBuffer slot)
         {
             if (!ReferenceEquals(slot.Borrower, reader)) return;
             var buffer = slot.Buffer ?? throw new InvalidOperationException("A borrowed record needs funded storage.");
@@ -106,7 +106,6 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
             buffer.Clear();
             buffer.Append(bytes.Span);
             slot.SetOwned();
-            state.RecordFields.RebindBufferedRecord(this, index, buffer.AsMemory());
             state.Counters.Add(AwkCounter.InputRecordBytesCopied, bytes.Length);
         }
     }

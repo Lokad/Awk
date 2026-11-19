@@ -17,27 +17,22 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
 
     private AwkRecordStorage? _inputStorage;
     private AwkRecordStorage? _bufferedStorage;
-    private ReadOnlyMemory<byte> _bufferedRecord;
     private int _bufferedSlot;
     private bool HasBufferedRecord => _bufferedStorage is not null;
 
     internal AwkRecordStorage InputRecordStorage =>
         _inputStorage ??= new(state);
 
-    private ReadOnlyMemory<byte> BufferedRecord => _bufferedRecord;
-    private int RecordByteLength => HasBufferedRecord ? BufferedRecord.Length : _recordText.ByteLength;
+    private int RecordByteLength => _bufferedStorage is { } storage
+        ? storage.LengthAt(_bufferedSlot) : _recordText.ByteLength;
     private ReadOnlySpan<byte> RecordBytes()
     {
-        // Borrowed-byte inspection is bounded and has no callback or effect.
-        // Owners and long consumers poll; owned text keeps its materialization check.
-        return HasBufferedRecord ? BufferedRecord.Span : _recordText.AsSpan(state.CancellationCheckpoint);
+        // A custom accessor can promote its borrow while the span is obtained.
+        return _bufferedStorage is { } storage
+            ? storage.BytesAt(_bufferedSlot) : _recordText.AsSpan(state.CancellationCheckpoint);
     }
 
-    private void ClearBufferedRecord()
-    {
-        _bufferedStorage = null;
-        _bufferedRecord = default;
-    }
+    private void ClearBufferedRecord() => _bufferedStorage = null;
 
     private AwkText OwnedRecordText()
     {
@@ -51,7 +46,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     private AwkText MaterializeBufferedRecordText()
     {
         var retained = AdjustEstimate(_retainedMemoryBytes, 0,
-            AwkRuntimeMemory.EstimateTextBytes(BufferedRecord.Length));
+            AwkRuntimeMemory.EstimateTextBytes(RecordByteLength));
         using var admission = state.MemoryAccounting.AdmitMutation(Math.Max(0, retained - _retainedMemoryBytes));
         var text = state.CopyText(CaptureCopySource());
         state.CancellationCheckpoint?.Invoke();
@@ -81,15 +76,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         _recordText = AwkText.Empty;
         _bufferedStorage = storage;
         _bufferedSlot = slot;
-        _bufferedRecord = storage.ContentAt(slot);
         FinishRecordPublication();
-    }
-
-    // Only the owning storage can change this view before retiring a host borrow.
-    internal void RebindBufferedRecord(AwkRecordStorage storage, int slot, ReadOnlyMemory<byte> bytes)
-    {
-        if (ReferenceEquals(_bufferedStorage, storage) && _bufferedSlot == slot)
-            _bufferedRecord = bytes;
     }
 
     private AwkText _recordText = AwkText.Empty;
@@ -308,7 +295,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         {
             EnsureRecordText();
             if (_bufferedStorage is not { } current) return false;
-            input = AwkTextInput.FromRecord(current, _bufferedSlot, 0, BufferedRecord.Length, 0);
+            input = AwkTextInput.FromRecord(current, _bufferedSlot, 0, current.LengthAt(_bufferedSlot), 0);
             return true;
         }
         if (!_recordTextIsCurrent) return false;
@@ -349,7 +336,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         if (index.IsCurrentRecord)
         {
             if (!_recordTextIsCurrent || _recordValueIsCurrent && _recordValue.IsNumberValue) return false;
-            length = BufferedRecord.Length;
+            length = RecordByteLength;
         }
         else
         {
@@ -642,7 +629,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             EnsureRecordText();
             if (_bufferedStorage is not { } record) return false;
             var slot = _bufferedSlot;
-            operand = new(record, slot, 0, BufferedRecord.Length);
+            operand = new(record, slot, 0, record.LengthAt(slot));
             record.ObserveMemoryAt(slot);
             return true;
         }

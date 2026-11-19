@@ -611,6 +611,48 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Fact]
+    public async Task FieldClassificationReadsThePromotedSpelling()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(
+            AwkRuntimeCounters.Disabled);
+        var state = memory.State;
+        var source = "0007 tail"u8.ToArray();
+        using var manager = new TestMemoryManager(source);
+        ReadOnlyMemory<byte> bytes = manager.Memory;
+        Assert.True(memory.Budget.TryReserve(bytes.Length, out var funding));
+        var retired = false;
+        var host = new MockFileSystem
+        {
+            ReadAsyncOverride = (_, _, _) => ValueTask.FromResult(AwkReadBuffer.FromContent(bytes,
+                AwkReadCompletion.EndOfFile, _ =>
+                {
+                    source.AsSpan().Fill(0xFF);
+                    funding.Dispose();
+                    retired = true;
+                }))
+        };
+        using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        Assert.True(await reader.TryBufferAsync());
+        var records = state.InputRecordStorage;
+        records.StageBorrowed(reader, reader.Content);
+        reader.Advance(reader.Content.Length);
+        state.PublishInputRecord(AwkInputRecordResult.Buffered(records, AwkRecordTerminator.Empty), readsMainInput: true);
+        Assert.Equal(2, state.FieldCount);
+
+        manager.OnGetSpan = () =>
+        {
+            manager.OnGetSpan = null;
+            reader.ReleaseBorrow();
+        };
+        var field = state.RecordFields.GetFieldComparison(new(1), state.NumberParsingMode);
+        Assert.True(retired);
+        Assert.True(AwkComparisonOperations.Evaluate(field, new(AwkValue.FromNumber(7)),
+            AwkComparison.Equal, state));
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
+    }
+
+    [Fact]
     public async Task EscapingSubstringCopiesPromotedBytes()
     {
         using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
