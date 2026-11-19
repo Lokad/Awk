@@ -357,13 +357,20 @@ public sealed class AwkRecordInputMemoryTests
     [InlineData("concat", false)]
     [InlineData("substring", false)]
     [InlineData("substring-list", true)]
-    public async Task PrintSourcesSurviveBorrowPromotionDuringOutputGrowth(string form, bool redirected)
+    [InlineData("upper", false)]
+    [InlineData("lower", false)]
+    public async Task TextSourcesSurviveBorrowPromotionDuringGrowth(string form, bool redirected)
     {
         var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
         using (memory)
         {
             var state = memory.State;
-            var payload = new string('x', 1500);
+            var payload = form switch
+            {
+                "upper" => "SKU-" + new string('x', 1500),
+                "lower" => "sku-" + new string('X', 1500),
+                _ => new string('x', 1500),
+            };
             var record = "0007 café " + payload + " 😀";
             var input = new InputHost(memory.Budget, record + "\n") { PoisonConsumedBytes = true };
             using var reader = new AwkByteReader(input, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
@@ -388,6 +395,8 @@ public sealed class AwkRecordInputMemoryTests
                 "concat" => ("print $2 $3", "café" + payload + "\n"),
                 "substring" => ("print substr($2,2,3)", "afé" + terminator),
                 "substring-list" => ("print 7,substr($2,2,3)", "7 afé" + terminator),
+                "upper" => ("saved=toupper($3);print saved", "SKU-" + new string('X', 1500) + "\n"),
+                "lower" => ("saved=tolower($3);print saved", "sku-" + new string('x', 1500) + "\n"),
                 _ => throw new ArgumentOutOfRangeException(nameof(form)),
             };
             var target = redirected ? " > \"/out\"" : "";
