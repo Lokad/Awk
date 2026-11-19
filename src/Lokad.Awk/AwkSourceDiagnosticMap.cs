@@ -69,7 +69,7 @@ internal static class AwkSourceDiagnosticMap
                 new AwkColumnNumber(column));
         }
 
-        if (diagnostics.Count == 0)
+        if (diagnostics.Count == 0 || source.OmitInlineLocation)
             return diagnostics;
 
         SourceLineIndex? lineIndex = null;
@@ -79,10 +79,7 @@ internal static class AwkSourceDiagnosticMap
             checkpoint?.Invoke();
             var diagnostic = diagnostics[index];
             if (diagnostic.SourceLocation.HasValue ||
-                !TryFindSegment(source.Segments, diagnostic.Span.Start, out var segment) ||
-                (segment.Kind == AwkSourceSegmentKind.Inline &&
-                    source.Segments.Count == 1 &&
-                    source.SourceName == new AwkSourceName("<inline:1>")))
+                !TryFindSegment(source.Segments, diagnostic.Span.Start, out var segment))
             {
                 continue;
             }

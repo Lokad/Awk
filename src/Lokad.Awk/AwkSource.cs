@@ -8,14 +8,14 @@ internal readonly struct AwkSourceUnit
     private readonly string? _text;
     private readonly IReadOnlyList<AwkSourceSegment>? _segments;
 
-    public AwkSourceUnit(AwkSourceName name, string text, IReadOnlyList<AwkSourceSegment> segments)
+    public AwkSourceUnit(string text, IReadOnlyList<AwkSourceSegment> segments, bool omitInlineLocation = false)
     {
-        SourceName = name;
         _text = text;
         _segments = segments;
+        OmitInlineLocation = omitInlineLocation;
     }
 
-    public AwkSourceName SourceName { get; }
+    public bool OmitInlineLocation { get; }
 
     public string Text => _text ?? string.Empty;
 
@@ -135,7 +135,7 @@ internal abstract record AwkSourceLoadResult
             AwkFrontendMemory memory)
         {
             if (sources.Count == 0)
-                return new AwkSourceUnit(new AwkSourceName("<program>"), string.Empty, []);
+                return default;
 
             if (sources.Count == 1)
                 return sources[0];
@@ -181,7 +181,7 @@ internal abstract record AwkSourceLoadResult
             checkpoint?.Invoke();
             var joined = text.ToString();
             checkpoint?.Invoke();
-            return new AwkSourceUnit(new AwkSourceName("<program>"), joined, segments);
+            return new AwkSourceUnit(joined, segments);
         }
 
         var compilationSource = AssembleCompilationSource(sources, checkpoint, memory ?? AwkFrontendMemory.Disabled);

@@ -243,7 +243,6 @@ public sealed class AwkSourceLoaderTests
         var result = await LoadAsync(fileSystem, invocation);
 
         var source = LoadedSource(result);
-        Assert.Equal(new AwkSourceName("<inline:1>"), source.SourceName);
         Assert.Equal("function helper(){ return 1 }\nBEGIN{print helper()}", source.Text);
         Assert.Equal(
             [AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Inline],

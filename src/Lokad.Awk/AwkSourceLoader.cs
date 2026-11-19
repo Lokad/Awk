@@ -34,7 +34,10 @@ internal static partial class AwkSourceLoader
 
                 if (expanded is not SourceExpansionResult.Loaded loaded)
                     throw new System.InvalidOperationException("Unexpected source expansion result.");
-                sources.Add(new AwkSourceUnit(sourceName, loaded.Source.Text, loaded.Source.Segments));
+                var segments = loaded.Source.Segments;
+                var omitLocation = plan.SourceCount == 1 && segments.Count == 1 &&
+                    segments[0].Kind == AwkSourceSegmentKind.Inline;
+                sources.Add(new AwkSourceUnit(loaded.Source.Text, segments, omitLocation));
                 continue;
             }
 
@@ -53,10 +56,7 @@ internal static partial class AwkSourceLoader
 
                 if (include is not SourceExpansionResult.Loaded loaded)
                     throw new System.InvalidOperationException("Unexpected source expansion result.");
-                sources.Add(new AwkSourceUnit(
-                    new AwkSourceName(AwkUtf8Codec.Decode(includePath.Display)),
-                    loaded.Source.Text,
-                    loaded.Source.Segments));
+                sources.Add(new AwkSourceUnit(loaded.Source.Text, loaded.Source.Segments));
                 continue;
             }
 
@@ -97,10 +97,7 @@ internal static partial class AwkSourceLoader
 
             if (expandedScript is not SourceExpansionResult.Loaded expandedFile)
                 throw new System.InvalidOperationException("Unexpected source expansion result.");
-            sources.Add(new AwkSourceUnit(
-                found.SourceName,
-                expandedFile.Source.Text,
-                expandedFile.Source.Segments));
+            sources.Add(new AwkSourceUnit(expandedFile.Source.Text, expandedFile.Source.Segments));
         }
 
         return AwkSourceLoadResult.FromSources(sources, cancellationToken.ThrowIfCancellationRequested, plan.Memory);

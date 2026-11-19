@@ -49,7 +49,9 @@ lowering use the same invocation-local function layouts and parameter slots.
 Frontend syntax walks share source-order traversal and cancellation checks.
 Symbol collection and validation choose which expression children to visit.
 Statement validation supplies loop and switch context at body and arm entry.
-The executor maps diagnostics to source locations and delivers parser warnings.
+Source assembly determines when a standalone inline program uses locationless
+diagnostics. The executor maps other diagnostics to their source segments and
+delivers parser warnings.
 Structured diagnostics carry message text and an identifier. Rendering adds the
 command prefix, source location and warning label. Terminal and runtime failure
 paths write their finalized UTF-8 messages at the reporting boundary.

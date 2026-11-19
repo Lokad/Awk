@@ -52,7 +52,7 @@ public sealed class AwkSourceDiagnosticMapTests
     public void MapDiagnostics_ReturnsDefaultInlineDiagnosticsWithoutAllocatingAMappedBatch()
     {
         const string text = "BEGIN {";
-        var sourceName = new AwkSourceName("<inline:1>");
+        var sourceName = new AwkSourceName("inline fixture");
         var segment = new AwkSourceSegment(
             sourceName,
             AwkSourceSegmentKind.Inline,
@@ -60,7 +60,7 @@ public sealed class AwkSourceDiagnosticMapTests
             new AwkLineOffset(0),
             new AwkColumnOffset(0),
             AwkLineContinuationMap.Empty);
-        var source = new AwkSourceUnit(sourceName, text, [segment]);
+        var source = new AwkSourceUnit(text, [segment], omitInlineLocation: true);
         AwkDiagnostic[] diagnostics = [new(new AwkTextSpan(text.Length, 0), "test")];
 
         var mapped = AwkSourceDiagnosticMap.MapDiagnostics(source, diagnostics);
@@ -79,7 +79,7 @@ public sealed class AwkSourceDiagnosticMapTests
             new AwkLineOffset(0),
             new AwkColumnOffset(0),
             AwkLineContinuationMap.Empty);
-        var source = new AwkSourceUnit(segment.SourceName, text, [segment]);
+        var source = new AwkSourceUnit(text, [segment]);
         var diagnostics = Enumerable.Range(0, text.Length + 1)
             .Select(position => new AwkDiagnostic(new AwkTextSpan(position, 0), "test"))
             .ToArray();
@@ -108,7 +108,7 @@ public sealed class AwkSourceDiagnosticMapTests
             new AwkLineOffset(4),
             new AwkColumnOffset(2),
             continuations);
-        var source = new AwkSourceUnit(segment.SourceName, text, [segment]);
+        var source = new AwkSourceUnit(text, [segment]);
         var diagnostics = Enumerable.Range(0, text.Length + 1)
             .Select(position => new AwkDiagnostic(new AwkTextSpan(position, 0), "test"))
             .ToArray();

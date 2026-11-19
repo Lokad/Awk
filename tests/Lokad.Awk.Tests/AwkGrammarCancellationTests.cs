@@ -198,7 +198,7 @@ public sealed class AwkGrammarCancellationTests
     {
         var text = string.Concat(Enumerable.Repeat("x" + newline, 12_000)) + "bad";
         var name = new AwkSourceName("test.awk");
-        var source = new AwkSourceUnit(name, text, [new AwkSourceSegment(name, AwkSourceSegmentKind.File,
+        var source = new AwkSourceUnit(text, [new AwkSourceSegment(name, AwkSourceSegmentKind.File,
             new AwkTextSpan(0, text.Length), new AwkLineOffset(0), new AwkColumnOffset(0), AwkLineContinuationMap.Empty)]);
         AwkDiagnostic[] diagnostics = [new(new AwkTextSpan(text.Length - 3, 3), "test")];
         using var cancellation = new CancellationTokenSource();
@@ -228,7 +228,7 @@ public sealed class AwkGrammarCancellationTests
         var secondName = new AwkSourceName("second.awk");
         var firstText = new string('x', 12_000);
         var secondText = "BEGIN{}";
-        AwkSourceUnit Unit(AwkSourceName name, string text) => new(name, text,
+        AwkSourceUnit Unit(AwkSourceName name, string text) => new(text,
             [new AwkSourceSegment(name, AwkSourceSegmentKind.File, new AwkTextSpan(0, text.Length),
                 new AwkLineOffset(0), new AwkColumnOffset(0), AwkLineContinuationMap.Empty)]);
         AwkSourceUnit[] sources = [Unit(firstName, firstText), Unit(secondName, secondText)];
