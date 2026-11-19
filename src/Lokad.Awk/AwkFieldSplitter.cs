@@ -139,7 +139,8 @@ internal sealed partial class AwkFieldSplitter(AwkRuntimeState state, AwkFieldSe
             FillRegexRecordFields(line, plan.Separator, plan.CaseSensitivity, ref writer);
     }
 
-    public void FillRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan, ref AwkRecordFieldWriter writer)
+    public void FillRecordFields(ReadOnlySpan<byte> line, AwkRecordSplitPlan plan, ref AwkRecordFieldWriter writer,
+        int startAt = 0)
     {
         state.CancellationCheckpoint();
         if (state.CompatibilityMode != AwkCompatibilityMode.GnuDefault &&
@@ -159,7 +160,7 @@ internal sealed partial class AwkFieldSplitter(AwkRuntimeState state, AwkFieldSe
         if (plan.Mode != AwkFieldSplittingMode.FieldWidths)
         {
             FillRecordFields(line, plan.Separator,
-                plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph, ref writer);
+                plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph, ref writer, startAt);
             return;
         }
         var fieldWidths = plan.FieldWidths;

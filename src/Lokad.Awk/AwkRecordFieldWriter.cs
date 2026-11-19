@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Lokad.Awk;
 
 internal readonly record struct AwkFieldRange(int Start, int Length);
@@ -45,6 +47,27 @@ internal ref struct AwkRecordFieldWriter : IAwkFieldSink<int>
         _fields.Add(AwkRecordField.FromRecordSlice(field.Start, field.Length));
         // Producer ranges are disjoint and bounded by the admitted record.
         PayloadBytes += field.Length;
+    }
+
+    internal void CopyPrefix(scoped ReadOnlySpan<AwkRecordField> prefix, int payloadBytes)
+    {
+        // Begin at the normal growth step that can hold the prefix and the next field.
+        _checkpoint();
+        var capacity = AwkRuntimeMemory.CheckedToInt32(
+            Math.Max(4u, BitOperations.RoundUpToPowerOf2((uint)prefix.Length + 1)));
+        Fund(AwkRuntimeMemory.EstimateRecordFieldListBytes(capacity));
+        _fields.EnsureCapacity(capacity);
+        var destination = _fields.UnpublishedTail(prefix.Length);
+        const int chunkFields = 1024;
+        for (var offset = 0; offset < prefix.Length;)
+        {
+            _checkpoint();
+            var length = Math.Min(prefix.Length - offset, chunkFields);
+            prefix.Slice(offset, length).CopyTo(destination.Slice(offset, length));
+            offset += length;
+        }
+        _fields.PublishCount(prefix.Length);
+        PayloadBytes = payloadBytes;
     }
 
     public void AddOwned(AwkText text)

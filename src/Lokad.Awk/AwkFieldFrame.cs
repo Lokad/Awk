@@ -1274,26 +1274,13 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var retiredFunding = false;
         try
         {
+            // Copy the published cells with their cached numeric and text observations.
+            if (previousCount > 0)
+                writer.CopyPrefix(_fieldTexts.AsSpan(), _fieldPayloadByteLength);
             if (_splitPlan.RequiresRegexSubject)
                 state.FieldSplitter.FillRecordFields(OwnedRecordText(), _splitPlan, ref writer);
             else
-                state.FieldSplitter.FillRecordFields(RecordBytes(), _splitPlan, ref writer);
-            // Complete splitting without discarding numbers already read from a prefix.
-            for (var index = 0; index < previousCount; index++)
-            {
-                if ((index & 1023) == 0) state.CancellationCheckpoint?.Invoke();
-                if (_fieldTexts[index].CacheSlot < 0)
-                    fieldTexts[index] = fieldTexts[index].WithCacheFrom(_fieldTexts[index]);
-                if (_fieldTexts[index].RuneLength >= 0)
-                    fieldTexts[index] = fieldTexts[index].WithRuneLength(_fieldTexts[index].RuneLength);
-            }
-            // Writer-owned escaped text already has its final cell mapping.
-            for (var index = 0; index < previousCacheCount; index++)
-            {
-                if ((index & 1023) == 0) state.CancellationCheckpoint?.Invoke();
-                var field = _fieldValueCache[index].FieldIndex;
-                fieldTexts[field] = fieldTexts[field].WithCacheSlot(index + 1);
-            }
+                state.FieldSplitter.FillRecordFields(RecordBytes(), _splitPlan, ref writer, _splitPosition);
             var retainedBytes = state.MemoryAccounting.IsEnabled ? EstimateRetainedBytes(
                 AwkRuntimeMemory.EstimateTextBytes(_recordText), fieldTexts.Count, fieldTexts.Capacity,
                 _rebuildFields?.Capacity ?? 0, writer.Values, default) : 0;

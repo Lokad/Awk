@@ -219,18 +219,18 @@ internal sealed partial class AwkFieldSplitter
     }
 
     public void FillRecordFields(ReadOnlySpan<byte> line, AwkFieldSeparatorSpec separator,
-        bool paragraph, ref AwkRecordFieldWriter writer)
+        bool paragraph, ref AwkRecordFieldWriter writer, int startAt = 0)
     {
         if (line.IsEmpty) return;
         if (separator.UsesWhitespaceSemantics)
-            ScanWhitespaceFields<AwkRecordFieldWriter, int>(line, ref writer);
+            ScanWhitespaceFields<AwkRecordFieldWriter, int>(line, ref writer, startAt);
         else if (separator.ByteText.ByteLength == 0)
             ScanCharacterFields<AwkRecordFieldWriter, int>(line, state.StringUnitMode, ref writer);
         else
         {
             var literal = separator.ByteText.AsSpan(state.CancellationCheckpoint)[0];
             if (!paragraph)
-                ScanSingleByteFields<AwkRecordFieldWriter, int>(line, literal, ref writer);
+                ScanSingleByteFields<AwkRecordFieldWriter, int>(line, literal, ref writer, startAt);
             else
             {
                 var position = 0;
@@ -393,10 +393,10 @@ internal sealed partial class AwkFieldSplitter
         where TSink : struct, IAwkFieldSink<TFields>, allows ref struct =>
         ScanWhitespaceFields<TSink, TFields>(line.AsSpan(state.CancellationCheckpoint), ref sink);
 
-    private TFields ScanWhitespaceFields<TSink, TFields>(ReadOnlySpan<byte> line, ref TSink sink)
+    private TFields ScanWhitespaceFields<TSink, TFields>(ReadOnlySpan<byte> line, ref TSink sink, int position = 0)
         where TSink : struct, IAwkFieldSink<TFields>, allows ref struct
     {
-        var scanner = new AwkWhitespaceFieldScanner(line, state.CancellationCheckpoint);
+        var scanner = new AwkWhitespaceFieldScanner(line, state.CancellationCheckpoint, position);
         while (scanner.MoveNext(out var field, out _))
             sink.Add(field);
 
@@ -427,10 +427,10 @@ internal sealed partial class AwkFieldSplitter
         where TSink : struct, IAwkFieldSink<TFields>, allows ref struct =>
         ScanSingleByteFields<TSink, TFields>(line.AsSpan(state.CancellationCheckpoint), separator, ref sink);
 
-    private TFields ScanSingleByteFields<TSink, TFields>(ReadOnlySpan<byte> line, byte separator, ref TSink sink)
+    private TFields ScanSingleByteFields<TSink, TFields>(ReadOnlySpan<byte> line, byte separator, ref TSink sink, int position = 0)
         where TSink : struct, IAwkFieldSink<TFields>, allows ref struct
     {
-        var scanner = new AwkSingleByteFieldScanner(line, separator, state.CancellationCheckpoint);
+        var scanner = new AwkSingleByteFieldScanner(line, separator, state.CancellationCheckpoint, position);
         while (scanner.MoveNext(out var field, out _))
             sink.Add(field);
 

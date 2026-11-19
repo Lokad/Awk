@@ -903,12 +903,18 @@ public sealed class AwkIncrementalFieldTests
             var frame = context.Frame;
             frame.SetRecordText(AwkText.FromSourceLiteralString("old" + separator + "value"));
             Assert.Equal(2, frame.GetFieldCount());
-            var record = AwkText.FromSourceLiteralString(string.Join(separator, Enumerable.Repeat("000007", 128)));
+            var literal = separator == "|";
+            var text = literal
+                ? "000007|000008|café|000009|"
+                : string.Join(separator, Enumerable.Repeat("000007", 127).Append("café"));
+            var record = AwkText.FromSourceLiteralString(text);
             frame.SetRecordText(record);
             Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+            if (literal) Assert.Equal("000009", Read(frame, 4));
             var saved = frame.GetFieldValue(new(1));
             var committed = memory.Accounting.LiveBytes;
             var published = counters[AwkCounter.FieldsPrepared];
+            var available = memory.Budget.Limit - memory.Budget.Reserved;
             memory.Budget.SetAvailableBytes(0);
             Assert.Throws<AwkRuntimeException>(() => frame.GetFieldCount());
             Assert.Equal(published, counters[AwkCounter.FieldsPrepared]);
@@ -916,6 +922,12 @@ public sealed class AwkIncrementalFieldTests
             Assert.True(record.HasSameStorage(frame.RecordAwkText));
             Assert.Equal("000007", saved.AsString());
             Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+
+            memory.Budget.SetAvailableBytes(available);
+            Assert.Equal(literal ? 5 : 128, frame.GetFieldCount());
+            Assert.Equal(saved, frame.GetFieldValue(new(1)));
+            Assert.Equal("café", Read(frame, literal ? 3 : 128));
+            if (literal) Assert.Equal(string.Empty, Read(frame, 5));
             frame.ResetRecord();
             Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
         }
