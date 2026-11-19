@@ -6,8 +6,9 @@ defines qualified language boundaries. The tests linked below enforce these inva
 
 ## Execution and suspension
 
-One prepared interpreter program runs main input, rule conditions/bodies and record
-backedges. Explicit frames and continuations preserve caller ownership across calls,
+One prepared interpreter program runs main input and rule conditions and bodies.
+Falling through the last main rule returns to the existing input instruction with
+the same root storage. Explicit frames and continuations preserve caller ownership across calls,
 nonlocal flow and real pending host work. Execution ownership can differ from the
 currently visible binding scope during retirement or file-phase reentry.
 One entry point owns synchronous cleanup and hands the machine to its continuation

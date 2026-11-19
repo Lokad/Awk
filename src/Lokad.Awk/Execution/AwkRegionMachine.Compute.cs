@@ -611,6 +611,13 @@ internal partial struct AwkRegionMachine
                     throw new InvalidOperationException("Unknown bound region operation.");
             }
         }
+        // The root's first instruction acquires the next record. A completed
+        // record keeps the same region, storage and read continuation.
+        if (_mainInput is not null && _frame is null)
+        {
+            position = 0;
+            goto Execute;
+        }
         if (Finish(AwkStatementFlow.Continue)) goto ContinueRoot;
         goto Resume;
 

@@ -67,11 +67,7 @@ internal sealed partial class AwkRegionCompiler
         return compiler;
     }
 
-    internal AwkRegion BuildMain()
-    {
-        Emit(new(AwkRegionInstructionKind.Jump, 0));
-        return CreateRegion();
-    }
+    internal AwkRegion BuildMain() => CreateRegion();
 
     internal bool AppendMainRule(AwkRuleSyntax rule, int rangeIndex, out AwkDiagnostic diagnostic)
     {
