@@ -47,21 +47,6 @@ public sealed class AwkTextInputTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void MemoryCaptureRetainsItsActualOwnerAndRange(bool managerBacked)
-    {
-        var original = "_0007_"u8.ToArray();
-        using var manager = new TestMemory(original);
-        ReadOnlyMemory<byte> memory = managerBacked ? manager.Memory : original;
-        var captured = AwkTextInput.FromMemory(memory.Slice(1, 4), 3);
-        memory = "changed"u8.ToArray();
-        Assert.Equal("0007", AwkUtf8Codec.Decode(captured.ReadyText.AsSpan(null)));
-        Assert.Equal(3, captured.TextField);
-        Assert.Equal("changed", AwkUtf8Codec.Decode(memory.Span));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
     public void ReaderCaptureKeepsItsRangeAfterTheSourceCellIsReplaced(bool managerBacked)
     {
         var bytes = "_0007_"u8.ToArray();

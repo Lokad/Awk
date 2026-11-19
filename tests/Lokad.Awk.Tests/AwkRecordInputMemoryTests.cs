@@ -431,6 +431,121 @@ public sealed class AwkRecordInputMemoryTests
         AssertRefunded(memory.Budget);
     }
 
+    [Theory]
+    [InlineData("needle")]
+    [InlineData("haystack")]
+    [InlineData("substring")]
+    public async Task CapturedTextSurvivesLaterOperandAdmission(string form)
+    {
+        var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        using (memory)
+        {
+            var state = memory.State;
+            var (record, statement, expected) = form switch
+            {
+                "needle" => ("key 1.5 tail", "CONVFMT=\"%1500.1f\";print index(1.5,$2)", "1498\n"),
+                "haystack" => ("key 1.5" + new string('0', 1499) + " tail",
+                    "CONVFMT=\"%.1500f\";print index($2,1.5)", "1\n"),
+                "substring" => ("café " + string.Concat(Enumerable.Repeat("0 ", 299)) + "2",
+                    "print substr($1,$301,2)", "af\n"),
+                _ => throw new ArgumentOutOfRangeException(nameof(form)),
+            };
+            var input = new InputHost(memory.Budget, record + "\n") { PoisonConsumedBytes = true };
+            using var reader = new AwkByteReader(input, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+            Assert.True(await reader.TryBufferAsync());
+            var slot = state.InputRecordStorage;
+            slot.StageBorrowed(reader, reader.Content[..^1]);
+            reader.Advance(reader.Content.Length);
+            state.PublishInputRecord(AwkInputRecordResult.Buffered(slot, AwkRecordTerminator.NewLine),
+                readsMainInput: true);
+            _ = state.RecordFields.GetFieldArithmeticArgument(new(1), state.NumberParsingMode);
+            var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{" + statement + "}"));
+            Assert.True(binding.Success);
+            var program = binding.Program;
+            state.InitializeGlobalNames(program.GlobalNames);
+            state.InitializeGlobalReadSlots(program.GlobalReadCount);
+            var host = new MockFileSystem();
+            var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+                AwkFileDescriptor.StdErr, CancellationToken.None, state.Limits, state, static _ => []);
+            using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+            Assert.Equal(0, input.CommittedInputBytes);
+            memory.Budget.OnGrowth = amount =>
+            {
+                if (amount >= 1400) reader.ReleaseBorrow();
+            };
+            try
+            {
+                await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output);
+            }
+            finally
+            {
+                memory.Budget.OnGrowth = null;
+                await io.CloseAsync();
+            }
+
+            Assert.True(input.CommittedInputBytes > 0);
+            Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        }
+        AssertRefunded(memory.Budget);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TextSearchPreservesTheFirstReadAcrossCustomMemoryPromotion(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(
+            AwkRuntimeCounters.Disabled, cancellation.Token);
+        var state = memory.State;
+        var source = "abc c"u8.ToArray();
+        using var manager = new TestMemoryManager(source);
+        ReadOnlyMemory<byte> bytes = manager.Memory;
+        Assert.True(memory.Budget.TryReserve(bytes.Length, out var funding));
+        var retired = false;
+        var host = new MockFileSystem
+        {
+            ReadAsyncOverride = (_, _, _) => ValueTask.FromResult(AwkReadBuffer.FromContent(bytes,
+                AwkReadCompletion.EndOfFile, _ =>
+                {
+                    source.AsSpan().Fill(0xFF);
+                    funding.Dispose();
+                    retired = true;
+                }))
+        };
+        using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, cancellation.Token, state.Options);
+        Assert.True(await reader.TryBufferAsync());
+        var records = state.InputRecordStorage;
+        records.StageBorrowed(reader, reader.Content);
+        reader.Advance(reader.Content.Length);
+        state.PublishInputRecord(AwkInputRecordResult.Buffered(records, AwkRecordTerminator.Empty), readsMainInput: true);
+        Assert.Equal(2, state.FieldCount);
+
+        state.CaptureFieldTextInput(new(1), out var haystack);
+        state.CaptureFieldTextInput(new(2), out var needle);
+        manager.OnGetSpan = () =>
+        {
+            manager.OnGetSpan = () =>
+            {
+                manager.OnGetSpan = null;
+                reader.ReleaseBorrow();
+                if (cancel) cancellation.Cancel();
+            };
+        };
+        try
+        {
+            // The second memory access retires the first span before the search.
+            var position = state.IndexOfStringUnits(haystack.ReadyText, needle.ReadyText);
+            Assert.False(cancel);
+            Assert.Equal(3, position);
+        }
+        catch (OperationCanceledException) when (cancel) { }
+        Assert.True(retired);
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
+    }
+
     [Fact]
     public async Task EscapingSubstringCopiesPromotedBytes()
     {

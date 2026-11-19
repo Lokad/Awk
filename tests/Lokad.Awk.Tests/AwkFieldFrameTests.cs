@@ -208,8 +208,8 @@ public sealed class AwkFieldFrameTests
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(0, counters[AwkCounter.TextAllocations]);
             Assert.Equal(0, counters[AwkCounter.FieldsPrepared]);
-            Assert.True(context.Frame.TryGetBufferedRecordBytes(out var unchanged));
-            Assert.True(unchanged.SequenceEqual(bytes));
+            Assert.True(context.Frame.TryGetPrintableBufferedRecord(out var unchanged));
+            Assert.True(unchanged.AsSpan().SequenceEqual(bytes));
             context.Frame.ResetRecord();
             Assert.Equal(memoryBudgetBaseline, memory.Budget.Reserved);
         }

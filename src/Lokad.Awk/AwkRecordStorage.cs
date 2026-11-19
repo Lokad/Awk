@@ -15,6 +15,17 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
     internal int CurrentSlot => _currentSlot;
     internal ReadOnlyMemory<byte> Content => ContentAt(_currentSlot);
     internal ReadOnlyMemory<byte> ContentAt(int slot) => BufferAt(slot).Content;
+    internal AwkByteReader? BorrowerAt(int slot) => BufferAt(slot).Borrower;
+
+    internal ReadOnlySpan<byte> BytesAt(int slot)
+    {
+        ref var buffer = ref BufferAt(slot);
+        var borrower = buffer.Borrower;
+        var bytes = buffer.Content.Span;
+        // A custom memory accessor can retire its own borrow while obtaining the span.
+        return borrower is not null && buffer.Borrower is null ? buffer.Content.Span : bytes;
+    }
+
     internal int LengthAt(int slot) => BufferAt(slot).Length;
     internal bool IsKnownAsciiAt(int slot) => BufferAt(slot).IsKnownAscii;
 

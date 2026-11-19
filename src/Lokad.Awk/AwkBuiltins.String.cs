@@ -6,9 +6,6 @@ namespace Lokad.Awk;
 internal static partial class AwkBuiltins
 {
 
-    internal static double EvaluateIndexText(AwkRuntimeState state, AwkByteTextOperand source, AwkByteTextOperand needle) =>
-        state.IndexOfStringUnits(source, needle);
-
     internal static AwkText EvaluateSubstrText(AwkRuntimeState state, in AwkByteTextOperand source, int field,
         in AwkValue startValue, in AwkValue lengthValue, int argumentCount, AwkMemoryLease destination)
     {
@@ -61,7 +58,6 @@ internal static partial class AwkBuiltins
     {
         static bool TryConvertAsciiCase(
             in AwkByteTextOperand source,
-            int field,
             AwkCaseConversion conversion,
             AwkRuntimeState state,
             AwkMemoryLease destination,
@@ -69,7 +65,8 @@ internal static partial class AwkBuiltins
             out bool unchanged)
         {
             unchanged = false;
-            var bytes = source.AsSpan(state.CancellationCheckpoint);
+            var inputSource = source.CopySource(state.CancellationCheckpoint);
+            var bytes = inputSource.AsSpan();
             var firstChange = -1;
             var isAscii = true;
             for (var index = 0; index < bytes.Length;)
@@ -106,8 +103,6 @@ internal static partial class AwkBuiltins
             }
 
             // Result admission can promote a borrowed record before the conversion reads it again.
-            var inputSource = field >= 0 && !source.IsOwned
-                ? state.RecordFields.CaptureCopySlice(bytes) : new AwkCopySource(bytes);
             var converted = AwkText.AllocateOwnedBytes(bytes.Length, state.MemoryAccounting, destination, state.CancellationCheckpoint);
             bytes = inputSource.AsSpan();
             // Publish into the admitted result directly instead of copying all
@@ -150,7 +145,6 @@ internal static partial class AwkBuiltins
 
         if (TryConvertAsciiCase(
             source,
-            field,
             conversion,
             state,
             destination,

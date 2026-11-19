@@ -359,9 +359,7 @@ internal sealed class AwkRegionStorage : IDisposable
             var text = slice.Own(_state, _payload);
             StoreText(print.Texts + print.Count - 1, text);
         }
-        var bytes = slice.AsSpan(_state.CancellationCheckpoint);
-        var prepared = source.IsOwned || slice.IsOwned ? new AwkCopySource(bytes) :
-            _state.RecordFields.CaptureCopySlice(bytes);
+        var prepared = slice.CopySource(_state.CancellationCheckpoint);
         return AwkRegionPrinting.Append(_state, this, output, print, default, prepared);
     }
 

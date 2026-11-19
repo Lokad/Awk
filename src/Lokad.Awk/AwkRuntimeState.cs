@@ -611,18 +611,15 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal void PrepareAdmittedFields(int maximum) => _recordFields.PrepareAdmittedFields(maximum);
 
-    internal AwkByteTextOperand ResolveFieldByteOperand(AwkFieldIndex index) => TryGetFieldStringBytes(index, out var bytes)
-        ? new(bytes) : new(FormatStringByteText(CaptureFieldStringValue(index)));
+    internal AwkByteTextOperand ResolveFieldByteOperand(AwkFieldIndex index) =>
+        _recordFields.TryCaptureTextInput(index, out var text) ? text.ReadyText :
+            new(FormatStringByteText(CaptureFieldStringValue(index)));
 
     internal void CaptureFieldTextInput(AwkFieldIndex index, out AwkTextInput result)
     {
         if (!_recordFields.TryCaptureTextInput(index, out result))
             result = new(CaptureFieldStringValue(index));
     }
-
-    private bool TryGetFieldStringBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes) =>
-        index.IsCurrentRecord ? _recordFields.TryGetBufferedRecordBytes(out bytes)
-            : _recordFields.TryGetStableFieldBytes(index, out bytes);
 
     // Assigned numbers retain formatting at actual consumption.
     private AwkValue CaptureFieldStringValue(AwkFieldIndex index) => TryGetFieldTextArgument(index, out var text)
@@ -697,8 +694,8 @@ internal sealed class AwkRuntimeState : IDisposable
     internal int CompareByteText(AwkByteTextOperand left, AwkByteTextOperand right, bool sorting = false) =>
         _stringRuntime.Compare(left.AsSpan(CancellationCheckpoint), right.AsSpan(CancellationCheckpoint), IsCaseInsensitive, sorting);
 
-    public int IndexOfStringUnits(AwkByteTextOperand source, AwkByteTextOperand value) =>
-        _stringRuntime.IndexOfUnits(source, value, IsCaseInsensitive);
+    public int IndexOfStringUnits(in AwkByteTextOperand source, in AwkByteTextOperand value) =>
+        _stringRuntime.IndexOfUnits(in source, in value, IsCaseInsensitive);
 
     internal int CompareByteText(AwkText left, AwkText right, bool sorting = false) =>
         _stringRuntime.Compare(left, right, IsCaseInsensitive, sorting);
@@ -1034,14 +1031,8 @@ internal sealed class AwkRuntimeState : IDisposable
             FormatStringByteText(_recordFields.GetFieldValue(field));
 
     internal AwkText OwnStringResult(in AwkByteTextOperand text, int field = -1, bool whole = true,
-        AwkMemoryLease? destination = null)
-    {
-        if (field < 0 || text.IsOwned) return text.Own(this, destination);
-        if (whole) return CaptureFieldStringText(new(field));
-
-        var source = _recordFields.CaptureCopySlice(text.AsSpan(CancellationCheckpoint));
-        return CopyText(source, destination);
-    }
+        AwkMemoryLease? destination = null) =>
+        field >= 0 && whole && !text.IsOwned ? CaptureFieldStringText(new(field)) : text.Own(this, destination);
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,

@@ -1,14 +1,12 @@
-using System.Buffers;
 using System.Runtime.InteropServices;
 
 namespace Lokad.Awk;
 
-// A synchronous text consumer captures either canonical scalar words or the
-// actual immutable byte owner/range. Existing cursor/frame owners keep funding;
-// this stack-only snapshot cannot cross an actual host suspension.
+// Capture scalar words or an owner and range. Record coordinates survive promotion
+// within this computation. The snapshot cannot cross a host suspension.
 internal readonly ref struct AwkTextInput
 {
-    private const int OwnedText = -1, ArrayBytes = -2, ManagerBytes = -3, TextRange = -4, ReaderBytes = -5;
+    private const int OwnedText = -1, RecordSlot0 = -2, RecordSlot1 = -3, TextRange = -4, ReaderBytes = -5;
     private readonly object? _reference;
     private readonly long _word;
     private readonly int _kind;
@@ -38,16 +36,13 @@ internal readonly ref struct AwkTextInput
         _field = field;
     }
 
-    internal static AwkTextInput FromMemory(ReadOnlyMemory<byte> memory, int field)
+    internal static AwkTextInput FromRecord(AwkRecordStorage storage, int slot, int offset, int length, int field)
     {
-        if (MemoryMarshal.TryGetArray(memory, out var array))
-            return new(array.Array, array.Offset, array.Count, ArrayBytes, field);
-        // Array ranges are already validated by ReadOnlyMemory. Preserve a
-        // custom manager's access at capture, before later argument reads.
-        _ = memory.Span;
-        if (MemoryMarshal.TryGetMemoryManager<byte, MemoryManager<byte>>(memory, out var manager, out var offset, out var length))
-            return new(manager, offset, length, ManagerBytes, field);
-        throw new InvalidOperationException("Byte memory requires an array or memory-manager owner.");
+        var memory = storage.ContentAt(slot);
+        // Preserve custom memory access before later argument evaluation.
+        if (!MemoryMarshal.TryGetArray(memory, out _))
+            _ = memory.Span;
+        return new(storage, offset, length, slot == 0 ? RecordSlot0 : RecordSlot1, field);
     }
 
     internal static AwkTextInput FromReader(AwkReadBuffer reader, int offset, int length)
@@ -70,8 +65,8 @@ internal readonly ref struct AwkTextInput
             return _kind switch
             {
                 OwnedText => new(AwkText.FromBacking(_reference)),
-                ArrayBytes => new((_reference as byte[]).AsSpan(offset, length)),
-                ManagerBytes when _reference is MemoryManager<byte> manager => new(manager.GetSpan().Slice(offset, length)),
+                RecordSlot0 or RecordSlot1 when _reference is AwkRecordStorage storage =>
+                    new(new AwkCopySource(storage, _kind == RecordSlot0 ? 0 : 1, offset, length)),
                 TextRange => new(AwkText.FromBacking(_reference).AsSpan().Slice(offset, length)),
                 ReaderBytes when _reference is AwkReadBuffer reader => new(reader.Content.Span.Slice(offset, length)),
                 _ => throw new InvalidOperationException("A scalar text input requires formatting at use.")
