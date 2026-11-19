@@ -61,6 +61,8 @@ or callbacks that replace their backing. Publish active ownership before operati
 can fail; unwind through the owner that acquired it. Pending operations retain their
 arguments/output until actual completion, including when a host ignores cancellation.
 Capture return values before flushing; do not reread mutable sources after callbacks.
+Check for a new pending operation after completing the current one. Forwarding a return
+can start another append while the caller still owns its frame.
 
 Enforced by [main-input ownership](../tests/Lokad.Awk.Tests/AwkMainInputOwnershipTests.cs),
 [return continuations](../tests/Lokad.Awk.Tests/AwkPreparedFunctionRegionTests.ReturnContinuations.cs)

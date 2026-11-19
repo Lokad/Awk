@@ -122,24 +122,28 @@ internal partial struct AwkRegionMachine
 
     private bool TryCompletePending()
     {
-        switch (_pending)
+        // Completing a forwarded return can publish another append.
+        while (_pending != Pending.None)
         {
-            case Pending.MainRead:
-                if (!_mainRead.IsCompletedSuccessfully) return false;
-                CompleteMainRead(_mainRead.Result);
-                break;
-            case Pending.MainClose:
-                if (!_hostFlow.IsCompletedSuccessfully) return false;
-                CompleteMainClose(_hostFlow.Result);
-                break;
-            case Pending.BuiltinValue:
-                if (!_pendingValue.IsCompletedSuccessfully) return false;
-                CompleteBuiltinValue(_pendingValue.Result);
-                break;
-            default:
-                if (!_hostCompletion.IsCompletedSuccessfully) return false;
-                CompletePendingTask();
-                break;
+            switch (_pending)
+            {
+                case Pending.MainRead:
+                    if (!_mainRead.IsCompletedSuccessfully) return false;
+                    CompleteMainRead(_mainRead.Result);
+                    break;
+                case Pending.MainClose:
+                    if (!_hostFlow.IsCompletedSuccessfully) return false;
+                    CompleteMainClose(_hostFlow.Result);
+                    break;
+                case Pending.BuiltinValue:
+                    if (!_pendingValue.IsCompletedSuccessfully) return false;
+                    CompleteBuiltinValue(_pendingValue.Result);
+                    break;
+                default:
+                    if (!_hostCompletion.IsCompletedSuccessfully) return false;
+                    CompletePendingTask();
+                    break;
+            }
         }
         return true;
     }
