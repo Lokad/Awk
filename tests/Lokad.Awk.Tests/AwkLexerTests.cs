@@ -53,6 +53,19 @@ public sealed class AwkLexerTests
             tokens.Count(token => token.Kind == AwkTokenKind.Slash));
     }
 
+    [Theory]
+    [InlineData("a\r")]
+    [InlineData("a # trailing comment\r")]
+    [InlineData("a\r ")]
+    public void TrailingCarriageReturnKeepsItsSourceSpan(string source)
+    {
+        var tokens = AwkTestHarness.TokenizeSource(source);
+        var newline = Assert.Single(tokens, token => token.Kind == AwkTokenKind.NewLine);
+        var position = source.IndexOf('\r');
+        Assert.Equal(new AwkTextSpan(position, 1), newline.Span);
+        Assert.Equal(new AwkTextSpan(position + 1, 0), tokens[^1].Span);
+    }
+
     [Fact]
     public void PowerAliasesPreserveOperatorTextAndSourceSpans()
     {

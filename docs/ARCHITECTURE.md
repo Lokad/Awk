@@ -36,9 +36,10 @@ or diagnostics. Preparation reports malformed constructs that reach lowering.
 Generic top-level and statement grammar failures retain the failing source span.
 Range endpoint grammar failures carry the rejected span to preparation, preserving
 the precedence of lexical, action syntax and binding diagnostics.
-The contextual lexer uses ordinary token kinds from the lexer descriptors and
-resolves context-sensitive tokens from source. The grammars share the lexer's
-absolute newline offsets.
+The contextual lexer consumes ordinary descriptors as it advances through the
+source and resolves quoted, slash and comment forms in context. Admission funds
+the token and newline buffers before scanning. The grammars share the absolute
+newline offsets gathered during lexing.
 The top-level grammar recognizes balanced action and function bodies, parameter
 lists and pattern boundaries. Their consumers read ranges of the original tokens.
 Pattern expressions filter comments while retaining continuation newlines.

@@ -52,8 +52,8 @@ internal sealed class AwkFrontendMemory(IMemoryBudget? budget) : IDisposable
         _sourceBytes = bytes;
     }
 
-    // The dependency eagerly allocates its tokens. Admit a character-derived buffer
-    // bound before entering it, then use the observed token count for syntax/lowering.
+    // Fund the lexer token buffer and newline offsets before scanning, then use
+    // the observed token count for syntax and lowering.
     public void AdmitLexing(int characters)
     {
         if (budget is null) return;
@@ -61,16 +61,12 @@ internal sealed class AwkFrontendMemory(IMemoryBudget? budget) : IDisposable
         Resize(_sourceBytes, Math.Max(_parserBytes, bytes));
     }
 
-    public void AdmitLexemes(int characters, int count) => AdmitTokens(characters, count, 192);
-
-    public void AdmitTokens(int characters, int count) => AdmitTokens(characters, count, 512);
-
-    private void AdmitTokens(int characters, int count, int bytesPerToken)
+    public void AdmitTokens(int characters, int count)
     {
         if (budget is null) return;
         var bytes = AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.CheckedMultiply((long)characters + 1, 16),
-            AwkRuntimeMemory.CheckedMultiply((long)count + 1, bytesPerToken));
+            AwkRuntimeMemory.CheckedMultiply((long)count + 1, 512));
         Resize(_sourceBytes, bytes);
         _parserBytes = bytes;
     }
