@@ -445,7 +445,7 @@ internal sealed partial class AwkRegionCompiler
     {
         if (AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var name))
         {
-            if (_scope.IsReservedVariable(name.Name)) return false;
+            if (_scope.IsReservedVariable(name.Identifier)) return false;
             var site = _arrays.Count;
             _arrays.Add(new(new(name.Identifier), _scope.GetArrayBinding(name.Identifier), -1));
             Emit(new(AwkRegionInstructionKind.ArrayClear, site));
@@ -744,22 +744,23 @@ internal sealed partial class AwkRegionCompiler
     private bool Variable(AwkExpressionSyntax syntax, out int index)
     {
         index = 0;
-        if (!AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var identifier) ||
-            _scope.IsReservedVariable(identifier.Name) || AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length)) return false;
+        if (!AwkExpressionSyntaxFacts.TryGetIdentifier(syntax, out var identifier)) return false;
         var name = new AwkVariableName(identifier.Identifier);
-        if (!_variableIndices.TryGetValue(name, out index))
-        {
-            index = _operands.Count;
-            _variableIndices.Add(name, index);
-            if (_scope.TryGetFunctionLocalSlot(name, out var slot))
-                _operands.Add(new(AwkRegionOperandKind.LocalVariable, slot.Index, name));
-            else if (AwkSpecialVariables.TryGetScalar(name, out var id) &&
-                AwkCompatibilityNames.EnablesSpecial(id, _scope.CompatibilityMode))
-                _operands.Add(new(AwkRegionOperandKind.SpecialVariable, (int)id, name));
-            else if (_scope.TryGetGlobalReadIndex(name, out var global))
-                _operands.Add(new(AwkRegionOperandKind.GlobalVariable, global, name));
-            else _operands.Add(new(AwkRegionOperandKind.DynamicVariable, -1, name));
-        }
+        if (_variableIndices.TryGetValue(name, out index)) return true;
+
+        if (_scope.IsReservedVariable(identifier.Identifier) || AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length))
+            return false;
+
+        index = _operands.Count;
+        _variableIndices.Add(name, index);
+        if (_scope.TryGetFunctionLocalSlot(name, out var slot))
+            _operands.Add(new(AwkRegionOperandKind.LocalVariable, slot.Index, name));
+        else if (AwkSpecialVariables.TryGetScalar(name, out var id) &&
+            AwkCompatibilityNames.EnablesSpecial(id, _scope.CompatibilityMode))
+            _operands.Add(new(AwkRegionOperandKind.SpecialVariable, (int)id, name));
+        else if (_scope.TryGetGlobalReadIndex(name, out var global))
+            _operands.Add(new(AwkRegionOperandKind.GlobalVariable, global, name));
+        else _operands.Add(new(AwkRegionOperandKind.DynamicVariable, -1, name));
         return true;
     }
 

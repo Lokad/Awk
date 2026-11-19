@@ -524,7 +524,7 @@ internal static class AwkSemanticValidator
             if (expression.Kind != AwkExpressionKind.Variable ||
                 !AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier) ||
                 AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length) ||
-                !context.Scope.IsReservedVariable(identifier.Name))
+                !context.Scope.IsReservedVariable(identifier.Identifier))
             {
                 return;
             }

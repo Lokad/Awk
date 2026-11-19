@@ -47,8 +47,9 @@ newlines. Expression and redirection consumers interpret separators.
 Builtin calls use expression preparation in every position. A direct
 one-argument `close` statement flushes before evaluating its argument.
 Indexed subranges address the same token owner, including when sliced again.
-Validation reads collected symbols in source order. Collection, validation and
-lowering use the same invocation-local function layouts and parameter slots.
+Validation reads collected symbols in source order. Grammar-owned identifier
+tokens retain name validation for binding. Collection, validation and lowering
+use the same invocation-local function layouts and parameter slots.
 Frontend syntax walks share source-order traversal and cancellation checks.
 Symbol collection and validation choose which expression children to visit.
 Statement validation supplies loop and switch context at body and arm entry.

@@ -37,12 +37,14 @@ internal static class AwkExpressionSyntaxFacts
         out AwkIdentifierSyntax identifier)
     {
         if (expression.Kind == AwkExpressionKind.Variable &&
-            expression.Tokens.Count == 1 &&
-            expression.Tokens[0].Kind == AwkTokenKind.Identifier &&
-            AwkIdentifier.TryParse(expression.Tokens[0].Text, out var parsed))
+            expression.Tokens is { Count: 1 } tokens)
         {
-            identifier = new AwkIdentifierSyntax(parsed, expression.Tokens[0]);
-            return true;
+            var token = tokens[0];
+            if (token.TryGetIdentifier(out var parsed))
+            {
+                identifier = new AwkIdentifierSyntax(parsed, token.Span);
+                return true;
+            }
         }
 
         identifier = default;
@@ -123,7 +125,7 @@ internal static class AwkExpressionSyntaxFacts
         scope.CheckCancellation();
         if (expression.Kind == AwkExpressionKind.Field) return expression.Children.Count == 1;
         if (expression.Kind == AwkExpressionKind.Variable)
-            return TryGetAssignableIdentifier(expression, out var variable) && !scope.IsReservedVariable(variable.Name);
+            return TryGetAssignableIdentifier(expression, out var variable) && !scope.IsReservedVariable(variable.Identifier);
         if (expression.Kind != AwkExpressionKind.ArrayElement || expression.Children.Count < 2) return false;
         if (expression.Children[0].Kind == AwkExpressionKind.ArrayElement && scope.CompatibilityMode != AwkCompatibilityMode.GnuDefault)
             return false;
@@ -133,7 +135,7 @@ internal static class AwkExpressionSyntaxFacts
             if (expression.Children.Count < 2) return false;
             expression = expression.Children[0];
         }
-        return TryGetIdentifier(expression, out var array) && !scope.IsReservedVariable(array.Name);
+        return TryGetIdentifier(expression, out var array) && !scope.IsReservedVariable(array.Identifier);
     }
 
     public static bool IsIncrementOrDecrementExpression(AwkExpressionSyntax expression)
@@ -173,11 +175,9 @@ internal static class AwkExpressionSyntaxFacts
 
 }
 
-internal readonly record struct AwkIdentifierSyntax(AwkIdentifier Identifier, AwkToken Token)
+internal readonly record struct AwkIdentifierSyntax(AwkIdentifier Identifier, AwkTextSpan Span)
 {
     public string Name => Identifier.Text;
-
-    public AwkTextSpan Span => Token.Span;
 }
 
 internal readonly record struct AwkCallableTargetSyntax(

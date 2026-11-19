@@ -76,6 +76,7 @@ internal readonly struct AwkToken
     private readonly string? _text;
     private readonly string? _source;
     private readonly bool _sourceBacked;
+    private readonly bool _validatedIdentifier;
 
     public AwkToken(AwkTokenKind kind, string text, AwkTextSpan span)
     {
@@ -83,6 +84,7 @@ internal readonly struct AwkToken
         _text = text ?? string.Empty;
         _source = string.Empty;
         _sourceBacked = false;
+        _validatedIdentifier = kind == AwkTokenKind.Identifier && AwkIdentifiers.IsValidName(_text);
         Span = span;
     }
 
@@ -104,6 +106,21 @@ internal readonly struct AwkToken
 
     public AwkTextSpan Span { get; }
 
+    internal bool TryGetIdentifier(out AwkIdentifier identifier)
+    {
+        if (_validatedIdentifier && _text is { } name)
+        {
+            identifier = AwkIdentifier.FromValidatedText(name);
+            return true;
+        }
+
+        if (_sourceBacked && Kind == AwkTokenKind.Identifier)
+            return AwkIdentifier.TryParse(Text, out identifier);
+
+        identifier = default;
+        return false;
+    }
+
     private string Source => _source ?? string.Empty;
 
     public static AwkToken FromSource(
@@ -118,6 +135,7 @@ internal readonly struct AwkToken
         _text = string.Empty;
         _source = source ?? string.Empty;
         _sourceBacked = sourceBacked;
+        _validatedIdentifier = false;
         Span = span;
     }
 }

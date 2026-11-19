@@ -140,7 +140,7 @@ internal sealed partial class AwkRegionCompiler
             int access;
             if (AwkExpressionSyntaxFacts.TryGetIdentifier(arraySyntax, out var name))
             {
-                if (compiler._scope.IsReservedVariable(name.Name)) return false;
+                if (compiler._scope.IsReservedVariable(name.Identifier)) return false;
                 access = compiler._arrays.Count;
                 compiler._arrays.Add(new(new(name.Identifier), compiler._scope.GetArrayBinding(name.Identifier), -1));
             }

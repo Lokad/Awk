@@ -96,7 +96,7 @@ internal sealed partial class AwkRegionCompiler
                     }
                 }
                 else root = syntax.Children[0];
-                if (!AwkExpressionSyntaxFacts.TryGetIdentifier(root, out var name) || compiler._scope.IsReservedVariable(name.Name)) return false;
+                if (!AwkExpressionSyntaxFacts.TryGetIdentifier(root, out var name) || compiler._scope.IsReservedVariable(name.Identifier)) return false;
                 _name = new(name.Identifier);
                 _binding = compiler._scope.GetArrayBinding(name.Identifier);
                 if (_levels.Count > 0)
@@ -176,7 +176,7 @@ internal sealed partial class AwkRegionCompiler
             if (_stage == 0)
             {
                 _named = AwkExpressionSyntaxFacts.TryGetIdentifier(syntax.Children[1], out var array);
-                if (_named ? compiler._scope.IsReservedVariable(array.Name) : syntax.Children[1].Kind != AwkExpressionKind.ArrayElement) return false;
+                if (_named ? compiler._scope.IsReservedVariable(array.Identifier) : syntax.Children[1].Kind != AwkExpressionKind.ArrayElement) return false;
                 var index = syntax.Children[0];
                 if (index.Kind == AwkExpressionKind.Group && index.FirstChild is { Kind: AwkExpressionKind.ExpressionList } tuple) index = tuple;
                 _stage = 1;

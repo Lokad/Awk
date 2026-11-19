@@ -11,6 +11,8 @@ internal readonly record struct AwkIdentifier
 
     public string Text => _text ?? string.Empty;
 
+    internal static AwkIdentifier FromValidatedText(string text) => new(text);
+
     public static bool TryParse(string text, out AwkIdentifier identifier)
     {
         if (AwkIdentifiers.IsValidName(text))

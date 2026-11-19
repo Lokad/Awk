@@ -66,9 +66,9 @@ internal sealed class AwkLoweringScope
 
     public void CheckCancellation() => Checkpoint?.Invoke();
 
-    public bool IsReservedVariable(string name) =>
-        !TryGetFunctionLocalSlot(AwkVariableName.FromText(name), out _) &&
-        AwkCompatibilityNames.IsReservedName(name, CompatibilityMode);
+    public bool IsReservedVariable(AwkIdentifier identifier) =>
+        !TryGetFunctionLocalSlot(new(identifier), out _) &&
+        AwkCompatibilityNames.IsReservedName(identifier.Text, CompatibilityMode);
 
     public bool TryGetFunctionLocalSlot(AwkVariableName name, out AwkFunctionLocalSlotId slot)
     {

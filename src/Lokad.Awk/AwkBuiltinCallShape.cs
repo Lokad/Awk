@@ -52,7 +52,7 @@ internal static class AwkBuiltinCallShape
             AwkExpressionSyntaxFacts.TryGetArrayRoot(argument, out var identifier) &&
             (argument.Kind == AwkExpressionKind.Variable ||
                 argument.Kind == AwkExpressionKind.ArrayElement && scope.CompatibilityMode == AwkCompatibilityMode.GnuDefault) &&
-            !scope.IsReservedVariable(identifier.Name);
+            !scope.IsReservedVariable(identifier.Identifier);
 
         // Arguments without an explicit role accept any scalar expression.
         var roles = call.Definition.ArgumentRoles;
