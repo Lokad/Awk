@@ -778,7 +778,7 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<SimpleTail> tails)
     {
         var tokens = tails.Count == 0 ? firstTokens : GroupTokens(firstTokens[0].Span, tails[^1].End).FullTokens;
-        var wholeExpression = AwkStatementSyntaxFacts.HasWholeStatementExpression(kind)
+        var wholeExpression = kind == AwkStatementKind.Expression || AwkStatementSyntaxFacts.HasWholeStatementExpression(kind)
             ? ParseExpression(tokens) : null;
         if (kind == AwkStatementKind.Getline && wholeExpression is { Kind: not AwkExpressionKind.Unknown } &&
             (!AwkExpressionSyntaxFacts.TryGetCallableTarget(wholeExpression, out var getlineCall) ||
@@ -792,7 +792,7 @@ internal sealed class AwkStatementSyntaxParser
             kind = AwkStatementKind.Expression;
         var outputParts = ResolveOutputStatementParts(tokens, kind);
         var getline = ResolveGetlineSyntax(tokens, kind);
-        var inputPipeGetline = ResolveInputPipeGetlineSyntax(tokens, kind);
+        var inputPipeGetline = ResolveInputPipeGetlineSyntax(tokens, kind, wholeExpression);
         var expressions = ResolveStatementExpressions(tokens, kind, outputParts);
         return CreateStatement(
             kind,
@@ -815,8 +815,8 @@ internal sealed class AwkStatementSyntaxParser
             AwkStatementKind kind,
             OutputStatementParts outputParts)
         {
-            if (kind == AwkStatementKind.Expression)
-                return ExpressionListFromParsed(wholeExpression ?? ParseExpression(tokens));
+            if (kind == AwkStatementKind.Expression || AwkStatementSyntaxFacts.HasWholeStatementExpression(kind))
+                return ExpressionListFromParsed(wholeExpression);
 
             if (kind is AwkStatementKind.Print or AwkStatementKind.Printf)
                 return outputParts.Payload.TryGetValue(out var payload)
@@ -825,9 +825,6 @@ internal sealed class AwkStatementSyntaxParser
 
             if (kind == AwkStatementKind.Delete)
                 return ExpressionListFromParsed(ParseExpressionList(AwkTokenNavigation.Slice(tokens, 1, tokens.Count - 1, checkpoint: _checkpoint)));
-
-            if (AwkStatementSyntaxFacts.HasWholeStatementExpression(kind))
-                return ExpressionListFromParsed(wholeExpression);
 
             if (AwkStatementKindFacts.IsOptionalValue(kind))
                 return ExpressionListFromParsed(ParseExpression(AwkTokenNavigation.Slice(tokens, 1, tokens.Count - 1, checkpoint: _checkpoint)));
@@ -1062,7 +1059,8 @@ internal sealed class AwkStatementSyntaxParser
 
         AwkSyntaxOptional<AwkInputPipeGetlineSyntax> ResolveInputPipeGetlineSyntax(
             IReadOnlyList<AwkToken> tokens,
-            AwkStatementKind kind)
+            AwkStatementKind kind,
+            AwkExpressionSyntax? expression)
         {
             int FindFirstTopLevelPipe(IReadOnlyList<AwkToken> source)
             {
@@ -1103,7 +1101,7 @@ internal sealed class AwkStatementSyntaxParser
             // the expression grammar. Retain the statement outline only for a
             // complete standalone read (and the explicit unsupported coprocess).
             if (tokens[pipeIndex].Kind == AwkTokenKind.Pipe &&
-                ParseExpression(tokens) is { } expression &&
+                expression is not null &&
                 (expression.Kind != AwkExpressionKind.FunctionCall ||
                  expression.OperatorTokens.Count != 1 ||
                  expression.OperatorTokens[0].Kind != AwkTokenKind.Pipe))
