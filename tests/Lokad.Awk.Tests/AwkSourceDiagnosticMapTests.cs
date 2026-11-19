@@ -33,6 +33,21 @@ public sealed class AwkSourceDiagnosticMapTests
         Assert.Equal(0, host.OpenFileCount);
     }
 
+    [Theory]
+    [InlineData("--lint", "warning: function `missing' called but never defined\nawk: undefined function: missing\n")]
+    [InlineData("--lint=fatal", "fatal: function `missing' called but never defined\n")]
+    public async Task UndefinedFunctionLintFailureKeepsItsSourceLocation(string option, string diagnostic)
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/lint.awk", "BEGIN { print missing(1) }\n");
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", option, "-f", "/lint.awk"));
+
+        Assert.Equal(AwkExitCode.FatalError, await awk.ExecuteAsync(host, CancellationToken.None));
+        Assert.Equal("awk: /lint.awk:1:15: " + diagnostic, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
     [Fact]
     public void MapDiagnostics_ReturnsDefaultInlineDiagnosticsWithoutAllocatingAMappedBatch()
     {

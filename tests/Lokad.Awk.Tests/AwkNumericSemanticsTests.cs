@@ -94,7 +94,8 @@ public sealed class AwkNumericSemanticsTests
     [InlineData(4)]
     public async Task DiagnosticAdmissionFailurePreservesTheQueueAndItsMemory(int initialCount)
     {
-        const string message = "awk: warning: retained\n";
+        const string message = "retained";
+        const string rendered = "awk: warning: retained\n";
         var retainedBuffer = AwkRuntimeMemory.EstimateDiagnosticBufferBytes(4);
         var messageBytes = AwkRuntimeMemory.EstimateDiagnosticMessageBytes(message.Length);
         var growingBuffer = initialCount == 4 ? AwkRuntimeMemory.EstimateDiagnosticBufferBytes(8) : 0;
@@ -115,7 +116,7 @@ public sealed class AwkNumericSemanticsTests
         var host = new MockFileSystem();
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         await sink.FlushDiagnosticsAsync(CreateIo(host));
-        Assert.Equal(string.Concat(Enumerable.Repeat(message, initialCount)), host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(string.Concat(Enumerable.Repeat(rendered, initialCount)), host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(outputBuffer + retainedBuffer, governor.LiveBytes);
         sink.Dispose();
         Assert.Equal(0, governor.LiveBytes);
@@ -126,7 +127,8 @@ public sealed class AwkNumericSemanticsTests
     [InlineData(4)]
     public async Task DiagnosticExactAdmissionChargesGrowthAndReusesTheFlushedBuffer(int initialCount)
     {
-        const string message = "awk: warning: retained\n";
+        const string message = "retained";
+        const string rendered = "awk: warning: retained\n";
         var oldBuffer = AwkRuntimeMemory.EstimateDiagnosticBufferBytes(4);
         var newBuffer = initialCount == 4 ? AwkRuntimeMemory.EstimateDiagnosticBufferBytes(8) : oldBuffer;
         var messageBytes = AwkRuntimeMemory.EstimateDiagnosticMessageBytes(message.Length);
@@ -147,7 +149,7 @@ public sealed class AwkNumericSemanticsTests
         sink.ReportDiagnostic(Warning(message));
         Assert.Equal(outputBuffer + newBuffer + messageBytes, governor.LiveBytes);
         await sink.FlushDiagnosticsAsync(io);
-        Assert.Equal(string.Concat(Enumerable.Repeat(message, initialCount + 2)), host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(string.Concat(Enumerable.Repeat(rendered, initialCount + 2)), host.GetOutput(AwkFileDescriptor.StdErr));
         sink.Dispose();
         sink.Dispose();
         Assert.Equal(0, governor.LiveBytes);
@@ -160,8 +162,8 @@ public sealed class AwkNumericSemanticsTests
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
         var governor = memoryForGovernor.Accounting;
         using var sink = new AwkOutputSink(governor);
-        sink.ReportDiagnostic(Warning("awk: warning: first\n"));
-        sink.ReportDiagnostic(Warning("awk: warning: second\n"));
+        sink.ReportDiagnostic(Warning("first"));
+        sink.ReportDiagnostic(Warning("second"));
         var host = new MockFileSystem { AfterAppend = () => throw new InvalidOperationException("private host detail") };
         var io = CreateIo(host);
 

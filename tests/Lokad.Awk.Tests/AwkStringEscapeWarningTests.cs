@@ -87,7 +87,7 @@ public sealed class AwkStringEscapeWarningTests
         List<AwkStringEscapeWarning> emitted = [];
         AwkEscapes.ReportStringWarnings(@"\q\q", (AwkCompatibilityMode)mode, history, emitted.Add);
         Assert.Single(emitted);
-        Assert.Equal(Warning, emitted[0].Message);
+        Assert.Equal("escape sequence `\\q' treated as plain `q'", emitted[0].Message);
     }
 
     [Theory]

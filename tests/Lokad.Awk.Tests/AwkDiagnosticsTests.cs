@@ -16,7 +16,7 @@ public sealed class AwkDiagnosticsTests
             AwkDiagnosticId.ParseInvalidRegex);
         var warning = new AwkDiagnostic(
             new AwkTextSpan(2, 1),
-            "awk: warning: escape sequence.",
+            "escape sequence.",
             AwkDiagnosticId.WarningStringEscape);
         var bind = new AwkDiagnostic(
             new AwkTextSpan(3, 1),
@@ -42,7 +42,7 @@ public sealed class AwkDiagnosticsTests
     public void AwkDiagnostics_SelectsTheFirstErrorWithInvalidRegexTakingPrecedence()
     {
         var span = new AwkTextSpan(0, 1);
-        var warning = new AwkDiagnostic(span, "awk: warning: escape sequence.", AwkDiagnosticId.WarningStringEscape);
+        var warning = new AwkDiagnostic(span, "escape sequence.", AwkDiagnosticId.WarningStringEscape);
         var first = new AwkDiagnostic(span, "Invalid action block.", AwkDiagnosticId.BindInvalidProgram);
         var later = new AwkDiagnostic(span, "Unexpected token.", AwkDiagnosticId.ParseSyntax);
         var regex = new AwkDiagnostic(span, "Invalid regex.", AwkDiagnosticId.ParseInvalidRegex);

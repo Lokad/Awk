@@ -3,10 +3,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkUnicodeStringTests
 {
     [Theory]
-    [InlineData(0, "\\u", "awk: warning: no hex digits in `\\u' escape sequence\n")]
-    [InlineData(2, "\\u", "awk: warning: no hex digits in `\\u' escape sequence\n")]
-    [InlineData(0, "\\ud800", "awk: warning: invalid `\\u' escape sequence\n")]
-    [InlineData(2, "\\u110000", "awk: warning: invalid `\\u' escape sequence\n")]
+    [InlineData(0, "\\u", "no hex digits in `\\u' escape sequence")]
+    [InlineData(2, "\\u", "no hex digits in `\\u' escape sequence")]
+    [InlineData(0, "\\ud800", "invalid `\\u' escape sequence")]
+    [InlineData(2, "\\u110000", "invalid `\\u' escape sequence")]
     public void UnicodeWarningsRetainStringTokenSpans(int mode, string escape, string expected)
     {
         var literal = "\"" + escape + "\"";

@@ -2,7 +2,7 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkUnicodeRegexTests
 {
-    private const string Warning = "awk: warning: no hex digits in `\\u' escape sequence\n";
+    private const string Warning = "no hex digits in `\\u' escape sequence";
 
     [Theory]
     [InlineData(0)]
@@ -29,7 +29,7 @@ public sealed class AwkUnicodeRegexTests
             Assert.Equal(new AwkTextSpan(source.IndexOf('/'), literal.Length), warning.Span);
         }
         Assert.Equal(Warning, parse.Warnings[0].Message);
-        Assert.Equal("awk: warning: invalid `\\u' escape sequence\n", parse.Warnings[1].Message);
+        Assert.Equal("invalid `\\u' escape sequence", parse.Warnings[1].Message);
     }
 
     [Theory]
@@ -71,7 +71,8 @@ compatibilityMode: (AwkCompatibilityMode)mode,
             var exit = await awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), deadline.Token);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1\n1\n1\n", host.GetOutput(AwkFileDescriptor.StdOut));
-            Assert.Equal("awk: /regex.awk:2:18: warning: no hex digits in `\\u' escape sequence\n" + Warning,
+            Assert.Equal("awk: /regex.awk:2:18: warning: no hex digits in `\\u' escape sequence\n" +
+                "awk: warning: " + Warning + "\n",
                 host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, host.OpenFileCount);
             Assert.Equal(1, host.ReadOpenCount);

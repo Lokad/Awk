@@ -666,7 +666,7 @@ public sealed class AwkSyntaxParserTests
 
         var diagnostic = Assert.Single(program.Diagnostics);
         Assert.Equal(AwkDiagnosticId.UnsupportedPolicy, diagnostic.Id);
-        Assert.Equal("awk: namespaces are unsupported in Lokad awk", diagnostic.Message);
+        Assert.Equal("namespaces are unsupported in Lokad awk", diagnostic.Message);
         Assert.Equal([AwkDirectiveKind.Include, AwkDirectiveKind.Namespace],
             program.Directives.Select(directive => directive.Kind).ToArray());
         Assert.Equal("include", program.Directives[0].Name);

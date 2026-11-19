@@ -53,7 +53,7 @@ internal static class AwkFrontendDiagnosticPolicy
             {
                 AddDiagnostic(new AwkDiagnostic(
                     tokens[index].Span,
-                    AwkUtf8Codec.Decode(unsupportedMessage).TrimEnd('\r', '\n'),
+                    unsupportedMessage,
                     AwkDiagnosticId.UnsupportedPolicy));
             }
             else if (tokens[index].Kind is AwkTokenKind.Regex or AwkTokenKind.StrongRegex)
@@ -103,7 +103,7 @@ internal static class AwkFrontendDiagnosticPolicy
             IReadOnlyList<AwkToken> tokens,
             int index,
             AwkCompatibilityMode mode,
-            out ReadOnlyMemory<byte> errorMessage, Action? checkpoint)
+            out string errorMessage, Action? checkpoint)
         {
             var token = tokens[index];
             if (token.Kind == AwkTokenKind.At &&
@@ -111,13 +111,13 @@ internal static class AwkFrontendDiagnosticPolicy
             {
                 if (directive.Kind == AwkDirectiveKind.Load)
                 {
-                    errorMessage = AwkMessages.ErrorUnsupportedDynamicLoad;
+                    errorMessage = AwkMessages.UnsupportedDynamicLoadMessage;
                     return true;
                 }
 
                 if (directive.Kind == AwkDirectiveKind.Namespace)
                 {
-                    errorMessage = AwkMessages.ErrorUnsupportedNamespace;
+                    errorMessage = AwkMessages.UnsupportedNamespaceMessage;
                     return true;
                 }
             }
@@ -125,18 +125,18 @@ internal static class AwkFrontendDiagnosticPolicy
             switch (token.Kind)
             {
                 case AwkTokenKind.DoubleColon:
-                    errorMessage = AwkMessages.ErrorUnsupportedNamespace;
+                    errorMessage = AwkMessages.UnsupportedNamespaceMessage;
                     return true;
                 case AwkTokenKind.StrongRegex:
-                    errorMessage = AwkMessages.ErrorUnsupportedStronglyTypedRegex;
+                    errorMessage = AwkMessages.UnsupportedStronglyTypedRegexMessage;
                     return true;
                 case AwkTokenKind.InternationalizedString:
-                    errorMessage = AwkMessages.ErrorUnsupportedInternationalization;
+                    errorMessage = AwkMessages.UnsupportedInternationalizationMessage;
                     return true;
                 case AwkTokenKind.At:
                     if (IsIndirectFunctionCall())
                     {
-                        errorMessage = AwkMessages.ErrorUnsupportedIndirectFunctionCall;
+                        errorMessage = AwkMessages.UnsupportedIndirectFunctionCallMessage;
                         return true;
                     }
 
@@ -148,14 +148,14 @@ internal static class AwkFrontendDiagnosticPolicy
                             NextSignificantTokenIndex(tokens, index + 1, checkpoint))
                         .Kind == AwkTokenKind.LeftBracket)
                     {
-                        errorMessage = AwkMessages.ErrorArrayOfArraysExtension;
+                        errorMessage = AwkMessages.ArrayOfArraysExtensionMessage;
                         return true;
                     }
 
                     break;
             }
 
-            errorMessage = ReadOnlyMemory<byte>.Empty;
+            errorMessage = string.Empty;
             return false;
 
             bool IsIndirectFunctionCall()

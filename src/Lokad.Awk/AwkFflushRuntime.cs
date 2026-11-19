@@ -2,12 +2,12 @@ namespace Lokad.Awk;
 
 internal static class AwkFflushRuntime
 {
-    internal const string NonStringWarning = "awk: warning: fflush: received non-string argument";
+    internal const string NonStringWarning = "fflush: received non-string argument";
     internal const string NonStringFatal = "awk: fatal: fflush: received non-string argument\n";
-    private const string UnopenedPrefix = "awk: warning: fflush: `";
+    private const string UnopenedPrefix = "fflush: `";
     private const string UnopenedSuffix = "' is not an open file, pipe or co-process";
-    private const string InputFilePrefix = "awk: warning: fflush: cannot flush: file `";
-    private const string InputPipePrefix = "awk: warning: fflush: cannot flush: pipe `";
+    private const string InputFilePrefix = "fflush: cannot flush: file `";
+    private const string InputPipePrefix = "fflush: cannot flush: pipe `";
     private const string InputSuffix = "' opened for reading, not writing";
 
     public static async ValueTask<int> FlushAllAsync(AwkExecutionContext execution)

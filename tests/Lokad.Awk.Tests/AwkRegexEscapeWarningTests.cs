@@ -129,11 +129,11 @@ public sealed class AwkRegexEscapeWarningTests
             new AwkRegexEscapeWarnings(), w => warnings.Add(w.Message), warnings.Add);
         Assert.Equal(new[]
         {
-            "awk: warning: regexp escape sequence `\\q' is not a known regexp operator\n",
-            "awk: warning: no hex digits in `\\u' escape sequence\n",
-            "awk: warning: no hex digits in `\\x' escape sequence\n",
-            "awk: warning: regexp escape sequence `\\z' is not a known regexp operator\n",
-            "awk: warning: no hex digits in `\\u' escape sequence\n"
+            "regexp escape sequence `\\q' is not a known regexp operator",
+            "no hex digits in `\\u' escape sequence",
+            "no hex digits in `\\x' escape sequence",
+            "regexp escape sequence `\\z' is not a known regexp operator",
+            "no hex digits in `\\u' escape sequence"
         }, warnings);
     }
 

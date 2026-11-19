@@ -24,7 +24,7 @@ public sealed class AwkFlushTests
         var stdout = payload is "stdout" or "both" ? "payload\n" : "";
         var stderr = payload is "diagnostic" or "both" ? warning : "";
         if (stdout.Length != 0) output.Append(AwkText.FromSourceLiteralString(stdout));
-        if (stderr.Length != 0) output.ReportDiagnostic(new(default, warning));
+        if (stderr.Length != 0) output.ReportDiagnostic(new(default, "block marker", AwkDiagnosticId.WarningRuntime));
         await output.FlushAsync(io);
         await output.FlushAsync(io);
         Assert.Equal(stdout, host.GetOutput(AwkFileDescriptor.StdOut));

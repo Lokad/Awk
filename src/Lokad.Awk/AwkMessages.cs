@@ -11,8 +11,10 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: invalid variable assignment\n");
     internal static readonly ReadOnlyMemory<byte> ErrorMissingScript = AwkUtf8Codec.Encode("awk: missing script\n");
     internal static readonly ReadOnlyMemory<byte> ErrorMissingValue = AwkUtf8Codec.Encode("awk: missing option value\n");
+    internal const string UnsupportedDynamicLoadMessage =
+        "dynamic extension loading is unsupported in Lokad awk";
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedDynamicLoad =
-        AwkUtf8Codec.Encode("awk: dynamic extension loading is unsupported in Lokad awk\n");
+        AwkUtf8Codec.Encode("awk: " + UnsupportedDynamicLoadMessage + "\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedSystem =
         AwkUtf8Codec.Encode("awk: system() is unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorSandboxRedirection =
@@ -72,26 +74,28 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: /inet special files are unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedAwkFileDescriptorSpecialFile =
         AwkUtf8Codec.Encode("awk: unsupported /dev/fd descriptor in Lokad awk\n");
+    internal const string UnsupportedInternationalizationMessage =
+        "internationalization functions are unsupported in Lokad awk";
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedInternationalization =
-        AwkUtf8Codec.Encode("awk: internationalization functions are unsupported in Lokad awk\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedNamespace =
-        AwkUtf8Codec.Encode("awk: namespaces are unsupported in Lokad awk\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedStronglyTypedRegex =
-        AwkUtf8Codec.Encode("awk: strongly typed regexp constants are unsupported in Lokad awk\n");
+        AwkUtf8Codec.Encode("awk: " + UnsupportedInternationalizationMessage + "\n");
+    internal const string UnsupportedNamespaceMessage =
+        "namespaces are unsupported in Lokad awk";
+    internal const string UnsupportedStronglyTypedRegexMessage =
+        "strongly typed regexp constants are unsupported in Lokad awk";
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedByteModeEmptyFieldSeparator =
         AwkUtf8Codec.Encode("awk: byte-mode FS=\"\" over non-ASCII text is unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedByteModeFieldWidths =
         AwkUtf8Codec.Encode("awk: byte-mode FIELDWIDTHS cannot split a UTF-8 character in Lokad awk\n");
     internal const string WarningPosixOverridesCharactersAsBytes =
-        "awk: warning: `--posix' overrides `--characters-as-bytes'\n";
+        "`--posix' overrides `--characters-as-bytes'";
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidFieldWidths =
         AwkUtf8Codec.Encode("awk: invalid FIELDWIDTHS value\n");
     internal static readonly ReadOnlyMemory<byte> ErrorFieldWidthsStarNotLast =
         AwkUtf8Codec.Encode("awk: `*' must be the last designator in FIELDWIDTHS\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedIndirectFunctionCall =
-        AwkUtf8Codec.Encode("awk: indirect function calls are unsupported in Lokad awk\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorArrayOfArraysExtension =
-        AwkUtf8Codec.Encode("awk: arrays of arrays are a GNU extension\n");
+    internal const string UnsupportedIndirectFunctionCallMessage =
+        "indirect function calls are unsupported in Lokad awk";
+    internal const string ArrayOfArraysExtensionMessage =
+        "arrays of arrays are a GNU extension";
     internal static readonly ReadOnlyMemory<byte> ErrorDetachedArray =
         AwkUtf8Codec.Encode("awk: array target was removed during evaluation\n");
     internal static readonly ReadOnlyMemory<byte> ErrorOverlappingArrays =
@@ -153,8 +157,8 @@ internal static class AwkMessages
     internal static readonly ReadOnlyMemory<byte> VersionMessage = AwkUtf8Codec.Encode("Lokad awk " + AwkVersion.Text + "\n");
     internal static readonly ReadOnlyMemory<byte> ErrorCsvPosixConflict =
         AwkUtf8Codec.Encode("awk: `--posix' and `--csv' conflict\n");
-    internal const string WarningCsvFields = "warning: assignment to FS/FIELDWIDTHS/FPAT has no effect when using --csv";
-    internal const string WarningCsvRecords = "warning: assignment to RS has no effect when using --csv";
+    internal const string WarningCsvFields = "assignment to FS/FIELDWIDTHS/FPAT has no effect when using --csv";
+    internal const string WarningCsvRecords = "assignment to RS has no effect when using --csv";
     private static readonly ReadOnlyMemory<byte> ErrorNoSuchFilePrefix = AwkUtf8Codec.Encode("awk: ");
     private static readonly ReadOnlyMemory<byte> ErrorNoSuchFileSuffix =
         AwkUtf8Codec.Encode(": No such file or directory\n");
@@ -253,14 +257,14 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: " + name + ": cannot use a file as both program source and include\n");
 
     internal static string FormatUndefinedFunctionText(string name) =>
-        "awk: undefined function: " + name + "\n";
+        "undefined function: " + name;
 
     internal static string FormatUndefinedFunctionWithLintWarningText(string name) =>
-        "awk: warning: function `" + name + "' called but never defined\n" +
+        "warning: function `" + name + "' called but never defined\nawk: " +
         FormatUndefinedFunctionText(name);
 
     internal static string FormatUndefinedFunctionWithFatalLintText(string name) =>
-        "awk: fatal: function `" + name + "' called but never defined\n";
+        "fatal: function `" + name + "' called but never defined";
 
     internal static ReadOnlyMemory<byte> FormatUndefinedSortComparison(string mode)
     {
@@ -285,31 +289,31 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: reference to uninitialized element `" + name + "[\"" + index + "\"]' is not allowed\n");
 
     internal static string FormatGensubThirdArgumentWarningText(string value) =>
-        "awk: warning: gensub: third argument `" + value + "' treated as 1\n";
+        "gensub: third argument `" + value + "' treated as 1";
 
     internal static string FormatMathNegativeArgumentWarning(string name, string value) =>
-        "awk: warning: " + name + ": received negative argument " + value + "\n";
+        name + ": received negative argument " + value;
 
     internal static string FormatMathRangeWarning(string name, string value) =>
-        "awk: warning: " + name + ": argument " + value + " is out of range\n";
+        name + ": argument " + value + " is out of range";
 
     internal static string FormatStringEscapeWarning(System.Text.Rune escaped) =>
-        "awk: warning: escape sequence `\\" + escaped + "' treated as plain `" + escaped + "'\n";
+        "escape sequence `\\" + escaped + "' treated as plain `" + escaped + "'";
 
     internal static string FormatRegexEscapeWarning(System.Text.Rune escaped) =>
-        "awk: warning: regexp escape sequence `\\" + escaped + "' is not a known regexp operator\n";
+        "regexp escape sequence `\\" + escaped + "' is not a known regexp operator";
 
     internal static string FormatRegexDigitEscapeWarning(System.Text.Rune escaped) =>
-        "awk: warning: regexp escape sequence `\\" + escaped + "' treated as plain `" + escaped + "'\n";
+        "regexp escape sequence `\\" + escaped + "' treated as plain `" + escaped + "'";
 
     internal static string FormatStringHexEscapeWarning() =>
-        "awk: warning: no hex digits in `\\x' escape sequence\n";
+        "no hex digits in `\\x' escape sequence";
 
     internal static string FormatStringUnicodeMissingDigitsWarning() =>
-        "awk: warning: no hex digits in `\\u' escape sequence\n";
+        "no hex digits in `\\u' escape sequence";
 
     internal static string FormatStringUnicodeInvalidScalarWarning() =>
-        "awk: warning: invalid `\\u' escape sequence\n";
+        "invalid `\\u' escape sequence";
 
     private static ReadOnlyMemory<byte> FormatSymbolDiagnostic(
         ReadOnlyMemory<byte> prefix,
