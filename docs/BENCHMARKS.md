@@ -2,15 +2,17 @@
 
 In the million-record workloads, Lokad.Awk took **0.85×** GNU awk's
 elapsed time for scalar summation, **1.04×** for keyed aggregation and
-**0.54×** for CSV. Projection took **0.89×**,
+**0.44×** for CSV. Projection took **0.89×**,
 filtering **0.98×** and the two-file join **0.93×**.
 Scalar summation allocated 0.078 MiB,
-keyed aggregation 0.111 MiB
-and the join 80.735 MiB per invocation.
+keyed aggregation 0.111 MiB,
+CSV 13.679 MiB and the join 80.735 MiB per invocation.
 
-The Release source snapshot was measured on quiet Linux x64 on **2026-11-19 UTC**
-with .NET SDK 10.0.401, runtime 10.0.12, BenchmarkDotNet 0.15.8 and GNU awk 5.3.2.
-[Measured source 05325189](https://github.com/Lokad/Awk/commit/0532518910e78e43512fdeaf944d4241213b5b62)
+Release measurements ran on quiet Linux x64 on **2026-11-19 UTC** with .NET SDK
+10.0.401, runtime 10.0.12, BenchmarkDotNet 0.15.8 and GNU awk 5.3.2. Both CSV rows
+use source `10e6a210`. All other rows use source `05325189`.
+[CSV source 10e6a210](https://github.com/Lokad/Awk/commit/10e6a2105108667fa9e1e5bcf8aac993149cea93) ·
+[Catalog source 05325189](https://github.com/Lokad/Awk/commit/0532518910e78e43512fdeaf944d4241213b5b62)
 
 ## Representative processing
 
@@ -51,13 +53,13 @@ outside this comparison. GNU marks workloads using GNU language extensions.
 | For loop and numeric arithmetic | 4,096 | 8.00 | 1.293 | 2.375 | 0.54× | 0.102 |
 | Project three columns / output | 4,096 | 60.00 | 0.660 | 1.220 | 0.54× | 0.060 |
 | Function with locals, loop and early return | 4,096 | 11.58 | 1.357 | 2.571 | 0.53× | 0.156 |
-| CSV keyed sum / quoted and multiline fields (GNU) | 4,096 | 100.16 | 1.135 | 2.330 | 0.49× | 0.640 |
 | Composite-key sum / sorted output (GNU) | 4,096 | 24.00 | 0.565 | 1.159 | 0.49× | 0.119 |
 | Labeled printf | 4,096 | 24.00 | 1.126 | 2.372 | 0.47× | 0.067 |
 | ASCII substr/index/length/casing | 4,096 | 52.00 | 0.596 | 1.260 | 0.47× | 0.220 |
 | Filter three fields | 4,096 | 24.00 | 0.574 | 1.214 | 0.47× | 0.083 |
 | 16 computed numbers / output | 4,096 | 20.00 | 2.364 | 5.058 | 0.47× | 0.129 |
 | Copy field / rebuild record (128 columns) | 256 | 101.00 | 0.526 | 1.173 | 0.45× | 0.067 |
+| CSV keyed sum / quoted and multiline fields (GNU) | 4,096 | 100.16 | 1.057 | 2.383 | 0.44× | 0.224 |
 | Field-key reads, existing/new | 4,096 | 63.15 | 0.602 | 1.364 | 0.44× | 0.605 |
 | Copy field / rebuild record | 4,096 | 60.00 | 0.551 | 1.260 | 0.44× | 0.059 |
 | Literal index search in a field | 4,096 | 70.00 | 0.530 | 1.241 | 0.43× | 0.072 |
@@ -91,7 +93,7 @@ Both cohorts use the same job settings and run separately.
 | Two-file membership / join | 1,048,576 | 12070.99 | 281.283 | 303.299 | 0.93× | 80.735 |
 | Project a column / output | 1,048,576 | 15360.00 | 88.961 | 100.074 | 0.89× | 0.083 |
 | Sum one numeric column | 1,048,576 | 6422.43 | 77.277 | 91.333 | 0.85× | 0.078 |
-| CSV keyed sum / quoted and multiline fields (GNU) | 1,048,576 | 25642.66 | 241.046 | 448.657 | 0.54× | 120.345 |
+| CSV keyed sum / quoted and multiline fields (GNU) | 1,048,576 | 25642.66 | 187.682 | 429.249 | 0.44× | 13.679 |
 | ERE boolean matching | 65,536 | 512.00 | 21.323 | 4.684 | 4.55× | 112.189 |
 | Text function with branches and local temporary | 65,536 | 992.00 | 22.167 | 16.808 | 1.32× | 3.625 |
 | Numeric edit / rebuild record (192 columns) | 8,192 | 3096.00 | 27.380 | 25.324 | 1.08× | 4.398 |
