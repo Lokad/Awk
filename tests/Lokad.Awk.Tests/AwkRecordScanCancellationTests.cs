@@ -153,41 +153,52 @@ public sealed class AwkRecordScanCancellationTests
     [MemberData(nameof(Classifications))]
     public async Task LongSeparatorClassificationCanBeInterruptedBeforeHostIo(bool observed, string scenario)
     {
-        var repeated = new string('1', LongScan);
-        var separator = scenario switch
+        AwkRecordCursor Open(AwkRuntimeState state, TestOperationVisitor host, int length, Action checkpoint)
         {
-            "literal" => new string('a', LongScan),
-            "set" => "[" + repeated + "]",
-            "run" => "([" + repeated + "]+)",
-            "alternatives" => string.Join('|', Enumerable.Repeat("1", LongScan)),
-            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
-        };
-        var delimiter = scenario == "literal" ? separator : "1";
-        var bytes = Encoding.UTF8.GetBytes("left" + delimiter + "right" + delimiter);
+            var repeated = new string('1', length);
+            var separator = scenario switch
+            {
+                "literal" => new string('a', length),
+                "set" => "[" + repeated + "]",
+                "run" => "([" + repeated + "]+)",
+                "alternatives" => string.Join('|', Enumerable.Repeat("1", length)),
+                _ => throw new ArgumentOutOfRangeException(nameof(scenario))
+            };
+            var delimiter = scenario == "literal" ? separator : "1";
+            var bytes = Encoding.UTF8.GetBytes("left" + delimiter + "right" + delimiter);
+            host.EnqueueReadBuffer(AwkReadBuffer.FromContent(bytes, AwkReadCompletion.EndOfFile, static _ => { }));
+            Assign(state, "RS", separator);
+            var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+            return new AwkRecordCursor(state, reader, scanCheckpoint: checkpoint);
+        }
+
+        var shortChecks = 0;
+        using (var shortMemory = State(observed))
+        {
+            var shortHost = new TestOperationVisitor([]);
+            using var shortCursor = Open(shortMemory.State, shortHost, 4, () => shortChecks++);
+            Assert.Equal("left", (await shortCursor.ReadRecordAsync()).RecordText.AsString());
+            Assert.Single(shortHost.ReadByteCounts);
+        }
+
         var host = new TestOperationVisitor([]);
-        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(bytes, AwkReadCompletion.EndOfFile, static _ => { }));
         using var memoryForState = State(observed);
         var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
-        var armed = false;
+        var armed = true;
         void Check()
         {
             if (!armed) return;
-            if (++checks == 8) cancellation.Cancel();
+            if (++checks > shortChecks) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
 
-        Assign(state, "RS", separator);
-        var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
-        using var cursor = new AwkRecordCursor(state, reader,
-            scanCheckpoint: Check);
-        armed = true;
-
-        await Assert.ThrowsAsync<OperationCanceledException>(async () => await cursor.ReadRecordAsync());
+        using var cursor = Open(state, host, LongScan, Check);
+        var error = await Assert.ThrowsAsync<OperationCanceledException>(async () => await cursor.ReadRecordAsync());
 
         armed = false;
-        Assert.Equal(8, checks);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Empty(host.ReadByteCounts);
         Assert.Equal("left", (await cursor.ReadRecordAsync()).RecordText.AsString());
         Assert.Equal("right", (await cursor.ReadRecordAsync()).RecordText.AsString());
@@ -208,12 +219,11 @@ public sealed class AwkRecordScanCancellationTests
         using var memoryForState = State(observed);
         var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
-        var checks = 0;
         var armed = false;
         void Check()
         {
             if (!armed) return;
-            if (++checks == 1) cancellation.Cancel();
+            cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
 
@@ -227,10 +237,10 @@ public sealed class AwkRecordScanCancellationTests
         var committed = state.MemoryAccounting.LiveBytes;
         armed = true;
 
-        await Assert.ThrowsAsync<OperationCanceledException>(async () => await cursor.ReadRecordAsync());
+        var error = await Assert.ThrowsAsync<OperationCanceledException>(async () => await cursor.ReadRecordAsync());
 
         armed = false;
-        Assert.True(checks > 0);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
 
         Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         var retry = await cursor.ReadRecordAsync();
