@@ -166,6 +166,12 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         return HasBufferedRecord;
     }
 
+    internal AwkRecordStorage? GetPrintableBufferedRecord(out int slot)
+    {
+        slot = _bufferedSlot;
+        return _recordTextIsCurrent ? _bufferedStorage : null;
+    }
+
     public AwkText RecordAwkText
     {
         get

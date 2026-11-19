@@ -631,17 +631,8 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void AppendFieldPrint(AwkOutputSink output, AwkFieldIndex index)
     {
-        if (index.IsCurrentRecord && _recordFields.TryGetRecomposedRecordFields(
-            out var fields, out var record, out var separator, out var byteLength))
-        {
-            var recordTerminator = ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
-            using var recordFormatting = recordTerminator.IsNumberValue
-                ? MemoryAccounting.CreateTransientLease() : AwkMemoryLease.Disabled;
-            var ending = FormatStringByteText(recordTerminator, recordFormatting);
-            // The output owns every copied byte before its host append can suspend.
-            output.AppendRecord(fields, record, separator, ending, byteLength);
-            return;
-        }
+        if (index.IsCurrentRecord && TryAppendCurrentRecord(output)) return;
+
         ReadOnlySpan<byte> bytes = default;
         var borrowed = index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out bytes);
         var value = borrowed ? default : _recordFields.GetFieldValue(index);
@@ -653,6 +644,26 @@ internal sealed class AwkRuntimeState : IDisposable
         var terminator = FormatStringByteText(terminatorValue, formatting);
         // Copy into owned output synchronously, before the record can advance or refund.
         output.Append(borrowed ? bytes : FormatPrintByteText(value, formatting).AsSpan(CancellationCheckpoint), terminator);
+    }
+
+    private bool TryAppendCurrentRecord(AwkOutputSink output)
+    {
+        var buffered = _recordFields.GetPrintableBufferedRecord(out int slot);
+        AwkRecordFields fields = default;
+        ReadOnlySpan<byte> record = default;
+        AwkText separator = default;
+        int byteLength = 0;
+        if (buffered is null && !_recordFields.TryGetRecomposedRecordFields(
+            out fields, out record, out separator, out byteLength)) return false;
+
+        var terminator = ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
+        using var formatting = terminator.IsNumberValue
+            ? MemoryAccounting.CreateTransientLease() : AwkMemoryLease.Disabled;
+        var ending = FormatStringByteText(terminator, formatting);
+        if (buffered is not null)
+            output.AppendBufferedRecord(buffered, slot, ending);
+        else output.AppendRecord(fields, record, separator, ending, byteLength);
+        return true;
     }
 
     public int CountFieldStringUnits(AwkFieldIndex index)

@@ -137,12 +137,33 @@ internal sealed class AwkUtf8Builder : IDisposable
     {
         ThrowIfDisposed();
         var ending = terminator.AsSpan(checkpoint);
-        var nextLength = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(Length, bytes.Length), ending.Length);
+        var nextLength = AdmitAppend(bytes.Length, ending.Length);
+        CopyAdmittedAppend(bytes, ending, nextLength, checkpoint);
+        return this;
+    }
+
+    internal void AppendBufferedRecord(AwkRecordStorage record, int slot, AwkText terminator, Action? checkpoint)
+    {
+        ThrowIfDisposed();
+        var ending = terminator.AsSpan(checkpoint);
+        var nextLength = AdmitAppend(record.LengthAt(slot), ending.Length);
+        // Admission may promote this slot and retire its former borrow.
+        checkpoint?.Invoke();
+        CopyAdmittedAppend(record.ContentAt(slot).Span, ending, nextLength, checkpoint);
+    }
+
+    private int AdmitAppend(int contentLength, int endingLength)
+    {
+        var nextLength = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(Length, contentLength), endingLength);
         EnsureCapacity(nextLength);
+        return nextLength;
+    }
+
+    private void CopyAdmittedAppend(ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> ending, int nextLength, Action? checkpoint)
+    {
         AwkText.CopyBytes(bytes, _buffer.AsSpan(Length), checkpoint);
         AwkText.CopyBytes(ending, _buffer.AsSpan(Length + bytes.Length), checkpoint);
         Length = nextLength;
-        return this;
     }
 
     public AwkUtf8Builder Append(ReadOnlySpan<byte> bytes, Action? checkpoint = null)

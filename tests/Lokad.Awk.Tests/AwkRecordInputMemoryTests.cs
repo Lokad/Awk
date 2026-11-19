@@ -295,6 +295,59 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task BufferedRecordPrintReadsTheLiveSlotAfterOutputAdmission(bool cancel, bool refuse)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters, cancellation.Token);
+        using (memory)
+        {
+            var state = memory.State;
+            using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+            output.Append(AwkText.FromSourceLiteralString("keep\n"));
+            var record = "0007 café " + new string('x', 1024) + " 😀";
+            var input = record + "\n";
+            var host = new InputHost(memory.Budget, input) { PoisonConsumedBytes = true };
+            using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, cancellation.Token, state.Options);
+            Assert.True(await reader.TryBufferAsync());
+            var storage = state.InputRecordStorage;
+            storage.StageBorrowed(reader, reader.Content[..^1]);
+            reader.Advance(reader.Content.Length);
+            state.PublishInputRecord(AwkInputRecordResult.Buffered(storage, AwkRecordTerminator.NewLine),
+                readsMainInput: true);
+            _ = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
+            var before = counters[AwkCounter.TextAllocations];
+
+            memory.Budget.OnGrowth = _ =>
+            {
+                reader.ReleaseBorrow();
+                if (cancel) cancellation.Cancel();
+            };
+            if (refuse) memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+            try
+            {
+                if (cancel)
+                    Assert.Throws<OperationCanceledException>(() => state.AppendFieldPrint(output, new(0)));
+                else if (refuse)
+                    Assert.Throws<AwkRuntimeException>(() => state.AppendFieldPrint(output, new(0)));
+                else state.AppendFieldPrint(output, new(0));
+            }
+            finally
+            {
+                memory.Budget.OnGrowth = null;
+            }
+
+            Assert.Equal(System.Text.Encoding.UTF8.GetByteCount(input), host.CommittedInputBytes);
+            Assert.Equal(cancel || refuse ? "keep\n" : "keep\n" + input, output.ToString());
+            Assert.Equal(before, counters[AwkCounter.TextAllocations]);
+        }
+        AssertRefunded(memory.Budget);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task AsciiAndUnicodeBatchesKeepScalarLengthsAfterMutation(bool governed)
@@ -510,9 +563,11 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task BorrowedInputRemainsFundedThroughPendingOutput(bool cancel)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task BorrowedInputRemainsFundedThroughPendingOutput(bool cancel, bool printRecord)
     {
         var budget = new CooperativeTestBudget(16 << 20);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -522,7 +577,8 @@ public sealed class AwkRecordInputMemoryTests
         {
             PendingOutput = () => { entered.SetResult(); return release.Task; }
         };
-        var execution = Execute("BEGIN{RS=\"x.\"}{print \"held\";exit}", host, budget, cancellation.Token);
+        var source = printRecord ? "BEGIN{RS=\"x.\"}{print;exit}" : "BEGIN{RS=\"x.\"}{print \"held\";exit}";
+        var execution = Execute(source, host, budget, cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -534,7 +590,7 @@ public sealed class AwkRecordInputMemoryTests
         finally { release.TrySetResult(); }
         if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
         else Assert.Equal(0, (await execution).Value);
-        Assert.Equal("held\n", host.Output);
+        Assert.Equal(printRecord ? "a\n" : "held\n", host.Output);
         Assert.Equal("", host.Error);
         AssertRefunded(budget);
     }

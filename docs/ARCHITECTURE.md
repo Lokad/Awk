@@ -169,6 +169,8 @@ split completion and reconstruction; failed staging leaves earlier observations 
 Reconstruction stages numeric spellings in field order under the active `CONVFMT`.
 After destination admission, it resolves the source bytes and rebases the field
 descriptors during the synchronous copy.
+Plain print of a clean buffered record admits output space first, then copies
+from the current input slot into the output owner before any host suspension.
 The frame can reuse one funded descriptor buffer to stage a similarly wide rebuild.
 Much smaller records and frame reset release the spare storage.
 Short copies share a cancellation interval across fields and separators. Long copies
