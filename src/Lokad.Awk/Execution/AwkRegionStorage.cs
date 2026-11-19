@@ -36,6 +36,8 @@ internal sealed class AwkRegionStorage : IDisposable
     internal AwkArrayUpdateTarget[] Targets => _targets;
     internal AwkRegionBuilder[] Builders => _builders;
     internal AwkFieldText[] PrintSegments => _printSegments;
+    internal AwkRegion PreparedRegion => _preparedRegion ??
+        throw new InvalidOperationException("The caller's execution region must already be prepared.");
 
     // Preparation reserves these slots exclusively for an array owner or empty.
     // Capacity is funded here; the actual array retains its ordinary admission.

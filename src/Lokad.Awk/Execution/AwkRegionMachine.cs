@@ -104,7 +104,7 @@ internal partial struct AwkRegionMachine
 
     private void EnterCall(in AwkRegionCall call, AwkFunctionFrame frame, int destination, AwkRegionReturnConsumer consumer)
     {
-        frame.SetCaller(_region, _storage, _position, _frame, destination, consumer);
+        frame.SetCaller(_frame, _position, destination, consumer);
         _state.FunctionCalls.ActivateFrame(frame);
         // The activated frame already has its saved caller. It owns unwinding
         // even if obtaining or preparing callee scratch fails below.
@@ -284,8 +284,9 @@ internal partial struct AwkRegionMachine
         // fallthrough supplies Unassigned. Validation belongs to that capture.
         System.Diagnostics.Debug.Assert(!value.IsArrayValue && !value.IsUntypedValue && !value.IsNumberValue);
         var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
-        if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
-            throw new InvalidOperationException("A called function requires a caller.");
+        var callerFrame = frame.CallerFrame;
+        var resumePoint = frame.ResumePoint;
+        ResolveCaller(callerFrame, out var region, out var storage);
         if (resumePoint.Consumer is AwkRegionReturnConsumer.Number or AwkRegionReturnConsumer.ArrayUpdate)
             // Conversion consumes the actual funded callee snapshot before retirement.
             storage.Numbers[resumePoint.Destination] = value.AsNumber(_state.CancellationCheckpoint);
@@ -310,8 +311,9 @@ internal partial struct AwkRegionMachine
         while (true)
         {
             var frame = _frame ?? throw new InvalidOperationException("A return requires an active function frame.");
-            if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
-                throw new InvalidOperationException("A called function requires a caller.");
+            var callerFrame = frame.CallerFrame;
+            var resumePoint = frame.ResumePoint;
+            ResolveCaller(callerFrame, out var region, out var storage);
             if (resumePoint.Consumer == AwkRegionReturnConsumer.ReturnValue)
             {
                 // This number is the caller's complete return value. Its actual
@@ -364,6 +366,20 @@ internal partial struct AwkRegionMachine
         storage.CompleteCapturedArrayUpdate(in instruction, in update, in target, number, pathSlot);
     }
 
+    private void ResolveCaller(AwkFunctionFrame? frame, out AwkRegion region, out AwkRegionStorage storage)
+    {
+        // A null execution caller resumes this machine's root. Binding ancestry
+        // may instead lead to a frame hidden while reentrant file actions run.
+        if (frame is null)
+        {
+            region = _rootRegion;
+            storage = _rootStorage;
+            return;
+        }
+        storage = frame.ActiveRegionStorage;
+        region = storage.PreparedRegion;
+    }
+
     private void RetireToCaller(AwkRegion region, AwkRegionStorage storage, int position, AwkFunctionFrame? frame)
     {
         // The binding stack detaches the callee before retiring its resources.
@@ -379,9 +395,8 @@ internal partial struct AwkRegionMachine
     {
         while (_frame is { } frame)
         {
-            if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
-                throw new InvalidOperationException("A called function requires a caller.");
-            RetireToCaller(region, storage, resumePoint.Position, callerFrame);
+            _frame = frame.CallerFrame;
+            _state.PopFunctionFrame();
         }
     }
 
