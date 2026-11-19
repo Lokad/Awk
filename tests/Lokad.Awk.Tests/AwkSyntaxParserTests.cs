@@ -170,9 +170,9 @@ public sealed class AwkSyntaxParserTests
             "$1 == \"sku\" {print $2}\n" +
             "END{print \"done\"}";
 
-        var tokens = AwkTestHarness.TokenizeSource(source);
+        var tokens = AwkTestHarness.TokenizeSource(source, out var parsingSource);
 
-        Assert.True(AwkTopLevelSyntaxParser.TryParse(AwkParsingSource.Create(source), tokens, out var parsed, out _));
+        Assert.True(AwkTopLevelSyntaxParser.TryParse(parsingSource, tokens, out var parsed, out _));
         Assert.Equal(
             [
                 AwkTopLevelSyntaxParser.TopLevelItemKind.Directive,

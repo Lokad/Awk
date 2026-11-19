@@ -16,11 +16,19 @@ internal static class AwkLexer
         string source,
         Action? checkpoint,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        AwkFrontendMemory? memory = null) =>
+        Tokenize(source, checkpoint, out _, compatibilityMode, memory);
+
+    internal static List<AwkToken> Tokenize(
+        string source,
+        Action? checkpoint,
+        out IReadOnlyList<int> newLines,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         AwkFrontendMemory? memory = null)
     {
         checkpoint?.Invoke();
         var frontend = memory ?? AwkFrontendMemory.Disabled;
-        var lexer = new Lexer(source, checkpoint, compatibilityMode, frontend);
+        var lexer = new Lexer(source, checkpoint, compatibilityMode, frontend, out newLines);
         var tokens = lexer.Tokenize();
         checkpoint?.Invoke();
         frontend.AdmitTokens(source.Length, tokens.Count);
@@ -42,7 +50,7 @@ internal static class AwkLexer
         private readonly AwkLexicalNames _names;
 
         public Lexer(string source, Action? checkpoint, AwkCompatibilityMode compatibilityMode,
-            AwkFrontendMemory memory)
+            AwkFrontendMemory memory, out IReadOnlyList<int> newLines)
         {
             _source = source;
             _names = new AwkLexicalNames(compatibilityMode);
@@ -54,6 +62,7 @@ internal static class AwkLexer
             checkpoint?.Invoke();
             memory.AdmitLexemes(source.Length, result.Tokens.Count);
             _lexemes = result.Tokens;
+            newLines = result.Newlines;
         }
 
         public List<AwkToken> Tokenize()

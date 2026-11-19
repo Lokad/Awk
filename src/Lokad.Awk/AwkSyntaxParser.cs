@@ -17,9 +17,7 @@ internal static class AwkSyntaxParser
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         checkpoint?.Invoke();
-        budget.Memory.AdmitLexing(source.Length);
-        var parsingSource = AwkParsingSource.Create(source, checkpoint);
-        var tokens = AwkLexer.Tokenize(source, checkpoint, compatibilityMode, budget.Memory);
+        var tokens = AwkLexer.Tokenize(source, checkpoint, out var newLines, compatibilityMode, budget.Memory);
         checkpoint?.Invoke();
         if (AwkSyntaxNesting.TryFindExcessiveDelimiterDepth(
                 tokens,
@@ -35,7 +33,7 @@ internal static class AwkSyntaxParser
         }
 
         var parser = new Parser(
-            parsingSource,
+            new AwkParsingSource(source, newLines),
             tokens,
             budget,
             checkpoint,

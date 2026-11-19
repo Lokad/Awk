@@ -257,23 +257,12 @@ public sealed class AwkFrontendCancellationTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void SourceNewlineMetadataObservesCancellation(bool newlines)
+    [InlineData("xx")]
+    [InlineData("x\r\nx\nx\r")]
+    public void LexerProvidesAbsoluteSourceNewlineOffsets(string segment)
     {
-        var source = string.Concat(Enumerable.Repeat(newlines ? "x\n" : "xx", 6_000));
-        using var cancellation = new CancellationTokenSource();
-        var calls = 0;
-        void Checkpoint()
-        {
-            if (++calls == 3)
-                cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-
-        var failure = Assert.Throws<OperationCanceledException>(() => AwkParsingSource.Create(source, Checkpoint));
-        Assert.Equal(cancellation.Token, failure.CancellationToken);
-        var metadata = AwkParsingSource.Create(source);
+        var source = string.Concat(Enumerable.Repeat(segment, 6_000));
+        AwkTestHarness.TokenizeSource(source, out var metadata);
         Assert.Equal(source.Select((character, index) => (character, index))
             .Where(item => item.character == '\n').Select(item => item.index), metadata.NewLines);
     }

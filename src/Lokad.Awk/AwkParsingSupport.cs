@@ -303,7 +303,7 @@ internal static class AwkParsingSupport
 
 internal sealed class AwkParsingSource
 {
-    private AwkParsingSource(string text, IReadOnlyList<int> newLines)
+    internal AwkParsingSource(string text, IReadOnlyList<int> newLines)
     {
         Text = text;
         NewLines = newLines;
@@ -311,34 +311,8 @@ internal sealed class AwkParsingSource
 
     public string Text { get; }
 
-    // Lokad.Parsing needs absolute newline offsets for diagnostics. Keeping the
-    // immutable source metadata here prevents each nested grammar parse from
-    // rescanning the complete program.
+    // Every grammar receives the same absolute newline offsets from the lexer.
     public IReadOnlyList<int> NewLines { get; }
-
-    public static AwkParsingSource Create(string text, Action? checkpoint = null)
-    {
-        checkpoint?.Invoke();
-        var newLines = new List<int>();
-        var position = 0;
-        while (position < text.Length)
-        {
-            checkpoint?.Invoke();
-            var length = Math.Min(1024, text.Length - position);
-            var relative = text.AsSpan(position, length).IndexOf('\n');
-            if (relative < 0)
-            {
-                position += length;
-                continue;
-            }
-
-            var newline = position + relative;
-            newLines.Add(newline);
-            position = newline + 1;
-        }
-
-        return new AwkParsingSource(text, newLines);
-    }
 }
 
 internal sealed class AwkTokenNamer : ITokenNamer<AwkTokenKind>

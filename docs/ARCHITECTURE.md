@@ -28,8 +28,9 @@ Parser results carry syntax, errors and warnings. Binding validates function
 declarations and builtin call shapes before lowering and returns a prepared program
 or diagnostics. Preparation reports malformed constructs that reach lowering.
 Generic top-level and statement grammar failures retain the failing source span.
-The contextual lexer reads source positions from the lexer descriptors and
-classifies tokens as it emits them.
+The contextual lexer uses ordinary token kinds from the lexer descriptors and
+resolves context-sensitive tokens from source. The grammars share the lexer's
+absolute newline offsets.
 The top-level grammar recognizes balanced action and function bodies, parameter
 lists and pattern boundaries. Their consumers read ranges of the original tokens.
 Pattern expressions filter comments while retaining continuation newlines.

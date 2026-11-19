@@ -16,8 +16,7 @@ public sealed class AwkGrammarCancellationTests
             "statements" => string.Concat(Enumerable.Repeat("x=x+1;", 128)),
             _ => string.Join('+', Enumerable.Repeat("1", 128))
         };
-        var source = AwkParsingSource.Create(text);
-        var tokens = AwkTestHarness.TokenizeSource(text);
+        var tokens = AwkTestHarness.TokenizeSource(text, out var source);
         var lexer = AwkParsingSupport.ToLexerResult(source, tokens);
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
@@ -294,8 +293,7 @@ public sealed class AwkGrammarCancellationTests
             "statements" => string.Concat(Enumerable.Repeat("x=1+2;", 64)),
             _ => string.Join('+', Enumerable.Repeat("1", 64))
         };
-        var source = AwkParsingSource.Create(text);
-        var tokens = AwkTestHarness.TokenizeSource(text);
+        var tokens = AwkTestHarness.TokenizeSource(text, out var source);
         object Parse(Action checkpoint)
         {
             if (grammar == "top-level")
