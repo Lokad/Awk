@@ -561,7 +561,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await ExecuteAsync(fileSystem, ["-f", "/script.awk"]);
 
-        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(AwkExitCode.FatalError.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: /script.awk:1:7: break used outside loop or switch\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
@@ -575,7 +575,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await ExecuteAsync(fileSystem, ["-f", "/script.awk"]);
 
-        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(AwkExitCode.FatalError.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: /script.awk: invalid UTF-8 source\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
@@ -591,7 +591,7 @@ public sealed class AwkSourceLoaderTests
             fileSystem,
             ["@include \"/lib/bad.awk\"\nBEGIN{print \"unreachable\"}"]);
 
-        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(AwkExitCode.FatalError.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: /lib/bad.awk: invalid UTF-8 source\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
@@ -626,7 +626,7 @@ public sealed class AwkSourceLoaderTests
             fileSystem.GetOutput(AwkFileDescriptor.StdErr),
             new Dictionary<string, string?>());
 
-        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(AwkExitCode.FatalError.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: /lib/bad.awk: invalid UTF-8 source\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
@@ -640,7 +640,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await ExecuteAsync(fileSystem, ["-f", "/script.awk"]);
 
-        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(AwkExitCode.FatalError.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: /script.awk:3:7: break used outside loop or switch\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
@@ -654,7 +654,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await ExecuteAsync(fileSystem, ["-f", "/script.awk"]);
 
-        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(AwkExitCode.FatalError.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: /script.awk:2:13: comparison operators are non-associative.\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
@@ -668,7 +668,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await ExecuteAsync(fileSystem, ["-f", "/script.awk"]);
 
-        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(AwkExitCode.FatalError.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: /script.awk:2:11: comparison operators are non-associative.\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
@@ -684,7 +684,7 @@ public sealed class AwkSourceLoaderTests
             fileSystem,
             ["@include \"/lib/bad.awk\"\nBEGIN{print \"unreachable\"}"]);
 
-        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(AwkExitCode.FatalError.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: /lib/bad.awk:1:7: break used outside loop or switch\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
@@ -700,7 +700,7 @@ public sealed class AwkSourceLoaderTests
             fileSystem,
             ["@include \"/lib/good.awk\"\nBEGIN{break}"]);
 
-        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(AwkExitCode.FatalError.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: <inline:1>:2:7: break used outside loop or switch\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
@@ -715,7 +715,7 @@ public sealed class AwkSourceLoaderTests
             fileSystem,
             ["--source", "BEGIN{ok=1}", "--source", "BEGIN{break}"]);
 
-        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(AwkExitCode.FatalError.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: <inline:2>:1:7: break used outside loop or switch\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);

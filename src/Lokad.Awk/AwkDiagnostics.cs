@@ -2,67 +2,27 @@ using System.Globalization;
 
 namespace Lokad.Awk;
 
-internal readonly struct AwkFailureDiagnostic
-{
-    public AwkFailureDiagnostic(ReadOnlyMemory<byte> message, AwkExitCode exitCode, AwkDiagnosticId id)
-    {
-        Message = message;
-        ExitCode = exitCode;
-        Id = id;
-        Category = AwkDiagnosticFacts.GetCategory(id);
-    }
-
-    public ReadOnlyMemory<byte> Message { get; }
-
-    public AwkExitCode ExitCode { get; }
-
-    public AwkDiagnosticId Id { get; }
-
-    public AwkDiagnosticCategory Category { get; }
-}
+internal readonly record struct AwkFailureDiagnostic(ReadOnlyMemory<byte> Message, AwkDiagnosticId Id);
 
 internal static class AwkDiagnostics
 {
-    public static AwkExitCode SuccessExitCode => AwkExitCode.Success;
-    public static AwkExitCode FatalExitCode => AwkExitCode.FatalError;
-
-    public static AwkFailureDiagnostic Invocation(ReadOnlyMemory<byte> message, AwkDiagnosticId id) =>
-        new(message, FatalExitCode, id);
-
-    public static AwkFailureDiagnostic SourceLoad(ReadOnlyMemory<byte> message, AwkDiagnosticId id) =>
-        new(message, FatalExitCode, id);
-
     public static AwkFailureDiagnostic Parse(IReadOnlyList<AwkDiagnostic> diagnostics)
     {
-        static AwkDiagnostic? ResolveFirstFailure(IReadOnlyList<AwkDiagnostic> diagnostics)
-        {
-            for (var index = 0; index < diagnostics.Count; index++)
-            {
-                if (!diagnostics[index].IsWarning)
-                    return diagnostics[index];
-            }
-
-            return null;
-        }
-
+        AwkDiagnostic? first = null;
         for (var index = 0; index < diagnostics.Count; index++)
         {
-            if (!diagnostics[index].IsWarning &&
-                diagnostics[index].Id == AwkDiagnosticId.ParseInvalidRegex)
-            {
-                return new AwkFailureDiagnostic(AwkMessages.ErrorInvalidRegex, FatalExitCode, diagnostics[index].Id);
-            }
+            var diagnostic = diagnostics[index];
+            if (diagnostic.IsWarning)
+                continue;
+            if (diagnostic.Id == AwkDiagnosticId.ParseInvalidRegex)
+                return new(AwkMessages.ErrorInvalidRegex, diagnostic.Id);
+            first ??= diagnostic;
         }
 
-        var diagnostic = ResolveFirstFailure(diagnostics);
-        return new AwkFailureDiagnostic(
-            diagnostic.HasValue ? FormatDiagnosticMessage(diagnostic.Value) : AwkMessages.ErrorInvalidScript,
-            FatalExitCode,
-            diagnostic.HasValue ? diagnostic.Value.Id : AwkDiagnosticId.ParseSyntax);
+        return first is { } failure
+            ? new(FormatDiagnosticMessage(failure), failure.Id)
+            : new(AwkMessages.ErrorInvalidScript, AwkDiagnosticId.ParseSyntax);
     }
-
-    public static AwkFailureDiagnostic Runtime(AwkRuntimeException exception) =>
-        new(exception.MessageBytes, FatalExitCode, exception.Id);
 
     public static ReadOnlyMemory<byte> Warning(AwkDiagnostic diagnostic) =>
         FormatDiagnosticMessage(diagnostic);

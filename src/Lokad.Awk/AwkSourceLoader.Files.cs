@@ -77,7 +77,7 @@ internal static partial class AwkSourceLoader
             new Loaded(source);
 
         public static Failed Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
-            new Failed(AwkDiagnostics.SourceLoad(errorMessage, id));
+            new Failed(new(errorMessage, id));
 
         internal sealed record Unexpanded(AwkScriptReadResult.Found Script) : SourceExpansionResult;
 

@@ -70,7 +70,7 @@ internal static class AwkExecutor
             {
                 if (!observedInternalFailure && exception is not AwkHostException)
                     ObserveInternalFailure(runtimeOptions, exception);
-                return AwkDiagnostics.FatalExitCode;
+                return AwkExitCode.FatalError;
             }
             return await ReportUnexpectedFailureAsync(
                 new AwkExecutionHost(applicationHost, AwkExecutionMemoryOwner.Disabled),
@@ -101,7 +101,7 @@ internal static class AwkExecutor
                 .ConfigureAwait(false);
             return status.IsAccepted
                 ? successExitCode
-                : AwkDiagnostics.FatalExitCode;
+                : AwkExitCode.FatalError;
         }
 
         try
@@ -110,8 +110,8 @@ internal static class AwkExecutor
             foreach (var warning in optionWarnings)
             {
                 var status = await AppendResultAsync(invocation.Stdio.StdErr,
-                    AwkDiagnostics.Warning(warning), AwkDiagnostics.SuccessExitCode).ConfigureAwait(false);
-                if (status != AwkDiagnostics.SuccessExitCode)
+                    AwkDiagnostics.Warning(warning), AwkExitCode.Success).ConfigureAwait(false);
+                if (status != AwkExitCode.Success)
                     return status;
             }
             if (invocation.TerminalResult.IsHelp)
@@ -119,7 +119,7 @@ internal static class AwkExecutor
                 return await AppendResultAsync(
                     invocation.Stdio.StdOut,
                     AwkMessages.HelpMessage,
-                    AwkDiagnostics.SuccessExitCode)
+                    AwkExitCode.Success)
                 .ConfigureAwait(false);
             }
 
@@ -128,17 +128,14 @@ internal static class AwkExecutor
                 return await AppendResultAsync(
                         invocation.Stdio.StdOut,
                         AwkMessages.VersionMessage,
-                        AwkDiagnostics.SuccessExitCode)
+                        AwkExitCode.Success)
                     .ConfigureAwait(false);
             }
 
             if (invocation.TerminalResult.IsError)
             {
-                var failure = AwkDiagnostics.Invocation(
-                    invocation.TerminalResult.ErrorMessage,
-                    invocation.TerminalResult.ErrorId);
-                return await AppendResultAsync(invocation.Stdio.StdErr, failure.Message, failure.ExitCode)
-                    .ConfigureAwait(false);
+                return await AppendResultAsync(invocation.Stdio.StdErr, invocation.TerminalResult.ErrorMessage,
+                    AwkExitCode.FatalError).ConfigureAwait(false);
             }
 
             var resolved = await ResolveProgramAsync(
@@ -154,9 +151,9 @@ internal static class AwkExecutor
                 var warningExitCode = await AppendResultAsync(
                         invocation.Stdio.StdErr,
                         AwkDiagnostics.Warning(resolved.Warnings[index]),
-                        AwkDiagnostics.SuccessExitCode)
+                        AwkExitCode.Success)
                     .ConfigureAwait(false);
-                if (warningExitCode != AwkDiagnostics.SuccessExitCode)
+                if (warningExitCode != AwkExitCode.Success)
                     return warningExitCode;
                 stringEscapeWarnings.Record(resolved.Warnings[index].StringEscapeWarning);
                 regexEscapeWarnings.Record(resolved.Warnings[index].RegexEscapeWarning);
@@ -167,7 +164,7 @@ internal static class AwkExecutor
                 return await AppendResultAsync(
                         invocation.Stdio.StdErr,
                         failed.Diagnostic.Message,
-                        failed.Diagnostic.ExitCode)
+                        AwkExitCode.FatalError)
                     .ConfigureAwait(false);
             }
 
@@ -217,7 +214,7 @@ internal static class AwkExecutor
                 cancellationToken).ConfigureAwait(false);
         }
         catch { cancellationToken.ThrowIfCancellationRequested(); }
-        return AwkDiagnostics.FatalExitCode;
+        return AwkExitCode.FatalError;
     }
 
     private static async Task<AwkExitCode> ReportRuntimeFailureAsync(
@@ -225,22 +222,20 @@ internal static class AwkExecutor
         AwkRuntimeException exception, CancellationToken cancellationToken)
     {
         if (exception is AwkHostAppendException append && append.Descriptor == stderr)
-            return AwkDiagnostics.FatalExitCode;
-        var failure = AwkDiagnostics.Runtime(exception);
+            return AwkExitCode.FatalError;
+        var message = exception.MessageBytes;
         options.Counters.Add(AwkCounter.HostCalls, 1);
-        options.Counters.Add(AwkCounter.OutputBytes, failure.Message.Length);
+        options.Counters.Add(AwkCounter.OutputBytes, message.Length);
         try
         {
-            var status = await AwkHostBoundaryPolicy.AwaitAsync(
-                    host.AppendAsync(stderr, failure.Message, cancellationToken), cancellationToken)
-                .ConfigureAwait(false);
-            return status.IsAccepted ? failure.ExitCode : AwkDiagnostics.FatalExitCode;
+            _ = await AwkHostBoundaryPolicy.AwaitAsync(
+                host.AppendAsync(stderr, message, cancellationToken), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return AwkDiagnostics.FatalExitCode;
         }
+        return AwkExitCode.FatalError;
     }
 
     private static async Task<AwkProgramResolution> ResolveProgramAsync(

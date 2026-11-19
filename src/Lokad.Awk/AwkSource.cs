@@ -190,7 +190,7 @@ internal abstract record AwkSourceLoadResult
     }
 
     public static AwkSourceLoadResult Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
-        new Failed(AwkDiagnostics.SourceLoad(errorMessage, id));
+        new Failed(new(errorMessage, id));
 
     internal sealed record Loaded(AwkSourceUnit CompilationSource) : AwkSourceLoadResult;
 

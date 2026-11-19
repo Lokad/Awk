@@ -211,7 +211,7 @@ internal abstract record AwkScriptReadResult
     public static AwkScriptReadResult NotFound { get; } = new Missing();
 
     public static AwkScriptReadResult Failure(ReadOnlyMemory<byte> message, AwkDiagnosticId id) =>
-        new Failed(AwkDiagnostics.SourceLoad(message, id));
+        new Failed(new(message, id));
 
     internal sealed record Missing : AwkScriptReadResult;
 

@@ -39,77 +39,21 @@ public sealed class AwkDiagnosticsTests
     }
 
     [Fact]
-    public void AwkDiagnostics_ClassifiesShellFacingFailures()
+    public void AwkDiagnostics_SelectsTheFirstErrorWithInvalidRegexTakingPrecedence()
     {
-        AssertFailure(
-            AwkDiagnostics.Invocation(
-                ToolAwkMessages.FormatInvalidOption("bad"),
-                AwkDiagnosticId.OptionInvalid),
-            AwkDiagnosticId.OptionInvalid,
-            AwkDiagnosticCategory.Option);
-        AssertFailure(
-            AwkDiagnostics.Invocation(
-                ToolAwkMessages.ErrorMissingScript,
-                AwkDiagnosticId.OptionMissingScript),
-            AwkDiagnosticId.OptionMissingScript,
-            AwkDiagnosticCategory.Option);
-        AssertFailure(
-            AwkDiagnostics.Invocation(
-                ToolAwkMessages.FormatUnsupportedGnuOption("--load"),
-                AwkDiagnosticId.UnsupportedPolicy),
-            AwkDiagnosticId.UnsupportedPolicy,
-            AwkDiagnosticCategory.UnsupportedPolicy);
-        AssertFailure(
-            AwkDiagnostics.SourceLoad(
-                ToolAwkMessages.FormatPathError(MissingScriptPath),
-                AwkDiagnosticId.SourceLoadFailure),
-            AwkDiagnosticId.SourceLoadFailure,
-            AwkDiagnosticCategory.Source);
-        AssertFailure(
-            AwkDiagnostics.SourceLoad(
-                ToolAwkMessages.ErrorUnsupportedNamespace,
-                AwkDiagnosticId.UnsupportedPolicy),
-            AwkDiagnosticId.UnsupportedPolicy,
-            AwkDiagnosticCategory.UnsupportedPolicy);
-        AssertFailure(
-            AwkDiagnostics.Parse([new AwkDiagnostic(new AwkTextSpan(0, 1), "Invalid regex.", AwkDiagnosticId.ParseInvalidRegex)]),
-            AwkDiagnosticId.ParseInvalidRegex,
-            AwkDiagnosticCategory.Parse);
-        AssertFailure(
-            AwkDiagnostics.Parse([new AwkDiagnostic(new AwkTextSpan(0, 1), "Invalid action block.", AwkDiagnosticId.BindInvalidProgram)]),
-            AwkDiagnosticId.BindInvalidProgram,
-            AwkDiagnosticCategory.Bind);
-        Assert.Equal(
-            "awk: invalid action block.\n",
-            Decode(AwkDiagnostics.Parse(
-                [new AwkDiagnostic(new AwkTextSpan(0, 1), "Invalid action block.", AwkDiagnosticId.BindInvalidProgram)])
-                .Message));
-        AssertFailure(
-            AwkDiagnostics.Runtime(new AwkRuntimeException(ToolAwkMessages.ErrorDivisionByZero)),
-            AwkDiagnosticId.RuntimeError,
-            AwkDiagnosticCategory.Runtime);
-        AssertFailure(
-            AwkDiagnostics.Runtime(new AwkRuntimeException(
-                ToolAwkMessages.FormatPathError(OutputPath),
-                AwkDiagnosticId.HostIoFailure)),
-            AwkDiagnosticId.HostIoFailure,
-            AwkDiagnosticCategory.HostIo);
-        AssertFailure(
-            AwkDiagnostics.Runtime(new AwkRuntimeException(
-                ToolAwkMessages.ErrorUnsupportedSystem,
-                AwkDiagnosticId.UnsupportedPolicy)),
-            AwkDiagnosticId.UnsupportedPolicy,
-            AwkDiagnosticCategory.UnsupportedPolicy);
+        var span = new AwkTextSpan(0, 1);
+        var warning = new AwkDiagnostic(span, "awk: warning: escape sequence.", AwkDiagnosticId.WarningStringEscape);
+        var first = new AwkDiagnostic(span, "Invalid action block.", AwkDiagnosticId.BindInvalidProgram);
+        var later = new AwkDiagnostic(span, "Unexpected token.", AwkDiagnosticId.ParseSyntax);
+        var regex = new AwkDiagnostic(span, "Invalid regex.", AwkDiagnosticId.ParseInvalidRegex);
 
-        static void AssertFailure(
-            AwkFailureDiagnostic failure,
-            AwkDiagnosticId expectedId,
-            AwkDiagnosticCategory expectedCategory)
-        {
-            Assert.Equal(AwkDiagnostics.FatalExitCode, failure.ExitCode);
-            Assert.Equal(expectedId, failure.Id);
-            Assert.Equal(expectedCategory, failure.Category);
-        }
+        var ordinary = AwkDiagnostics.Parse([warning, first, later]);
+        Assert.Equal(AwkDiagnosticId.BindInvalidProgram, ordinary.Id);
+        Assert.Equal("awk: invalid action block.\n", Decode(ordinary.Message));
+
+        var invalidRegex = AwkDiagnostics.Parse([warning, first, later, regex]);
+        Assert.Equal(AwkDiagnosticId.ParseInvalidRegex, invalidRegex.Id);
+        Assert.Equal("awk: invalid regular expression\n", Decode(invalidRegex.Message));
     }
 
     [Fact]
@@ -126,32 +70,4 @@ public sealed class AwkDiagnosticsTests
 
     private static string Decode(ReadOnlyMemory<byte> bytes) =>
         Encoding.UTF8.GetString(bytes.Span);
-
-    private static readonly byte[] MissingScriptPath =
-    [
-        (byte)'/',
-        (byte)'m',
-        (byte)'i',
-        (byte)'s',
-        (byte)'s',
-        (byte)'i',
-        (byte)'n',
-        (byte)'g',
-        (byte)'.',
-        (byte)'a',
-        (byte)'w',
-        (byte)'k'
-    ];
-
-    private static readonly byte[] OutputPath =
-    [
-        (byte)'/',
-        (byte)'o',
-        (byte)'u',
-        (byte)'t',
-        (byte)'.',
-        (byte)'t',
-        (byte)'x',
-        (byte)'t'
-    ];
 }
