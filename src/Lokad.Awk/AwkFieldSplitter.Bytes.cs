@@ -61,7 +61,8 @@ internal sealed partial class AwkFieldSplitter
             var fields = new List<AwkText>();
             var separators = new List<AwkCapturedSeparator>();
             var scanner = new AwkWhitespaceFieldScanner(line, state.CancellationCheckpoint);
-            while (scanner.MoveNext(out var field, out var precedingSeparator))
+            AwkFieldRange precedingSeparator;
+            while (scanner.MoveNext(out var field, out precedingSeparator))
             {
                 if (precedingSeparator.Length > 0)
                     separators.Add(new AwkCapturedSeparator(fields.Count, SliceTrustedFieldText(
@@ -72,11 +73,11 @@ internal sealed partial class AwkFieldSplitter
                 fields.Add(SliceTrustedFieldText(content, field.Start, field.Length));
             }
 
-            if (scanner.TrailingSeparator.Length > 0)
+            if (precedingSeparator.Length > 0)
                 separators.Add(new AwkCapturedSeparator(fields.Count, SliceTrustedFieldText(
                     content,
-                    scanner.TrailingSeparator.Start,
-                    scanner.TrailingSeparator.Length)));
+                    precedingSeparator.Start,
+                    precedingSeparator.Length)));
 
             return new AwkTextSplitResult(fields, separators);
         }
@@ -195,7 +196,7 @@ internal sealed partial class AwkFieldSplitter
         if (kind == AwkIncrementalFieldKind.Whitespace)
         {
             var scanner = new AwkWhitespaceFieldScanner(line, state.CancellationCheckpoint, position);
-            while (produced < destination.Length && scanner.MoveNext(out var field, out _))
+            while (produced < destination.Length && scanner.MoveNext(out var field))
             {
                 destination[produced++] = AwkRecordField.FromRecordSlice(field.Start, field.Length);
                 payload += field.Length;
@@ -208,7 +209,7 @@ internal sealed partial class AwkFieldSplitter
             throw new InvalidOperationException("The record plan does not support incremental fields.");
         var literal = plan.Separator.ByteText.AsSpan(state.CancellationCheckpoint)[0];
         var literalScanner = new AwkSingleByteFieldScanner(line, literal, state.CancellationCheckpoint, position);
-        while (produced < destination.Length && literalScanner.MoveNext(out var field, out _))
+        while (produced < destination.Length && literalScanner.MoveNext(out var field))
         {
             destination[produced++] = AwkRecordField.FromRecordSlice(field.Start, field.Length);
             payload += field.Length;
@@ -397,7 +398,7 @@ internal sealed partial class AwkFieldSplitter
         where TSink : struct, IAwkFieldSink<TFields>, allows ref struct
     {
         var scanner = new AwkWhitespaceFieldScanner(line, state.CancellationCheckpoint, position);
-        while (scanner.MoveNext(out var field, out _))
+        while (scanner.MoveNext(out var field))
             sink.Add(field);
 
         state.CancellationCheckpoint();
@@ -431,7 +432,7 @@ internal sealed partial class AwkFieldSplitter
         where TSink : struct, IAwkFieldSink<TFields>, allows ref struct
     {
         var scanner = new AwkSingleByteFieldScanner(line, separator, state.CancellationCheckpoint, position);
-        while (scanner.MoveNext(out var field, out _))
+        while (scanner.MoveNext(out var field))
             sink.Add(field);
 
         state.CancellationCheckpoint();
@@ -577,21 +578,25 @@ internal sealed partial class AwkFieldSplitter
 
         public readonly int Position => _position;
 
-        public AwkFieldRange TrailingSeparator { get; private set; }
-
         public bool MoveNext(out AwkFieldRange field, out AwkFieldRange precedingSeparator)
         {
-            var separatorStart = _position;
+            var start = _position;
+            var found = MoveNext(out field);
+            var end = found ? field.Start : _position;
+            precedingSeparator = new AwkFieldRange(start, end - start);
+            return found;
+        }
+
+        public bool MoveNext(out AwkFieldRange field)
+        {
             while (_position < _content.Length && IsDefaultFieldWhitespace(_content[_position]))
             {
                 CheckProgress();
                 _position++;
             }
 
-            precedingSeparator = new AwkFieldRange(separatorStart, _position - separatorStart);
             if (_position >= _content.Length)
             {
-                TrailingSeparator = precedingSeparator;
                 field = default;
                 return false;
             }
@@ -698,10 +703,18 @@ internal sealed partial class AwkFieldSplitter
 
         public bool MoveNext(out AwkFieldRange field, out AwkFieldRange trailingSeparator)
         {
+            var found = MoveNext(out field);
+            trailingSeparator = found
+                ? new AwkFieldRange(field.Start + field.Length, _completed ? 0 : 1)
+                : default;
+            return found;
+        }
+
+        public bool MoveNext(out AwkFieldRange field)
+        {
             if (_completed)
             {
                 field = default;
-                trailingSeparator = default;
                 return false;
             }
 
@@ -725,13 +738,11 @@ internal sealed partial class AwkFieldSplitter
             if (next < 0)
             {
                 field = new AwkFieldRange(_position, _content.Length - _position);
-                trailingSeparator = new AwkFieldRange(_content.Length, 0);
                 _completed = true;
                 return true;
             }
 
             field = new AwkFieldRange(_position, next);
-            trailingSeparator = new AwkFieldRange(_position + next, 1);
             _position += next + 1;
             return true;
         }
