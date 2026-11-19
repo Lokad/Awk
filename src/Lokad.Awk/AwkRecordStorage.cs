@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace Lokad.Awk;
 
@@ -16,6 +17,13 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
     internal ReadOnlyMemory<byte> Content => ContentAt(_currentSlot);
     internal ReadOnlyMemory<byte> ContentAt(int slot) => BufferAt(slot).Content;
     internal AwkByteReader? BorrowerAt(int slot) => BufferAt(slot).Borrower;
+
+    internal void ObserveMemoryAt(int slot)
+    {
+        var memory = ContentAt(slot);
+        if (!MemoryMarshal.TryGetArray(memory, out _))
+            _ = memory.Span;
+    }
 
     internal ReadOnlySpan<byte> BytesAt(int slot)
     {

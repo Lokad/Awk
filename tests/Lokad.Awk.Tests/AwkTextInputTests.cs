@@ -9,6 +9,7 @@ public sealed class AwkTextInputTests
     {
         Assert.Equal(24, Unsafe.SizeOf<AwkTextInput>());
         Assert.Equal(24, Unsafe.SizeOf<AwkByteTextOperand>());
+        Assert.Equal(48, Unsafe.SizeOf<AwkScalarOperand>());
     }
 
     [Theory]

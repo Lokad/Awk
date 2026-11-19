@@ -23,6 +23,7 @@ internal readonly ref struct AwkByteTextOperand
     public AwkByteTextOperand(ReadOnlySpan<byte> bytes)
     {
         _firstByte = ref MemoryMarshal.GetReference(bytes);
+        _recordPosition = -1;
         _byteLength = bytes.Length;
     }
 
@@ -34,6 +35,7 @@ internal readonly ref struct AwkByteTextOperand
         _byteLength = length;
     }
 
+    internal bool HasValue => _owner is not null || _recordPosition < 0;
     internal bool IsOwned => _recordPosition < 0 && _owner is not null;
     internal int ByteLength => _byteLength;
 

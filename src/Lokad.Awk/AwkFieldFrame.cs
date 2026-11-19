@@ -159,13 +159,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         _splitPlan = default;
     }
 
-    internal bool TryGetBufferedRecordBytes(out ReadOnlySpan<byte> bytes)
-    {
-        EnsureRecordText();
-        bytes = HasBufferedRecord ? BufferedRecord.Span : default;
-        return HasBufferedRecord;
-    }
-
     internal bool TryGetPrintableBufferedRecord(out AwkCopySource bytes)
     {
         bytes = default;
@@ -176,17 +169,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
 
     internal AwkCopySource CaptureCopySource() => _bufferedStorage is { } storage
         ? new(storage, _bufferedSlot) : new(RecordBytes());
-
-    internal AwkCopySource CaptureCopySlice(ReadOnlySpan<byte> bytes)
-    {
-        if (_bufferedStorage is { } storage && !bytes.IsEmpty)
-        {
-            var record = BufferedRecord.Span;
-            if (record.Overlaps(bytes, out var offset) && offset >= 0 && bytes.Length <= record.Length - offset)
-                return new(storage, _bufferedSlot, offset, bytes.Length);
-        }
-        return new(bytes);
-    }
 
     internal bool TryGetFieldCopySource(AwkFieldIndex index, out AwkCopySource bytes)
     {
@@ -379,7 +361,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         record = _bufferedStorage;
         slot = _bufferedSlot;
         if (record is null) return false;
-        _ = record.BytesAt(slot);
+        record.ObserveMemoryAt(slot);
         return true;
     }
 
@@ -430,11 +412,11 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var field = _fieldTexts[fieldIndex];
         if (field.IsUnassigned) return new(AwkValue.UnassignedText());
         // A later $0 read can retire dirty record slices while reconstructing it.
-        // Clean input storage survives all prepared computational operands.
+        // Captured clean record ranges keep their spelling through promotion.
         if (!_recordTextIsCurrent || HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
             return new(GetFieldValue(index));
         field = ClassifyInputField(fieldIndex, field, mode);
-        return new(field.InputClassification, field.BytesInRecord(RecordBytes()));
+        return new(field.InputClassification, ReadFieldByteOperand(field));
     }
 
     internal bool TryGetFieldComparisonNumber(AwkFieldIndex index, AwkNumberParsingMode mode, out double number)
@@ -652,12 +634,33 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         return !HasCachedScalarValue(field) && field.Kind != AwkFieldTextKind.Owned;
     }
 
-    internal bool TryGetStableFieldBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes)
+    internal bool TryGetFieldByteOperand(AwkFieldIndex index, out AwkByteTextOperand operand)
     {
-        // An immediate $0 read can retire dirty slices while rebuilding the record.
-        if (_recordTextIsCurrent) return TryGetUnmaterializedFieldBytes(index, out bytes);
-        bytes = default;
-        return false;
+        operand = default;
+        if (index.IsCurrentRecord)
+        {
+            EnsureRecordText();
+            if (_bufferedStorage is not { } record) return false;
+            var slot = _bufferedSlot;
+            operand = new(record, slot, 0, BufferedRecord.Length);
+            record.ObserveMemoryAt(slot);
+            return true;
+        }
+        if (!_recordTextIsCurrent || !TryGetUnmaterializedField(index, out var field)) return false;
+        operand = ReadFieldByteOperand(field);
+        return true;
+    }
+
+    private AwkByteTextOperand ReadFieldByteOperand(scoped in AwkRecordField field)
+    {
+        var length = field.ByteLength();
+        if (length == 0) return new(ReadOnlySpan<byte>.Empty);
+        if (_bufferedStorage is not { } storage)
+            return new(field.BytesInRecord(RecordBytes()));
+        var slot = _bufferedSlot;
+        var operand = new AwkByteTextOperand(storage, slot, field.RecordStart, length);
+        storage.ObserveMemoryAt(slot);
+        return operand;
     }
 
     internal bool TryGetReadyShortFieldBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes)

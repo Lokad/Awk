@@ -178,6 +178,8 @@ bytes for the synchronous copy into the destination owner. Output is owned befor
 host suspension.
 String operations also retain slot coordinates while other operands are prepared.
 A search refreshes the first span if obtaining the second retires its borrow.
+Field comparisons keep numeric classification separate from the captured spelling.
+The spelling uses its record range when preparing the other field promotes that slot.
 The frame can reuse one funded descriptor buffer to stage a similarly wide rebuild.
 Much smaller records and frame reset release the spare storage.
 Short copies share a cancellation interval across fields and separators. Long copies

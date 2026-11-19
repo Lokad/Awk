@@ -1,22 +1,21 @@
 namespace Lokad.Awk;
 
-// Comparisons retain their scalar classification and may borrow stable field
-// spelling. Effects and suspension require owned capture.
+// Retain classification separately from the field's spelling. A record range
+// survives admission while preparing the other operand.
 internal readonly ref struct AwkScalarOperand
 {
-    private readonly ReadOnlySpan<byte> _bytes;
+    private readonly AwkByteTextOperand _text;
     internal AwkValue Value { get; }
-    internal bool IsBorrowed { get; }
+    internal bool IsBorrowed => _text.HasValue;
 
     internal AwkScalarOperand(AwkValue value) => Value = value;
 
-    internal AwkScalarOperand(AwkValue classification, ReadOnlySpan<byte> bytes)
+    internal AwkScalarOperand(AwkValue classification, AwkByteTextOperand text)
     {
         Value = classification;
-        _bytes = bytes;
-        IsBorrowed = true;
+        _text = text;
     }
 
     internal AwkByteTextOperand Text(AwkRuntimeState state) => IsBorrowed
-        ? new(_bytes) : new(state.FormatStringByteText(Value));
+        ? _text : new(state.FormatStringByteText(Value));
 }

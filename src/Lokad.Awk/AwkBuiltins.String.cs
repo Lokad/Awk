@@ -58,7 +58,6 @@ internal static partial class AwkBuiltins
     {
         static bool TryConvertAsciiCase(
             in AwkByteTextOperand source,
-            int field,
             AwkCaseConversion conversion,
             AwkRuntimeState state,
             AwkMemoryLease destination,
@@ -103,9 +102,7 @@ internal static partial class AwkBuiltins
             }
 
             // Result admission can promote a borrowed record before the conversion reads it again.
-            if (!source.TryGetRecordSource(out var inputSource))
-                inputSource = field >= 0 && !source.IsOwned
-                    ? state.RecordFields.CaptureCopySlice(bytes) : new AwkCopySource(bytes);
+            var inputSource = source.TryGetRecordSource(out var captured) ? captured : new AwkCopySource(bytes);
             var converted = AwkText.AllocateOwnedBytes(bytes.Length, state.MemoryAccounting, destination, state.CancellationCheckpoint);
             bytes = inputSource.AsSpan();
             // Publish into the admitted result directly instead of copying all
@@ -148,7 +145,6 @@ internal static partial class AwkBuiltins
 
         if (TryConvertAsciiCase(
             source,
-            field,
             conversion,
             state,
             destination,

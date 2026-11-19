@@ -493,6 +493,7 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
+    [InlineData("comparison")]
     [InlineData("needle")]
     [InlineData("haystack")]
     [InlineData("substring")]
@@ -504,6 +505,8 @@ public sealed class AwkRecordInputMemoryTests
             var state = memory.State;
             var (record, statement, expected) = form switch
             {
+                "comparison" => ("café " + string.Concat(Enumerable.Repeat("0 ", 299)) + "café",
+                    "print ($1==$301)", "1\n"),
                 "needle" => ("key 1.5 tail", "CONVFMT=\"%1500.1f\";print index(1.5,$2)", "1498\n"),
                 "haystack" => ("key 1.5" + new string('0', 1499) + " tail",
                     "CONVFMT=\"%.1500f\";print index($2,1.5)", "1\n"),

@@ -361,10 +361,7 @@ internal sealed class AwkRegionStorage : IDisposable
         }
         scoped AwkCopySource prepared;
         if (!slice.TryGetRecordSource(out prepared))
-        {
-            var bytes = slice.AsSpan(_state.CancellationCheckpoint);
-            prepared = source.IsOwned || slice.IsOwned ? new(bytes) : _state.RecordFields.CaptureCopySlice(bytes);
-        }
+            prepared = new(slice.AsSpan(_state.CancellationCheckpoint));
         return AwkRegionPrinting.Append(_state, this, output, print, default, prepared);
     }
 

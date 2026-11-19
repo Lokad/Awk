@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-
 namespace Lokad.Awk;
 
 // Capture scalar words or an owner and range. Record coordinates survive promotion
@@ -38,10 +36,8 @@ internal readonly ref struct AwkTextInput
 
     internal static AwkTextInput FromRecord(AwkRecordStorage storage, int slot, int offset, int length, int field)
     {
-        var memory = storage.ContentAt(slot);
         // Preserve custom memory access before later argument evaluation.
-        if (!MemoryMarshal.TryGetArray(memory, out _))
-            _ = memory.Span;
+        storage.ObserveMemoryAt(slot);
         return new(storage, offset, length, slot == 0 ? RecordSlot0 : RecordSlot1, field);
     }
 
