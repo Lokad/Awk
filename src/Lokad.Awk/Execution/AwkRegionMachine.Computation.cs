@@ -339,11 +339,10 @@ internal partial struct AwkRegionMachine
 
         internal AwkCapturedArrayPath CapturedPath(int index) => storage.Path(region.Paths[index].Slot);
 
-        internal AwkArrayUpdateTarget PreparePathUpdate(int index, int location = -1)
+        internal AwkArrayUpdateTarget PreparePathUpdate(int index)
         {
-            var previous = location >= 0 ? storage.Targets[location] : default;
             var key = ResolvePath(index, out var owner);
-            return state.Variables.PrepareArrayUpdate(owner, key, in previous);
+            return state.Variables.PrepareArrayUpdate(owner, key);
         }
 
         internal void CompleteScalarUpdate(in AwkRegionInstruction instruction)
@@ -373,14 +372,11 @@ internal partial struct AwkRegionMachine
         internal void CompleteNumericArrayUpdate(in AwkRegionInstruction instruction)
         {
             ref readonly var update = ref region.Updates[instruction.Left];
-            var previousLocation = update.Slot >= 0 ? storage.Targets[update.Slot] : default;
             var key = ResolvePath(update.Path, out var owner);
             if (!owner.IsDetached && !owner.IsIndexed && key.RequiresTextMaterialization &&
-                (previousLocation.TryGetCurrentCell(owner, key, out var cell) ||
-                    owner.TryGetDictionaryCell(key, out cell)) &&
+                owner.TryGetDictionaryCell(key, out var cell) &&
                 cell.Slot.TryGetNumberValue(out var prior))
             {
-
                 if (TryReadPureUpdateNumber(update.Right, out var right))
                 {
                     var complete = AwkNumericOperations.ApplyCompoundAssignment(prior, right,
@@ -390,7 +386,6 @@ internal partial struct AwkRegionMachine
                     cell.SetSlot(AwkValue.FromNumber(complete));
 
                     if (instruction.Right >= 0) numbers[instruction.Right] = prior;
-                    if (update.Slot >= 0) storage.StoreLocation(update.Slot, new(key, prior, owner, cell));
                     numbers[instruction.Target] = complete;
                     return;
                 }
@@ -400,7 +395,7 @@ internal partial struct AwkRegionMachine
                 CompleteCapturedArrayUpdate(in instruction, in update, in captured);
                 return;
             }
-            var target = state.Variables.PrepareArrayUpdate(owner, key, in previousLocation);
+            var target = state.Variables.PrepareArrayUpdate(owner, key);
             CompleteCapturedArrayUpdate(in instruction, in update, in target);
         }
 
@@ -639,7 +634,7 @@ internal partial struct AwkRegionMachine
         };
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        internal void PrepareArrayUpdate(int accessIndex, out AwkArrayUpdateTarget target, int captureSlot)
+        internal void PrepareArrayUpdate(int accessIndex, out AwkArrayUpdateTarget target, int captureSlot = -1)
         {
             ref readonly var access = ref region.Arrays[accessIndex];
             ref readonly var key = ref operands[access.Key];
@@ -653,7 +648,10 @@ internal partial struct AwkRegionMachine
                     target = state.Arrays.PrepareFieldUpdate(in access.Name, FieldIndex(in key), access.Binding, in previous);
                     break;
                 case AwkRegionOperandKind.KeyBuilder:
-                    target = state.Arrays.PrepareUpdate(access.Name, storage.Builders[key.Index].Buffer, access.Binding, in previous);
+                    var builder = storage.Builders[key.Index].Buffer;
+                    target = state.Arrays.PrepareUpdate(access.Name, builder, access.Binding, in previous);
+                    // A complete instruction retires its key here after the target owns it.
+                    if (captureSlot < 0) builder.Clear();
                     break;
                 default:
                     target = TryArrayNumberKey(access.Key, out var number)
@@ -661,17 +659,6 @@ internal partial struct AwkRegionMachine
                         : state.Arrays.PrepareUpdate(access.Name, ReadKey(access.Key), access.Binding, in previous);
                     break;
             }
-        }
-
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        internal void PrepareCompleteArrayUpdate(int accessIndex, out AwkArrayUpdateTarget target, int location = -1)
-        {
-            ref readonly var access = ref region.Arrays[accessIndex];
-            ref readonly var key = ref operands[access.Key];
-            PrepareArrayUpdate(accessIndex, out target, location);
-            // Retire key scratch only after the complete operation owns its key,
-            // in the order of the separate ArrayPrepare/KeyEnd instructions.
-            if (key.Kind == AwkRegionOperandKind.KeyBuilder) storage.Builders[key.Index].Buffer.Clear();
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]

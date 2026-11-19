@@ -428,8 +428,8 @@ internal partial struct AwkRegionMachine
                     ref readonly var update = ref computationView.Region.Updates[instruction.Left];
                     AwkArrayUpdateTarget target;
                     if (update.PrepareAccess < 0) target = computationView.Storage.Targets[update.Slot];
-                    else if (update.Path >= 0) target = computationView.PreparePathUpdate(update.Path, update.Slot);
-                    else computationView.PrepareCompleteArrayUpdate(update.PrepareAccess, out target, update.Slot);
+                    else if (update.Path >= 0) target = computationView.PreparePathUpdate(update.Path);
+                    else computationView.PrepareArrayUpdate(update.PrepareAccess, out target);
                     computationView.CompleteCapturedArrayUpdate(in instruction, in update, in target);
                     break;
                 }

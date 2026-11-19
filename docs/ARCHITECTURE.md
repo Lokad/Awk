@@ -212,9 +212,10 @@ use the variable store directly. Numeric reads classify an ordinal once and pass
 any captured location by value through binding. The store validates the current
 owner and key before reusing a cached cell. Field and composite keys share borrowed update
 preparation, with the evaluated key's origin retained through capture.
-Staged and complete updates share target preparation. A cached location must still
-match the evaluated key and attached owner. Each update reads the current number
-while that location is valid.
+Staged and complete updates share target preparation. Updates that span instructions
+use a funded capture slot and can reuse its location after checking the key and owner.
+Complete updates capture and commit within one instruction and retire composite key
+scratch after capture. Both forms read the current value before RHS effects.
 The compiler selects the complete numeric update instruction when it emits a
 fused nested update. Owner planning reads both update forms through the same
 prepared site.

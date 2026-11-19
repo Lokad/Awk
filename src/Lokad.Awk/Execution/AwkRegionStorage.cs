@@ -201,33 +201,15 @@ internal sealed class AwkRegionStorage : IDisposable
         else _state.Arrays.CommitUpdate(update.Name, in target, result);
         if (instruction.Right >= 0) _numbers[instruction.Right] = target.Previous;
         if (update.PrepareAccess < 0) CompleteTarget(update.Slot);
-        else if (update.Slot >= 0) StoreLocation(update.Slot, in target);
         _numbers[instruction.Target] = result;
     }
 
-    internal void CompleteTarget(int index)
+    private void CompleteTarget(int index)
     {
         // The slot already funds bounded key/cell/owner holding. Keep only a
         // location, revalidated at the next capture; retirement still clears it.
         if (_targets[index].CanRetainLocation) return;
         ReleaseTarget(index);
-    }
-
-    internal void StoreLocation(int index, in AwkArrayUpdateTarget target)
-    {
-        // This slot is disjoint from live captures. Its existing capacity funds
-        // bounded key/cell holding; long payloads keep ordinary lookup.
-        if (!target.CanRetainLocation)
-        {
-            _targets[index] = default;
-            return;
-        }
-        ref readonly var prior = ref _targets[index];
-        // An attached cell has one key at one owner. This slot retains only
-        // that location; every capture reads the cell's current number rather
-        // than Previous. No callback or mutation occurs during this check.
-        if (ReferenceEquals(prior.Array, target.Array) && ReferenceEquals(prior.Cell, target.Cell)) return;
-        _targets[index] = target;
     }
 
     internal void ReleaseTarget(int index)
