@@ -36,25 +36,23 @@ internal sealed class AwkInputScheduler(
         else record = AwkInputRecordResult.EndOfFile;
     }
 
-    public ValueTask<bool> MoveNextAsync() => MoveNextAsync(null);
-
-    private ValueTask<bool> MoveNextAsync(AwkRecordStorage? storage)
+    public ValueTask<bool> MoveNextAsync()
     {
-        ValueTask<bool> pending = default;
-        var status = MoveNext(storage, ref pending);
-        return status == AwkRecordReadStatus.Pending ? pending : ValueTask.FromResult(status == AwkRecordReadStatus.Record);
-    }
-
-    private AwkRecordReadStatus MoveNext(AwkRecordStorage? storage, ref ValueTask<bool> pending)
-    {
-        // File phases can call functions and redirected readers. Blocking their
-        // main-input read prevents recursive activation of another file phase.
+        // An explicit getline can reenter the scheduler through a file action.
+        // Processing reads resume only after that action returns.
         if (_mainInputReadProhibition == MainInputReadProhibition.BeginFile)
             throw new AwkRuntimeException(AwkMessages.ErrorMainInputGetlineInBeginFile);
 
         if (_mainInputReadProhibition == MainInputReadProhibition.EndFile)
             throw new AwkRuntimeException(AwkMessages.ErrorMainInputGetlineInEndFile);
 
+        ValueTask<bool> pending = default;
+        var status = MoveNext(null, ref pending);
+        return status == AwkRecordReadStatus.Pending ? pending : ValueTask.FromResult(status == AwkRecordReadStatus.Record);
+    }
+
+    private AwkRecordReadStatus MoveNext(AwkRecordStorage? storage, ref ValueTask<bool> pending)
+    {
         if (state.ExitRequested) return AwkRecordReadStatus.EndOfFile;
         if (_currentInput is not { } input)
         {
