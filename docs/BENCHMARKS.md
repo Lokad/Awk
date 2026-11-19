@@ -1,18 +1,20 @@
 # Benchmarks
 
-In the million-record workloads, Lokad.Awk took **0.85×** GNU awk's
-elapsed time for scalar summation, **1.04×** for keyed aggregation and
-**0.44×** for CSV. Projection took **0.89×**,
-filtering **0.98×** and the two-file join **0.93×**.
+In the million-record workloads, Lokad.Awk took **0.83×** GNU awk's
+elapsed time for scalar summation, **1.06×** for keyed aggregation and
+**0.45×** for CSV. Projection took **0.89×**,
+filtering **0.96×** and the two-file join **0.97×**.
 Scalar summation allocated 0.078 MiB,
 keyed aggregation 0.111 MiB,
 CSV 13.679 MiB and the join 80.735 MiB per invocation.
 
 Release measurements ran on quiet Linux x64 on **2026-11-19 UTC** with .NET SDK
-10.0.401, runtime 10.0.12, BenchmarkDotNet 0.15.8 and GNU awk 5.3.2. Both CSV rows
-use source `10e6a210`. All other rows use source `05325189`.
-[CSV source 10e6a210](https://github.com/Lokad/Awk/commit/10e6a2105108667fa9e1e5bcf8aac993149cea93) ·
-[Catalog source 05325189](https://github.com/Lokad/Awk/commit/0532518910e78e43512fdeaf944d4241213b5b62)
+10.0.401, runtime 10.0.12, BenchmarkDotNet 0.15.8 and GNU awk 5.3.2.
+The six million-record rows use `ad510ab2`. The medium CSV row uses
+`10e6a210`. The other processing and admission rows use `05325189`.
+[Million-record source](https://github.com/Lokad/Awk/commit/ad510ab218a6728606e1f45446075cfd07b4516a) ·
+[Medium CSV source](https://github.com/Lokad/Awk/commit/10e6a2105108667fa9e1e5bcf8aac993149cea93) ·
+[Remaining catalog source](https://github.com/Lokad/Awk/commit/0532518910e78e43512fdeaf944d4241213b5b62)
 
 ## Representative processing
 
@@ -88,12 +90,12 @@ Both cohorts use the same job settings and run separately.
 
 | Case | Records | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Keyed sum / sorted output (GNU) | 1,048,576 | 6144.00 | 98.180 | 94.756 | 1.04× | 0.111 |
-| Filter three fields | 1,048,576 | 6144.00 | 146.113 | 149.549 | 0.98× | 0.095 |
-| Two-file membership / join | 1,048,576 | 12070.99 | 281.283 | 303.299 | 0.93× | 80.735 |
-| Project a column / output | 1,048,576 | 15360.00 | 88.961 | 100.074 | 0.89× | 0.083 |
-| Sum one numeric column | 1,048,576 | 6422.43 | 77.277 | 91.333 | 0.85× | 0.078 |
-| CSV keyed sum / quoted and multiline fields (GNU) | 1,048,576 | 25642.66 | 187.682 | 429.249 | 0.44× | 13.679 |
+| Keyed sum / sorted output (GNU) | 1,048,576 | 6144.00 | 94.276 | 89.211 | 1.06× | 0.111 |
+| Two-file membership / join | 1,048,576 | 12070.99 | 264.915 | 273.357 | 0.97× | 80.735 |
+| Filter three fields | 1,048,576 | 6144.00 | 134.425 | 140.469 | 0.96× | 0.095 |
+| Project a column / output | 1,048,576 | 15360.00 | 82.781 | 93.177 | 0.89× | 0.083 |
+| Sum one numeric column | 1,048,576 | 6422.43 | 70.025 | 84.627 | 0.83× | 0.078 |
+| CSV keyed sum / quoted and multiline fields (GNU) | 1,048,576 | 25642.66 | 195.519 | 437.436 | 0.45× | 13.679 |
 | ERE boolean matching | 65,536 | 512.00 | 21.323 | 4.684 | 4.55× | 112.189 |
 | Text function with branches and local temporary | 65,536 | 992.00 | 22.167 | 16.808 | 1.32× | 3.625 |
 | Numeric edit / rebuild record (192 columns) | 8,192 | 3096.00 | 27.380 | 25.324 | 1.08× | 4.398 |
@@ -151,7 +153,7 @@ help expose processing costs. The comparison includes startup at every scale.
 Regex uses the example adapter with published Lokad.Utf8Regex 0.4.0.
 The locale is C/UTC except for Unicode workloads, which use C.UTF-8.
 Quiet checks bracket each measurement pass. The single-launch figures sample
-ordinary process and JIT variation and describe this source revision.
+ordinary process and JIT variation and describe the recorded revisions.
 
 `--snapshot` selects one launch, four warmups and five 500 ms iterations with
 JSON export. The GNU CLI and managed allocation benchmarks run out of process
