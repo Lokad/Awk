@@ -25,6 +25,7 @@ public sealed class AwkRuntimeMemoryTests
     {
         Assert.Equal(7, AwkRuntimeMemory.CheckedAdd(3, 4));
         Assert.Equal(7L, AwkRuntimeMemory.CheckedAdd(10L, -3));
+        Assert.Equal(long.MaxValue, AwkRuntimeMemory.CheckedAdd(long.MaxValue - 48, 48));
         Assert.Equal(42L, AwkRuntimeMemory.CheckedMultiply(6, 7));
         Assert.Equal(42, AwkRuntimeMemory.CheckedToInt32(42));
     }
@@ -34,6 +35,7 @@ public sealed class AwkRuntimeMemoryTests
     {
         AssertMemoryLimit(() => AwkRuntimeMemory.CheckedAdd(int.MaxValue, 1));
         AssertMemoryLimit(() => AwkRuntimeMemory.CheckedAdd(long.MinValue, -1));
+        AssertMemoryLimit(() => AwkRuntimeMemory.CheckedAdd(long.MaxValue - 48, 49));
         AssertMemoryLimit(() => AwkRuntimeMemory.CheckedMultiply(long.MaxValue, 2));
         AssertMemoryLimit(() => AwkRuntimeMemory.CheckedToInt32((long)int.MaxValue + 1));
     }

@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Lokad.Awk;
 
 // Bind this owner, not its replaceable dictionary. RHS evaluation may clear/split it.
-internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey, AwkValue>
+internal sealed partial class AwkArrayIdentity : IEnumerable<KeyValuePair<AwkArrayKey, AwkValue>>
 {
     private static readonly Dictionary<AwkArrayKey, AwkArrayCell> DetachedSlots = new(AwkArrayKeyComparer.Instance);
     private Dictionary<AwkArrayKey, AwkArrayCell>.AlternateLookup<ReadOnlySpan<byte>> _lookup;
@@ -52,16 +52,6 @@ internal sealed partial class AwkArrayIdentity : IReadOnlyDictionary<AwkArrayKey
     internal long BackingBytes => _indexed is { } cells
         ? AwkRuntimeMemory.EstimateIndexedArrayBackingBytes(_indexedCapacity, cells.Length)
         : AwkRuntimeMemory.EstimateArrayBackingBytes(_lookup.Dictionary.EnsureCapacity(0));
-
-    public IEnumerable<AwkArrayKey> Keys
-    {
-        get { foreach (var pair in this) yield return pair.Key; }
-    }
-
-    public IEnumerable<AwkValue> Values
-    {
-        get { foreach (var pair in this) yield return pair.Value; }
-    }
 
     public AwkValue this[AwkArrayKey key]
     {

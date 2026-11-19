@@ -975,11 +975,11 @@ internal sealed partial class AwkVariables
     internal void CopyArrayKeys(AwkArrayIdentity slots, AwkArrayKey[] destination)
     {
         var writeIndex = 0;
-        foreach (var key in slots.Keys)
+        foreach (var pair in slots)
         {
             if ((writeIndex & 63) == 0)
                 _state.ThrowIfCancellationRequested();
-            destination[writeIndex++] = key;
+            destination[writeIndex++] = pair.Key;
         }
         _state.ThrowIfCancellationRequested();
     }
@@ -989,7 +989,8 @@ internal sealed partial class AwkVariables
         if (!name.IsFunctionLocal || !_arrays.TryGetArray(name, out var array))
             return;
 
-        var oldBytes = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes, EstimateArrayBytes(array));
+        var oldBytes = _state.MemoryAccounting.IsEnabled
+            ? AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.ArrayIdentityBytes, EstimateArrayBytes(array)) : 0;
         _arrays.Remove(name, out _);
         RetireArrayContents(array, includeRoot: true, cancellable: false);
         _state.MemoryAccounting.Refund(oldBytes);
@@ -1285,47 +1286,36 @@ internal sealed partial class AwkVariables
         }
     }
 
-    internal static long EstimateArrayBytes(IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
+    internal static long EstimateArrayBytes(AwkArrayIdentity array,
         Action? checkpoint = null)
     {
         // Only nested arrays need a worklist; script-controlled depth must not recurse
         // through the CLR stack. Its reference metadata is minor beside admitted owners.
-        Stack<IReadOnlyDictionary<AwkArrayKey, AwkValue>>? pending = null;
+        Stack<AwkArrayIdentity>? pending = null;
         var bytes = 0L;
         var visited = 0;
         while (true)
         {
-            // Synthetic enumeration-only inputs remain useful for checked-total qualification.
-            if (values is AwkArrayIdentity slots)
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes, array.BackingBytes);
+            if (!array.IsIndexed)
+                bytes = AwkRuntimeMemory.CheckedAdd(bytes,
+                    AwkRuntimeMemory.CheckedMultiply(array.Count, AwkRuntimeMemory.ArrayCellBytes));
+            using var entries = array.GetEnumerator(checkpoint);
+            while (entries.MoveNext())
             {
-                bytes = AwkRuntimeMemory.CheckedAdd(bytes, slots.BackingBytes);
-                using var entries = slots.GetEnumerator(checkpoint);
-                while (entries.MoveNext()) Observe(entries.Current);
-            }
-            else
-            {
-                bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArrayBackingBytes(
-                    values is Dictionary<AwkArrayKey, AwkValue> dictionary ? dictionary.EnsureCapacity(0) : values.Count));
-                foreach (var pair in values) Observe(pair);
+                if ((visited++ & 63) == 0) checkpoint?.Invoke();
+                var pair = entries.Current;
+                bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArrayPayloadBytes(pair.Key, pair.Value));
+                if (pair.Value.TryGetArrayBinding(out var child))
+                {
+                    bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.ArrayIdentityBytes);
+                    (pending ??= new()).Push(child);
+                }
             }
             if (pending is null || !pending.TryPop(out var next)) break;
-            values = next;
+            array = next;
         }
         return bytes;
-
-        void Observe(KeyValuePair<AwkArrayKey, AwkValue> pair)
-        {
-            if ((visited++ & 63) == 0) checkpoint?.Invoke();
-            bytes = AwkRuntimeMemory.CheckedAdd(bytes,
-                values is AwkArrayIdentity { IsIndexed: true }
-                    ? AwkRuntimeMemory.EstimateArrayPayloadBytes(pair.Key, pair.Value)
-                    : AwkRuntimeMemory.EstimateArrayElementPayloadBytes(pair.Key, pair.Value));
-            if (pair.Value.TryGetArrayBinding(out var child))
-            {
-                bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.ArrayIdentityBytes);
-                (pending ??= new()).Push(child);
-            }
-        }
     }
 
     private static long EstimateElementBytes(AwkArrayKey key, AwkValue slot) =>

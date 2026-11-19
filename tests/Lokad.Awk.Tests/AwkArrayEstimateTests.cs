@@ -1,6 +1,3 @@
-using System.Collections;
-using System.Numerics;
-
 namespace Lokad.Awk.Tests;
 
 public sealed class AwkArrayEstimateTests
@@ -48,10 +45,8 @@ public sealed class AwkArrayEstimateTests
         Assert.Equal(retained, memory.Budget.Reserved);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void AggregateRejectsOverflowAndAcceptsTheLastRepresentableTotal(bool overflow)
+    [Fact]
+    public void AggregateEstimatesRealArrayPayloadBeyondInt32()
     {
         // A valid shared rope gives large estimates without allocating its logical bytes.
         using var state = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
@@ -59,39 +54,33 @@ public sealed class AwkArrayEstimateTests
         for (var index = 0; index < 30; index++)
             text = state.ConcatText([text, text]);
         var slot = AwkValue.ForStoredText(text);
-        var elementBytes = AwkRuntimeMemory.EstimateArrayElementBytes(AwkArrayKey.FromOrdinal(0), slot);
-        var count = checked((int)(long.MaxValue / elementBytes + (overflow ? 1 : 0)));
-        var mathematicalTotal = (BigInteger)elementBytes * count;
-        var slots = new RepeatedSlots(count, slot);
-
-        if (overflow)
+        var slots = new AwkArrayIdentity(3, AwkArrayKeyComparer.Instance);
+        var expected = slots.BackingBytes;
+        for (var index = 0; index < 3; index++)
         {
-            Assert.True(mathematicalTotal > long.MaxValue);
-            AssertMemoryLimit(() => AwkVariables.EstimateArrayBytes(slots));
+            var key = AwkArrayKey.FromOrdinal(index);
+            slots.Add(key, slot);
+            expected = checked(expected + AwkRuntimeMemory.EstimateArrayElementPayloadBytes(key, slot));
         }
-        else
-        {
-            Assert.True(mathematicalTotal <= long.MaxValue);
-            Assert.Equal((long)mathematicalTotal, AwkVariables.EstimateArrayBytes(slots));
-        }
+        Assert.True(expected > int.MaxValue);
+        Assert.Equal(expected, AwkVariables.EstimateArrayBytes(slots));
     }
 
     [Fact]
     public void EmptyAndMixedArrayTotalsIncludeRetainedKeysAndValues()
     {
-        Assert.Equal(0, AwkVariables.EstimateArrayBytes(new Dictionary<AwkArrayKey, AwkValue>()));
-        var key = new AwkArrayKey("café");
+        var slots = new AwkArrayIdentity(0, AwkArrayKeyComparer.Instance);
+        Assert.Equal(0, AwkVariables.EstimateArrayBytes(slots));
+        var ordinal = AwkArrayKey.FromOrdinal(1);
+        var key = new AwkArrayKey("café-profond");
         var text = AwkText.FromString("été");
-        Dictionary<AwkArrayKey, AwkValue> slots = new()
-        {
-            [AwkArrayKey.FromOrdinal(1)] = AwkValue.ForVariableStorage(AwkValue.FromNumber(42), AwkNumberParsingMode.Decimal),
-            [key] = AwkValue.ForStoredText(text)
-        };
+        slots.Add(ordinal, AwkValue.FromNumber(42));
+        slots.Add(key, AwkValue.ForStoredText(text));
         var filled = AwkVariables.EstimateArrayBytes(slots);
-        slots.Remove(key);
+        Assert.True(slots.Remove(key));
         Assert.Equal(AwkRuntimeMemory.EstimateArrayElementPayloadBytes(key, AwkValue.ForStoredText(text)),
             filled - AwkVariables.EstimateArrayBytes(slots));
-        slots.Clear();
+        Assert.True(slots.Remove(ordinal));
         Assert.True(AwkVariables.EstimateArrayBytes(slots) > 0);
     }
     [Theory]
@@ -196,21 +185,4 @@ public sealed class AwkArrayEstimateTests
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
     }
 
-    // The estimator needs enumeration only. Unique ordinal keys avoid a multi-GB dictionary.
-    private sealed class RepeatedSlots(int count, AwkValue slot)
-        : IReadOnlyDictionary<AwkArrayKey, AwkValue>
-    {
-        public int Count => count;
-        public IEnumerable<AwkArrayKey> Keys => Enumerable.Range(0, count).Select(AwkArrayKey.FromOrdinal);
-        public IEnumerable<AwkValue> Values => Enumerable.Repeat(slot, count);
-        public AwkValue this[AwkArrayKey key] => throw new NotSupportedException();
-        public bool ContainsKey(AwkArrayKey key) => throw new NotSupportedException();
-        public bool TryGetValue(AwkArrayKey key, out AwkValue value) => throw new NotSupportedException();
-        public IEnumerator<KeyValuePair<AwkArrayKey, AwkValue>> GetEnumerator()
-        {
-            for (var index = 0; index < count; index++)
-                yield return new(AwkArrayKey.FromOrdinal(index), slot);
-        }
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-    }
 }
