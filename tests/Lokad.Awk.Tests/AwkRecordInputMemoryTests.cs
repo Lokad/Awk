@@ -536,7 +536,7 @@ public sealed class AwkRecordInputMemoryTests
         try
         {
             // The second memory access retires the first span before the search.
-            var position = state.IndexOfStringUnits(haystack.ReadyText, needle.ReadyText);
+            var position = state.IndexOfStringUnits(in haystack, in needle);
             Assert.False(cancel);
             Assert.Equal(3, position);
         }

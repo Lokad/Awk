@@ -97,7 +97,7 @@ internal partial struct AwkRegionMachine
             CaptureTextArgument(operation.First, out var first);
             CaptureTextArgument(operation.Second, out var second);
             state.ThrowIfCancellationRequested();
-            numbers[instruction.Target] = state.IndexOfStringUnits(first.Text(state, forceScalar: true), second.Text(state));
+            numbers[instruction.Target] = state.IndexOfStringUnits(in first, in second);
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

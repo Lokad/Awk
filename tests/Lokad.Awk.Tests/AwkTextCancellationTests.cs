@@ -174,7 +174,7 @@ public sealed class AwkTextCancellationTests
                 case "key": _ = new AwkArrayKey(text, checkpoint); break;
                 case "compare": _ = text.CompareBytes(text, checkpoint); break;
                 case "text-equality": _ = text.Equals(text, checkpoint); break;
-                case "search": _ = runtime.IndexOfStringUnits(new(text), new("1"u8)); break;
+                case "search": _ = runtime.IndexOfStringUnits(new(text), new(AwkText.FromSourceLiteralString("1"))); break;
                 case "string": _ = text.AsString(checkpoint); break;
                 case "memory": _ = text.AsMemory(checkpoint); break;
                 default: throw new ArgumentOutOfRangeException(nameof(operation));

@@ -5,15 +5,13 @@ namespace Lokad.Awk;
 internal readonly ref struct AwkByteTextOperand
 {
     private readonly AwkText _owned;
-    private readonly AwkCopySource _bytes;
+    private readonly ReadOnlySpan<byte> _bytes;
 
     public AwkByteTextOperand(AwkText owned) => _owned = owned;
-    public AwkByteTextOperand(ReadOnlySpan<byte> bytes) => _bytes = new(bytes);
-    internal AwkByteTextOperand(AwkCopySource bytes) => _bytes = bytes;
+    public AwkByteTextOperand(ReadOnlySpan<byte> bytes) => _bytes = bytes;
 
     internal bool IsOwned => _owned.Backing is not null;
     internal int ByteLength => IsOwned ? _owned.ByteLength : _bytes.Length;
-    internal AwkByteReader? RecordBorrower => _bytes.RecordBorrower;
 
     internal bool TryGetOwned(out AwkText text)
     {
@@ -28,7 +26,7 @@ internal readonly ref struct AwkByteTextOperand
     {
         if (_owned.Backing is not null)
             return bytes ? index < _owned.ByteLength : _owned.HasRuneAt(index, checkpoint);
-        return index < _bytes.Length && (bytes || index == 0 || AwkText.HasRuneAt(_bytes.AsSpan(), index, checkpoint));
+        return bytes ? index < _bytes.Length : AwkText.HasRuneAt(_bytes, index, checkpoint);
     }
 
     internal AwkByteTextOperand SliceUnits(int start, int length, bool bytes, AwkRuntimeState state,
@@ -46,8 +44,7 @@ internal readonly ref struct AwkByteTextOperand
             var view = _owned.BorrowRuneSlice(start, length, state.MemoryAccounting, checkpoint);
             return view.Length == _owned.ByteLength ? new(_owned) : new(view);
         }
-        var source = CopySource(checkpoint);
-        var content = source.AsSpan();
+        var content = _owned.Backing is not null ? _owned.AsSpan(checkpoint) : _bytes;
         int first, last;
         if (bytes)
         {
@@ -59,7 +56,7 @@ internal readonly ref struct AwkByteTextOperand
         // Byte slicing can cut a scalar; validate before admitting the escaping result.
         if (bytes) AwkText.ThrowIfInvalidUtf8(slice, checkpoint);
         if (_owned.Backing is not null && slice.Length == _owned.ByteLength) return new(_owned);
-        return new(source.Slice(first, last - first));
+        return new(slice);
     }
 
     public ReadOnlySpan<byte> AsSpan(Action? checkpoint)
@@ -67,8 +64,6 @@ internal readonly ref struct AwkByteTextOperand
         // Keep owned flattening at the consumer's original point, after provider pinning.
         if (_owned.Backing is not null) return _owned.AsSpan(checkpoint);
         // The consumer owns cancellation for scanning these already-ready bytes.
-        return _bytes.AsSpan();
+        return _bytes;
     }
-
-    internal AwkCopySource CopySource(Action? checkpoint) => IsOwned ? new(_owned.AsSpan(checkpoint)) : _bytes;
 }

@@ -173,8 +173,8 @@ Immediate print, field formatting, case conversion and owned record or field cop
 carry slot coordinates through destination admission. They resolve the slot's current
 bytes for the synchronous copy into the destination owner. Output is owned before
 host suspension.
-String operations also retain slot coordinates across operand formatting and substring
-slicing. A search refreshes the first span if obtaining the second retires its borrow.
+String operations also retain slot coordinates while other operands are prepared.
+A search refreshes the first span if obtaining the second retires its borrow.
 The frame can reuse one funded descriptor buffer to stage a similarly wide rebuild.
 Much smaller records and frame reset release the spare storage.
 Short copies share a cancellation interval across fields and separators. Long copies

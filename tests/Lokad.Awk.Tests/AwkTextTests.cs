@@ -186,7 +186,7 @@ public sealed class AwkTextTests
         Assert.Equal(
             "caf\u00e9",
             runtime.CopyRuneSlice(source, 6, 4).AsString());
-        Assert.Equal(7, runtime.IndexOfStringUnits(new(source), new("café"u8)));
+        Assert.Equal(7, runtime.IndexOfStringUnits(new(source), new(AwkText.FromSourceLiteralString("café"))));
         var error = Assert.Throws<AwkRuntimeException>(() => runtime.CopyByteSlice(source, 10, 1));
         Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
     }

@@ -49,7 +49,7 @@ public sealed class AwkIgnoreCaseResourceTests
         Assert.Throws<OperationCanceledException>(() =>
         {
             if (search)
-                strings.IndexOfUnits(new(source), new(value), ignoreCase: true);
+                strings.IndexOfUnits(source.AsSpan(), value.AsSpan(), ignoreCase: true);
             else
                 strings.Compare(source, value, ignoreCase: true, sorting: false);
         });

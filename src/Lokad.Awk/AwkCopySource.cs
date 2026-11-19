@@ -9,7 +9,6 @@ internal readonly ref struct AwkCopySource
     private readonly int _offset;
 
     internal int Length { get; }
-    internal AwkByteReader? RecordBorrower => _storage?.BorrowerAt(_slot);
 
     internal AwkCopySource(ReadOnlySpan<byte> bytes)
     {

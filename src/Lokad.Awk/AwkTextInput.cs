@@ -56,6 +56,9 @@ internal readonly ref struct AwkTextInput
 
     internal int TextField => _field;
 
+    internal AwkByteReader? RecordBorrower => _reference is AwkRecordStorage storage
+        ? storage.BorrowerAt(_kind == RecordSlot0 ? 0 : 1) : null;
+
     internal AwkByteTextOperand ReadyText
     {
         get
@@ -66,7 +69,7 @@ internal readonly ref struct AwkTextInput
             {
                 OwnedText => new(AwkText.FromBacking(_reference)),
                 RecordSlot0 or RecordSlot1 when _reference is AwkRecordStorage storage =>
-                    new(new AwkCopySource(storage, _kind == RecordSlot0 ? 0 : 1, offset, length)),
+                    new(storage.BytesAt(_kind == RecordSlot0 ? 0 : 1).Slice(offset, length)),
                 TextRange => new(AwkText.FromBacking(_reference).AsSpan().Slice(offset, length)),
                 ReaderBytes when _reference is AwkReadBuffer reader => new(reader.Content.Span.Slice(offset, length)),
                 _ => throw new InvalidOperationException("A scalar text input requires formatting at use.")
@@ -74,10 +77,15 @@ internal readonly ref struct AwkTextInput
         }
     }
 
-    internal AwkByteTextOperand Text(AwkRuntimeState state, bool forceScalar = false)
+    internal AwkTextInput Prepare(AwkRuntimeState state, bool forceScalar = false) =>
+        _kind < 0 ? this : new(FormatScalar(state, forceScalar));
+
+    internal AwkByteTextOperand Text(AwkRuntimeState state) =>
+        _kind < 0 ? ReadyText : new(FormatScalar(state, forceScalar: false));
+
+    private AwkText FormatScalar(AwkRuntimeState state, bool forceScalar)
     {
-        if (_kind < 0) return ReadyText;
         var value = AwkValue.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkValueKind)_kind);
-        return new(state.FormatStringByteText(forceScalar ? value.ForceScalar() : value));
+        return state.FormatStringByteText(forceScalar ? value.ForceScalar() : value);
     }
 }

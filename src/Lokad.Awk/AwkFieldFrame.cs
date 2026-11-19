@@ -159,6 +159,13 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         _splitPlan = default;
     }
 
+    internal bool TryGetBufferedRecordBytes(out ReadOnlySpan<byte> bytes)
+    {
+        EnsureRecordText();
+        bytes = HasBufferedRecord ? BufferedRecord.Span : default;
+        return HasBufferedRecord;
+    }
+
     internal bool TryGetPrintableBufferedRecord(out AwkCopySource bytes)
     {
         bytes = default;
@@ -169,6 +176,17 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
 
     internal AwkCopySource CaptureCopySource() => _bufferedStorage is { } storage
         ? new(storage, _bufferedSlot) : new(RecordBytes());
+
+    internal AwkCopySource CaptureCopySlice(ReadOnlySpan<byte> bytes)
+    {
+        if (_bufferedStorage is { } storage && !bytes.IsEmpty)
+        {
+            var record = BufferedRecord.Span;
+            if (record.Overlaps(bytes, out var offset) && offset >= 0 && bytes.Length <= record.Length - offset)
+                return new(storage, _bufferedSlot, offset, bytes.Length);
+        }
+        return new(bytes);
+    }
 
     internal bool TryGetFieldCopySource(AwkFieldIndex index, out AwkCopySource bytes)
     {
@@ -625,6 +643,14 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
 
         field = _fieldTexts[index.Value - 1];
         return !HasCachedScalarValue(field) && field.Kind != AwkFieldTextKind.Owned;
+    }
+
+    internal bool TryGetStableFieldBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes)
+    {
+        // An immediate $0 read can retire dirty slices while rebuilding the record.
+        if (_recordTextIsCurrent) return TryGetUnmaterializedFieldBytes(index, out bytes);
+        bytes = default;
+        return false;
     }
 
     internal bool TryGetReadyShortFieldBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes)

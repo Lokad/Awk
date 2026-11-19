@@ -40,14 +40,8 @@ internal sealed class AwkStringRuntime
         return comparison == 0 && sorting ? AwkText.CompareBytes(left, right, _checkpoint) : comparison;
     }
 
-    public int IndexOfUnits(in AwkByteTextOperand source, in AwkByteTextOperand value, bool ignoreCase)
+    public int IndexOfUnits(ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> needle, bool ignoreCase)
     {
-        var bytes = source.AsSpan(_checkpoint);
-        var borrower = source.RecordBorrower;
-        var needle = value.AsSpan(_checkpoint);
-        // Obtaining the second span can promote the record supplying the first.
-        if (borrower is not null && source.RecordBorrower is null)
-            bytes = source.AsSpan(_checkpoint);
         if (!ignoreCase)
             _checkpoint?.Invoke();
         var position = ignoreCase
