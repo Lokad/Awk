@@ -431,6 +431,40 @@ public sealed class AwkRecordInputMemoryTests
         AssertRefunded(memory.Budget);
     }
 
+    [Fact]
+    public async Task EscapingSubstringCopiesPromotedBytes()
+    {
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var state = memory.State;
+        var payload = new string('x', 1500);
+        var input = new InputHost(memory.Budget, payload + " xyz\n") { PoisonConsumedBytes = true };
+        using var reader = new AwkByteReader(input, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        Assert.True(await reader.TryBufferAsync());
+        var slot = state.InputRecordStorage;
+        slot.StageBorrowed(reader, reader.Content[..^1]);
+        reader.Advance(reader.Content.Length);
+        state.PublishInputRecord(AwkInputRecordResult.Buffered(slot, AwkRecordTerminator.NewLine),
+            readsMainInput: true);
+        Assert.Equal(2, state.FieldCount);
+        using (var lease = state.MemoryAccounting.CreateTransientLease())
+        {
+            var source = state.ResolveFieldByteOperand(new(1));
+            Assert.False(source.IsOwned);
+            Assert.Equal(0, input.CommittedInputBytes);
+            memory.Budget.OnGrowth = _ => reader.ReleaseBorrow();
+            try
+            {
+                var text = AwkBuiltins.EvaluateSubstrText(state, source, 1,
+                    AwkValue.FromNumber(2), AwkValue.FromNumber(48), 3, lease);
+                Assert.True(input.CommittedInputBytes > 0);
+                Assert.Equal(payload[..48], text.AsString());
+            }
+            finally { memory.Budget.OnGrowth = null; }
+        }
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

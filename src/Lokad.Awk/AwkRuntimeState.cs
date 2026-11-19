@@ -339,12 +339,12 @@ internal sealed class AwkRuntimeState : IDisposable
         return AdoptText(ownedBytes);
     }
 
-    internal AwkText CopyText(AwkCopySource source)
+    internal AwkText CopyText(AwkCopySource source, AwkMemoryLease? destination = null)
     {
         if (source.Length == 0) return AwkText.Empty;
 
         ThrowIfCancellationRequested();
-        var ownedBytes = AllocateTextBytes(source.Length, null);
+        var ownedBytes = AllocateTextBytes(source.Length, destination);
         ThrowIfCancellationRequested();
         AwkText.CopyBytes(source.AsSpan(), ownedBytes, CancellationCheckpoint);
         return AdoptText(ownedBytes);
@@ -1034,9 +1034,14 @@ internal sealed class AwkRuntimeState : IDisposable
             FormatStringByteText(_recordFields.GetFieldValue(field));
 
     internal AwkText OwnStringResult(in AwkByteTextOperand text, int field = -1, bool whole = true,
-        AwkMemoryLease? destination = null) =>
-        field >= 0 && whole && !text.IsOwned ? CaptureFieldStringText(new(field)) :
-            text.Own(this, destination);
+        AwkMemoryLease? destination = null)
+    {
+        if (field < 0 || text.IsOwned) return text.Own(this, destination);
+        if (whole) return CaptureFieldStringText(new(field));
+
+        var source = _recordFields.CaptureCopySlice(text.AsSpan(CancellationCheckpoint));
+        return CopyText(source, destination);
+    }
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
