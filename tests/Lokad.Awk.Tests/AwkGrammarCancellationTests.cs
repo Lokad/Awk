@@ -5,6 +5,22 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkGrammarCancellationTests
 {
     [Theory]
+    [InlineData("\r")]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public void ContinuationSearchKeepsPhysicalBreaksAtWindowEdges(string lineEnd)
+    {
+        var padding = new string(' ', 1023);
+        var source = padding + "\\" + lineEnd + "BEGIN{}";
+
+        var normalized = AwkLineContinuations.Normalize(source, CancellationToken.None);
+
+        Assert.Equal(padding + "BEGIN{}", normalized.Text);
+        Assert.Equal(1, normalized.LineContinuations.Count);
+        Assert.Equal(padding.Length, normalized.LineContinuations[0].NormalizedOffset);
+    }
+
+    [Theory]
     [InlineData("top-level")]
     [InlineData("statements")]
     [InlineData("expression")]

@@ -1,9 +1,13 @@
+using System.Buffers;
 using System.Text;
 
 namespace Lokad.Awk;
 
 internal static class AwkLineContinuations
 {
+    private static readonly SearchValues<string> ContinuationPrefixes =
+        SearchValues.Create(["\\\r", "\\\n"], StringComparison.Ordinal);
+
     public static AwkLineContinuationNormalization Normalize(string text, CancellationToken cancellationToken,
         AwkFrontendMemory? memory = null, AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
         => NormalizeWithCheckpoint(text,
@@ -13,16 +17,8 @@ internal static class AwkLineContinuations
         AwkFrontendMemory? memory = null, AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         checkpoint?.Invoke();
-        var firstContinuation = 0;
-        while (firstContinuation < text.Length &&
-            !TryReadAt(text, firstContinuation, text.Length, out _))
-        {
-            if ((firstContinuation & 1023) == 0)
-                checkpoint?.Invoke();
-            firstContinuation++;
-        }
-
-        if (firstContinuation == text.Length)
+        var index = FindContinuation(text, 0, checkpoint, out var continuation);
+        if (index < 0)
             return new AwkLineContinuationNormalization(text, AwkLineContinuationMap.Empty);
 
         var frontend = memory ?? AwkFrontendMemory.Disabled;
@@ -32,54 +28,41 @@ internal static class AwkLineContinuations
         var tokens = AwkLexer.Tokenize(text, checkpoint, compatibilityMode, frontend);
         var tokenIndex = 0;
         var segmentStart = 0;
-        var index = firstContinuation;
-        long nextCheckpoint = index;
-        while (index < text.Length)
+        do
         {
-            if (index >= nextCheckpoint)
+            AwkParsingSupport.AppendText(builder, text.AsSpan(segmentStart, index - segmentStart), checkpoint);
+            while (tokenIndex < tokens.Count && tokens[tokenIndex].Span.End <= index)
             {
                 checkpoint?.Invoke();
-                nextCheckpoint = (long)index + 1024;
+                tokenIndex++;
             }
-            if (TryReadAt(text, index, text.Length, out var continuation))
+            var token = tokenIndex < tokens.Count ? tokens[tokenIndex] : default;
+            var insideToken = token.Span.Start <= index && index < token.Span.End;
+            if (insideToken && token.Kind == AwkTokenKind.BadToken)
             {
-                AwkParsingSupport.AppendText(builder, text.AsSpan(segmentStart, index - segmentStart), checkpoint);
-                while (tokenIndex < tokens.Count && tokens[tokenIndex].Span.End <= index)
-                {
-                    checkpoint?.Invoke();
-                    tokenIndex++;
-                }
-                var token = tokenIndex < tokens.Count ? tokens[tokenIndex] : default;
-                var insideToken = token.Span.Start <= index && index < token.Span.End;
-                if (insideToken && token.Kind == AwkTokenKind.BadToken)
-                {
-                    // Preserve malformed literal ingress for the lexical diagnostic;
-                    // normalization must not turn an unescaped newline into valid text.
-                    builder.Append(text, index, continuation.Length);
-                }
-                else if (insideToken && token.Kind == AwkTokenKind.Comment)
-                {
-                    // A backslash does not extend an awk comment onto the next line.
-                    builder.Append(text, index + 1, continuation.Length - 1);
-                }
-                else
-                {
-                    var insideLiteral = insideToken && token.Kind is
-                        AwkTokenKind.String or AwkTokenKind.InternationalizedString or
-                        AwkTokenKind.Regex or AwkTokenKind.StrongRegex;
-                    if (!insideLiteral && builder.Length > 0 && !char.IsWhiteSpace(builder[^1]) &&
-                        index + continuation.Length < text.Length &&
-                        !char.IsWhiteSpace(text[index + continuation.Length]))
-                        builder.Append(' ');
-                    continuations.Add(new AwkLineContinuationPoint(builder.Length));
-                }
-                index += continuation.Length;
-                segmentStart = index;
-                continue;
+                // Preserve malformed literal ingress for the lexical diagnostic;
+                // normalization must not turn an unescaped newline into valid text.
+                builder.Append(text, index, continuation.Length);
             }
-
-            index++;
-        }
+            else if (insideToken && token.Kind == AwkTokenKind.Comment)
+            {
+                // A backslash does not extend an awk comment onto the next line.
+                builder.Append(text, index + 1, continuation.Length - 1);
+            }
+            else
+            {
+                var insideLiteral = insideToken && token.Kind is
+                    AwkTokenKind.String or AwkTokenKind.InternationalizedString or
+                    AwkTokenKind.Regex or AwkTokenKind.StrongRegex;
+                if (!insideLiteral && builder.Length > 0 && !char.IsWhiteSpace(builder[^1]) &&
+                    index + continuation.Length < text.Length &&
+                    !char.IsWhiteSpace(text[index + continuation.Length]))
+                    builder.Append(' ');
+                continuations.Add(new AwkLineContinuationPoint(builder.Length));
+            }
+            segmentStart = index + continuation.Length;
+            index = FindContinuation(text, segmentStart, checkpoint, out continuation);
+        } while (index >= 0);
 
         AwkParsingSupport.AppendText(builder, text.AsSpan(segmentStart), checkpoint);
         var normalized = builder.ToString();
@@ -87,6 +70,22 @@ internal static class AwkLineContinuations
         return new AwkLineContinuationNormalization(
             normalized,
             new AwkLineContinuationMap(continuations));
+    }
+
+    private static int FindContinuation(string text, int start, Action? checkpoint, out AwkLineContinuation continuation)
+    {
+        while (start < text.Length - 1)
+        {
+            checkpoint?.Invoke();
+            var count = Math.Min(1024, text.Length - 1 - start);
+            // Include one lookahead character so a pair can start at the window edge.
+            var offset = text.AsSpan(start, count + 1).IndexOfAny(ContinuationPrefixes);
+            if (offset >= 0 && TryReadAt(text, start + offset, text.Length, out continuation))
+                return start + offset;
+            start += count;
+        }
+        continuation = default;
+        return -1;
     }
 
     public static bool TrySkipAfterBackslash(
