@@ -5,7 +5,6 @@ namespace Lokad.Awk;
 internal partial struct AwkRegionMachine
 {
     private readonly AwkRuntimeState _state;
-    private readonly AwkExecutionControlRuntime _phaseControl;
     private readonly AwkOutputSink _output;
     private readonly AwkIo _io;
     private readonly AwkRegionStorage _rootStorage;
@@ -25,8 +24,6 @@ internal partial struct AwkRegionMachine
     private bool _finished;
     private readonly AwkInputScheduler? _mainInput;
     private ValueTask<bool> _mainRead;
-    private AwkActionPhase _previousRecordPhase;
-    private bool _hasRecordPhase;
 
     private AwkStatementFlow Flow { get; set; }
 
@@ -34,7 +31,6 @@ internal partial struct AwkRegionMachine
         AwkOutputSink output, AwkIo io, AwkInputScheduler? input = null)
     {
         _state = state;
-        _phaseControl = state.ExecutionControl;
         _output = output;
         _io = io;
         _rootStorage = storage;
@@ -266,7 +262,7 @@ internal partial struct AwkRegionMachine
             }
             _state.ValidateFunctionFlow(flow);
         }
-        if (IsProcessingMainRecord)
+        if (_mainInput is not null)
         {
             CompleteMainFlow(flow);
             return !fromFunction;
@@ -388,7 +384,6 @@ internal partial struct AwkRegionMachine
     {
         UnwindFrames();
         _rootStorage.ClearValues();
-        EndMainRecord();
         _hostCompletion = Task.CompletedTask;
         _hostFlow = default;
         _pendingValue = default;

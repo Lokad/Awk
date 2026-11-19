@@ -2,8 +2,6 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
-    private bool IsProcessingMainRecord => _hasRecordPhase;
-
     private AwkInputScheduler MainInput => _mainInput ??
         throw new InvalidOperationException("A main-input instruction requires the input scheduler.");
 
@@ -11,7 +9,6 @@ internal partial struct AwkRegionMachine
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private bool ReadMainRecord()
     {
-        EndMainRecord();
         if (_state.ExitRequested)
         {
             _finished = true;
@@ -44,21 +41,12 @@ internal partial struct AwkRegionMachine
 
     private void BeginMainRecord(in AwkInputRecordResult input)
     {
-        _previousRecordPhase = _phaseControl.SwitchPhase(AwkActionPhase.Main);
-        _hasRecordPhase = true;
         _state.PublishInputRecord(in input, readsMainInput: true);
         _state.Counters.Add(AwkCounter.RecordsRead, 1);
         // Publication can refund retired owners through the supplied memory budget.
         // Keep the computational-entry check after those callbacks.
         _state.ThrowIfCancellationRequested();
         if (_region.EntryFieldDemand > 0) _state.PrepareAdmittedFields(_region.EntryFieldDemand);
-    }
-
-    private void EndMainRecord()
-    {
-        if (!_hasRecordPhase) return;
-        _hasRecordPhase = false;
-        _phaseControl.RestorePhase(_previousRecordPhase);
     }
 
     private void CompleteMainClose(AwkStatementFlow flow)
@@ -86,7 +74,6 @@ internal partial struct AwkRegionMachine
         _hostCompletion = Task.CompletedTask;
         _hostFlow = default;
         _pendingValue = default;
-        EndMainRecord();
         if (flow is AwkStatementFlow.NextFile or AwkStatementFlow.ExitProgram)
         {
             Flow = flow;
