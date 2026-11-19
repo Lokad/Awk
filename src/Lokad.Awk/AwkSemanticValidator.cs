@@ -469,139 +469,88 @@ internal static class AwkSemanticValidator
         AwkStatementValidationContext context,
         List<AwkDiagnostic> diagnostics)
     {
-        static void ValidateBareCallableVariable(
-            AwkExpressionSyntax expression,
-            AwkStatementValidationContext context,
-            List<AwkDiagnostic> diagnostics)
+        switch (expression.Kind)
         {
-            if (expression.Kind != AwkExpressionKind.Variable ||
-                !AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier) ||
-                AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length) ||
-                !context.Scope.IsReservedVariable(identifier.Identifier))
-            {
-                return;
-            }
+            case AwkExpressionKind.Variable:
+                if (AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier) &&
+                    !AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length) &&
+                    context.Scope.IsReservedVariable(identifier.Identifier))
+                {
+                    diagnostics.Add(new AwkDiagnostic(expression.Span,
+                        "Function `" + identifier.Name + "' requires a call.", AwkDiagnosticId.BindInvalidProgram));
+                }
+                break;
 
-            diagnostics.Add(new AwkDiagnostic(
-                expression.Span,
-                "Function `" + identifier.Name + "' requires a call.",
-                AwkDiagnosticId.BindInvalidProgram));
+            case AwkExpressionKind.FunctionCall:
+                if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target))
+                    ValidateCall(expression, target, context, diagnostics);
+                return 1;
+
+            case AwkExpressionKind.Assignment:
+                ValidateMutation(expression, context, diagnostics, "Invalid assignment target.");
+                break;
+
+            case AwkExpressionKind.Unary or AwkExpressionKind.Postfix
+                when AwkExpressionSyntaxFacts.IsIncrementOrDecrementExpression(expression):
+                ValidateMutation(expression, context, diagnostics, "Invalid increment target.");
+                break;
+
+            case AwkExpressionKind.ArrayElement:
+                for (var index = 0; index < expression.DelimiterTokens.Count; index++)
+                {
+                    context.Scope.CheckCancellation();
+                    if (expression.DelimiterTokens[index].Kind == AwkTokenKind.RightBracket)
+                        return 0;
+                }
+                return -1;
         }
 
-        static void ValidateKnownCallableShape(
-            AwkExpressionSyntax expression,
-            AwkStatementValidationContext context,
-            List<AwkDiagnostic> diagnostics)
+        return 0;
+
+        static void ValidateCall(AwkExpressionSyntax expression, AwkCallableTargetSyntax target,
+            AwkStatementValidationContext context, List<AwkDiagnostic> diagnostics)
         {
-            if (expression.Kind == AwkExpressionKind.FunctionCall &&
-                AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
-                AwkBuiltins.IsName(target.Name, AwkBuiltinId.Getline) &&
-                AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(expression, out var parts) &&
-                parts.Target.TryGetValue(out var destination) && AwkGetlineSyntaxFacts.IsPostfixFieldTarget(destination))
+            var local = context.Scope.TryGetFunctionLocalSlot(new(target.Identifier), out _);
+            AwkGetlineParts? getline = AwkBuiltins.IsName(target.Name, AwkBuiltinId.Getline) &&
+                AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(expression, out var parts) ? parts : null;
+            if (getline is { } read && read.Target.TryGetValue(out var destination) &&
+                AwkGetlineSyntaxFacts.IsPostfixFieldTarget(destination))
             {
                 diagnostics.Add(AwkGetlineSyntaxFacts.PostfixFieldTargetDiagnostic(destination));
-                return;
+            }
+            else if (!local &&
+                AwkBuiltinCallShape.TryCreateKnownCallable(expression, target, out var call) &&
+                AwkCompatibilityNames.EnablesBuiltin(call.Definition, context.Scope.CompatibilityMode))
+            {
+                if (context.Scope.CompatibilityMode != AwkCompatibilityMode.GnuDefault &&
+                    call.Definition.Id == AwkBuiltinId.Match && call.ArgumentCount == 3)
+                    diagnostics.Add(new AwkDiagnostic(expression.Span,
+                        "Third argument of match is a GNU extension", AwkDiagnosticId.BindInvalidProgram));
+                else if (AwkBuiltinCallShape.TryGetDiagnostic(call, context.Scope, out var diagnostic))
+                    diagnostics.Add(diagnostic);
             }
 
-            if (expression.Kind != AwkExpressionKind.FunctionCall ||
-                !AwkBuiltinCallShape.TryCreateKnownCallable(expression, out var call) ||
-                !AwkCompatibilityNames.EnablesBuiltin(call.Definition, context.Scope.CompatibilityMode) ||
-                context.Scope.TryGetFunctionLocalSlot(new(call.Target.Identifier), out _))
-            {
-                return;
-            }
+            if (local)
+                diagnostics.Add(new AwkDiagnostic(target.Span,
+                    "Function parameter `" + target.Name + "' cannot be called.", AwkDiagnosticId.BindInvalidProgram));
 
-            if (context.Scope.CompatibilityMode != AwkCompatibilityMode.GnuDefault &&
-                call.Definition.Id == AwkBuiltinId.Match && call.ArgumentCount == 3)
-            {
+            if (getline is { HasRedirection: false } && context.TryGetMainInputGetlineProhibition(out var ruleName))
                 diagnostics.Add(new AwkDiagnostic(expression.Span,
-                    "Third argument of match is a GNU extension", AwkDiagnosticId.BindInvalidProgram));
+                    "Non-redirected `getline' invalid inside `" + ruleName + "' rule", AwkDiagnosticId.BindInvalidProgram));
+        }
+
+        static void ValidateMutation(AwkExpressionSyntax expression, AwkStatementValidationContext context,
+            List<AwkDiagnostic> diagnostics, string message)
+        {
+            var target = expression.FirstChild;
+            if (target is null || !AwkExpressionSyntaxFacts.IsValidMutationTarget(target))
+            {
+                diagnostics.Add(new AwkDiagnostic(target?.Span ?? expression.Span, message, AwkDiagnosticId.BindInvalidProgram));
                 return;
             }
 
-            if (AwkBuiltinCallShape.TryGetDiagnostic(call, context.Scope, out var diagnostic))
-                diagnostics.Add(diagnostic);
+            ValidateSpecialArrayElementMutation(target, context, diagnostics);
         }
-
-        static void ValidateMainInputGetlineUsage(
-            AwkExpressionSyntax expression,
-            AwkStatementValidationContext context,
-            List<AwkDiagnostic> diagnostics)
-        {
-            if (!context.TryGetMainInputGetlineProhibition(out var ruleName) ||
-                expression.Kind != AwkExpressionKind.FunctionCall ||
-                expression.Children.Count == 0 ||
-                !AwkExpressionSyntaxFacts.TryGetIdentifier(expression.Children[0], out var identifier) ||
-                !AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Getline) ||
-                !AwkGetlineSyntaxFacts.TryResolveExpressionCallParts(expression, out var parts) ||
-                parts.HasRedirection)
-            {
-                return;
-            }
-
-            diagnostics.Add(new AwkDiagnostic(
-                expression.Span,
-                "Non-redirected `getline' invalid inside `" + ruleName + "' rule",
-                AwkDiagnosticId.BindInvalidProgram));
-        }
-
-        bool IsMalformedArrayElement(AwkExpressionSyntax expression)
-        {
-            if (expression.Kind != AwkExpressionKind.ArrayElement)
-                return false;
-
-            for (var index = 0; index < expression.DelimiterTokens.Count; index++)
-            {
-                context.Scope.CheckCancellation();
-                if (expression.DelimiterTokens[index].Kind == AwkTokenKind.RightBracket)
-                    return false;
-            }
-
-            return true;
-        }
-
-        ValidateBareCallableVariable(expression, context, diagnostics);
-        ValidateKnownCallableShape(expression, context, diagnostics);
-        if (expression.Kind == AwkExpressionKind.FunctionCall &&
-            AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var callable) &&
-            context.Scope.TryGetFunctionLocalSlot(new(callable.Identifier), out _))
-            diagnostics.Add(new AwkDiagnostic(callable.Span,
-                "Function parameter `" + callable.Name + "' cannot be called.", AwkDiagnosticId.BindInvalidProgram));
-        ValidateMainInputGetlineUsage(expression, context, diagnostics);
-
-        if (expression.Kind == AwkExpressionKind.Assignment)
-        {
-            if (expression.Children.Count == 0 ||
-                !AwkExpressionSyntaxFacts.IsValidMutationTarget(expression.Children[0]))
-            {
-                diagnostics.Add(new AwkDiagnostic(
-                    expression.Children.Count == 0 ? expression.Span : expression.Children[0].Span,
-                    "Invalid assignment target.",
-                    AwkDiagnosticId.BindInvalidProgram));
-            }
-            else
-            {
-                ValidateSpecialArrayElementMutation(expression.Children[0], context, diagnostics);
-            }
-        }
-        else if (AwkExpressionSyntaxFacts.IsIncrementOrDecrementExpression(expression) &&
-            (expression.Children.Count == 0 ||
-                !AwkExpressionSyntaxFacts.IsValidMutationTarget(expression.Children[0])))
-        {
-            diagnostics.Add(new AwkDiagnostic(
-                expression.Children.Count == 0 ? expression.Span : expression.Children[0].Span,
-                "Invalid increment target.",
-                AwkDiagnosticId.BindInvalidProgram));
-        }
-        else if (AwkExpressionSyntaxFacts.IsIncrementOrDecrementExpression(expression))
-        {
-            ValidateSpecialArrayElementMutation(expression.Children[0], context, diagnostics);
-        }
-
-        if (IsMalformedArrayElement(expression))
-            return -1;
-
-        return expression.Kind == AwkExpressionKind.FunctionCall ? 1 : 0;
 
         static void ValidateSpecialArrayElementMutation(
             AwkExpressionSyntax target,

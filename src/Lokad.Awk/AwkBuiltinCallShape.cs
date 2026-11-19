@@ -24,16 +24,24 @@ internal static class AwkBuiltinCallShape
         AwkExpressionSyntax expression,
         out AwkBuiltinCallSyntax call)
     {
+        if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target))
+            return TryCreateKnownCallable(expression, target, out call);
+
         call = default;
-        if (!AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) ||
-            target.IsSpecialSyntax ||
-            !AwkBuiltins.TryGetCallable(target.Name, out var definition))
+        return false;
+    }
+
+    internal static bool TryCreateKnownCallable(AwkExpressionSyntax expression, AwkCallableTargetSyntax target,
+        out AwkBuiltinCallSyntax call)
+    {
+        if (!target.IsSpecialSyntax && AwkBuiltins.TryGetCallable(target.Name, out var definition))
         {
-            return false;
+            call = new AwkBuiltinCallSyntax(definition, expression, target);
+            return true;
         }
 
-        call = new AwkBuiltinCallSyntax(definition, expression, target);
-        return true;
+        call = default;
+        return false;
     }
 
     public static bool TryGetDiagnostic(
