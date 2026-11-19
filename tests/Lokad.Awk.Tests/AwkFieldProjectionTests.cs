@@ -109,17 +109,24 @@ public sealed partial class AwkFieldProjectionTests
     [Fact]
     public void CancellationDuringPairCopyLeavesPublishedLengthUnchanged()
     {
+        using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled);
+        var ending = AwkText.FromSourceLiteralString("end");
+        var shortChecks = 0;
+        builder.Append(new byte[16_384], ending, () => shortChecks++);
+        builder.Clear();
+        builder.Append("keep"u8);
+        var content = AwkUtf8Codec.Encode(new string('x', 32_768));
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
-        using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled);
-        builder.Append("keep"u8);
-        Assert.Throws<OperationCanceledException>(() => builder.Append(new byte[16_384], AwkText.FromString("end"), () =>
+        var failure = Assert.Throws<OperationCanceledException>(() => builder.Append(content.Span, ending, () =>
         {
-            if (++checks == 4) cancellation.Cancel();
+            if (++checks > shortChecks) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }));
-        Assert.Equal("keep", AwkUtf8Codec.Decode(builder.AsSpan()));
-        Assert.Equal(4, builder.Length);
+        Assert.Equal(cancellation.Token, failure.CancellationToken);
+        Assert.True(builder.AsSpan().SequenceEqual("keep"u8));
+        builder.Append(content.Span, ending);
+        Assert.Equal("keep" + new string('x', 32_768) + "end", AwkUtf8Codec.Decode(builder.AsSpan()));
     }
 
     private static CooperativeTestMemory State(bool finite)

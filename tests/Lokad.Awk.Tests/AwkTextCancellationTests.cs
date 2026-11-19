@@ -401,43 +401,58 @@ public sealed class AwkTextCancellationTests
     }
 
     [Theory]
-    [InlineData("fields")]
-    [InlineData("long-field")]
-    [InlineData("separator")]
-    [InlineData("terminator")]
-    [InlineData("empty")]
-    public void CanceledRecordCopyKeepsThePublishedPrefixAndFundedCapacity(string mode)
+    [InlineData("fields", true)]
+    [InlineData("long-field", true)]
+    [InlineData("long-field", false)]
+    [InlineData("separator", true)]
+    [InlineData("terminator", true)]
+    [InlineData("empty", true)]
+    public void CanceledRecordCopyKeepsThePublishedPrefixAndFundedCapacity(string mode, bool governed)
     {
-
-        using var memory = Governor();
+        using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         using var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16);
+        var shortChecks = 0;
+        Append(LongText / 2, () => shortChecks++);
+        builder.Clear();
         builder.Append("kept:"u8);
-        var record = AwkUtf8Codec.Encode(mode == "fields" ? new string('a', LongText * 16) :
-            mode == "long-field" ? new string('x', LongText) : mode == "empty" ? "" : "ab").ToArray();
-        var fields = mode == "long-field"
-            ? new[] { AwkFieldText.FromRecordSlice(0, record.Length) }
-            : mode == "fields"
-                ? Enumerable.Range(0, LongText).Select(index => AwkFieldText.FromRecordSlice(index * 16, 16)).ToArray()
-                : mode == "empty" ? Enumerable.Repeat(AwkFieldText.Empty, LongText).ToArray()
-                : new[] { AwkFieldText.FromRecordSlice(0, 1), AwkFieldText.FromRecordSlice(1, 1) };
-        var separator = AwkText.FromSourceLiteralString(mode == "separator" ? new string('|', LongText) : mode == "empty" ? "" : "|");
-        var terminator = AwkText.FromSourceLiteralString(mode == "terminator" ? new string('!', LongText) : mode == "empty" ? "" : "!");
-        var byteLength = fields.Sum(field => field.ByteLength()) + Math.Max(0, fields.Length - 1) * separator.ByteLength;
         using var cancellation = new CancellationTokenSource();
-        var failure = Assert.Throws<OperationCanceledException>(() => builder.AppendRecord(
-            new AwkRecordFields(fields), new AwkCopySource(record), separator, terminator, byteLength, CancelOnCheck(cancellation, 6)));
+        var failure = Assert.Throws<OperationCanceledException>(() =>
+            Append(LongText, CancelOnCheck(cancellation, shortChecks + 1)));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal("kept:", AwkUtf8Codec.Decode(builder.AsSpan()));
-        Assert.True(memory.Accounting.LiveBytes > 0);
+        Assert.True(builder.AsSpan().SequenceEqual("kept:"u8));
+        if (governed) Assert.True(memory.Accounting.LiveBytes > 0);
 
         // A separate attempt can reuse the still-funded destination, including when
         // responsiveness was required for metadata that emitted no bytes at all.
-        builder.AppendRecord(new AwkRecordFields(fields), new AwkCopySource(record), separator, terminator, byteLength);
-        var expected = "kept:" + string.Join(separator.AsString(), fields.Select(field =>
-            AwkUtf8Codec.Decode(field.AsSpan(record)))) + terminator.AsString();
-        Assert.Equal(expected, AwkUtf8Codec.Decode(builder.AsSpan()));
+        Append(LongText);
+        var expected = mode switch
+        {
+            "fields" => string.Join('|', Enumerable.Repeat(new string('a', 16), LongText)) + "!",
+            "long-field" => new string('x', LongText) + "|É!",
+            "separator" => "a" + new string('|', LongText) + "b!",
+            "terminator" => "a|b" + new string('!', LongText),
+            _ => ""
+        };
+        Assert.Equal("kept:" + expected, AwkUtf8Codec.Decode(builder.AsSpan()));
         builder.Dispose();
         Assert.Equal(0, memory.Budget.Reserved);
+
+        void Append(int size, Action? checkpoint = null)
+        {
+            var record = AwkUtf8Codec.Encode(mode == "fields" ? new string('a', size * 16) :
+                mode == "long-field" ? new string('x', size) : "ab");
+            var fields = mode switch
+            {
+                "fields" => Enumerable.Range(0, size).Select(index => AwkFieldText.FromRecordSlice(index * 16, 16)).ToArray(),
+                "long-field" => [AwkFieldText.FromRecordSlice(0, size), AwkFieldText.FromOwned(AwkText.FromSourceLiteralString("É"))],
+                "empty" => new AwkFieldText[size],
+                _ => [AwkFieldText.FromRecordSlice(0, 1), AwkFieldText.FromRecordSlice(1, 1)]
+            };
+            var separator = AwkText.FromSourceLiteralString(mode == "separator" ? new string('|', size) : mode == "empty" ? "" : "|");
+            var terminator = AwkText.FromSourceLiteralString(mode == "terminator" ? new string('!', size) : mode == "empty" ? "" : "!");
+            var byteLength = fields.Sum(field => field.ByteLength()) + (fields.Length - 1) * separator.ByteLength;
+            builder.AppendRecord(new AwkRecordFields(fields), new AwkCopySource(record.Span), separator, terminator, byteLength, checkpoint);
+        }
     }
 
     [Theory]

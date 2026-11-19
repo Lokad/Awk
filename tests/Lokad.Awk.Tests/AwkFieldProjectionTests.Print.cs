@@ -89,29 +89,6 @@ public sealed partial class AwkFieldProjectionTests
         await io.CloseAsync();
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void FieldListCopyCancellationDoesNotPublishAPrefix(bool finite)
-    {
-        using var memoryForState = State(finite);
-        var state = memoryForState.State;
-        var counters = state.Counters;
-        using var builder = new AwkUtf8Builder(state.MemoryAccounting);
-        builder.Append("keep"u8);
-        var record = AwkText.FromSourceLiteralString(new string('x', 32_768));
-        using var cancellation = new CancellationTokenSource();
-        var checks = 0;
-        Assert.Throws<OperationCanceledException>(() => builder.Append([
-            AwkFieldText.FromRecordSlice(0, record.ByteLength), AwkFieldText.FromOwned(AwkText.FromSourceLiteralString("!"))], record, () =>
-        {
-            if (++checks == 6) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }));
-        Assert.Equal("keep", AwkUtf8Codec.Decode(builder.AsSpan()));
-        Assert.Equal(4, builder.Length);
-    }
-
     private static async Task<PrintResult> RunPrintAsync(bool owned, AwkRuntimeLimits limits)
     {
         var operands = owned ? "$i,$k,$j" : "$1,$3,$2";
