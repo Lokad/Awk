@@ -446,32 +446,37 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         ReadOnlySpan<byte> recordBytes,
         int consumedLength,
         AwkRecordTerminator terminator,
-        AwkRecordFieldSplittingMode fieldSplittingMode, AwkRecordStorage? storage = null)
+        AwkRecordFieldSplittingMode fieldSplittingMode, AwkRecordStorage? storage = null) =>
+        ConsumePreparedRecord(PrepareRecord(recordBytes, terminator, fieldSplittingMode, storage), consumedLength);
+
+    private AwkRecordReadStatus ConsumePreparedRecord(AwkInputRecordResult record, int consumedLength)
     {
-        AwkInputRecordResult record;
-        if (storage is not null && AwkRecordStorage.CanStage(recordBytes.Length))
-        {
-            AwkText.ThrowIfInvalidUtf8(recordBytes, _state.CancellationCheckpoint);
-            storage.StageValidated(recordBytes);
-            record = AwkInputRecordResult.Buffered(storage, terminator);
-        }
-        else record = AwkInputRecordResult.Record(CreateText(recordBytes), terminator, fieldSplittingMode);
         _bufferStart += consumedLength;
         _hasConsumedDescriptorBytes |= consumedLength > 0;
         ResetSeparatorSearch();
         return PublishRecord(record);
     }
 
-    private AwkText CreateText(ReadOnlySpan<byte> content) =>
-        _state.CsvInput ? CreateCsvText(content) : _state.CopyHostText(content);
+    private AwkInputRecordResult PrepareRecord(ReadOnlySpan<byte> recordBytes, AwkRecordTerminator terminator,
+        AwkRecordFieldSplittingMode fieldSplittingMode, AwkRecordStorage? storage)
+    {
+        if (storage is not null && AwkRecordStorage.CanStage(recordBytes.Length))
+        {
+            AwkText.ThrowIfInvalidUtf8(recordBytes, _state.CancellationCheckpoint);
+            storage.StageValidated(recordBytes);
+            return AwkInputRecordResult.Buffered(storage, terminator);
+        }
+        return AwkInputRecordResult.Record(_state.CopyHostText(recordBytes), terminator, fieldSplittingMode);
+    }
 
-    private AwkText CreateCsvText(ReadOnlySpan<byte> content)
+    private AwkInputRecordResult PrepareCsvRecord(ReadOnlySpan<byte> content,
+        AwkRecordTerminator terminator, AwkRecordStorage? storage)
     {
         // Match GNU's EOF/record terminator treatment without depending on host batch boundaries.
         if (!content.IsEmpty && content[^1] == (byte)'\r') content = content[..^1];
         var first = IndexOfLiteral(content, "\r\n"u8, _scanCheckpoint);
         if (first < 0)
-            return _state.CopyHostText(content);
+            return PrepareRecord(content, terminator, AwkRecordFieldSplittingMode.Ordinary, storage);
         using var normalized = new AwkUtf8Builder(_state.MemoryAccounting, content.Length);
         var start = 0;
         do
@@ -484,7 +489,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         } while (true);
         normalized.Append(content[start..], _scanCheckpoint);
         // The builder still contains host input, unlike builders fed only by AwkText.
-        return _state.CopyHostText(normalized.AsSpan());
+        return PrepareRecord(normalized.AsSpan(), terminator, AwkRecordFieldSplittingMode.Ordinary, storage);
     }
 
     internal static void ValidateSeparator(AwkRuntimeState state, AwkText value)

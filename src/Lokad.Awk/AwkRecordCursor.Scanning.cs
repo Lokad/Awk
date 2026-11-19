@@ -22,7 +22,7 @@ internal sealed partial class AwkRecordCursor
         var content = buffer.AsSpan()[_bufferStart..];
         return separator switch
         {
-            CsvSeparator => TryReadCsvRecord(content),
+            CsvSeparator => TryReadCsvRecord(content, recordStorage),
             NewlineSeparator => TryReadByteSeparator(content, (byte)'\n', AwkRecordTerminator.NewLine,
                 trimCarriageReturn: true, storage: recordStorage),
             ParagraphSeparator => TryReadParagraph(content),
@@ -35,7 +35,7 @@ internal sealed partial class AwkRecordCursor
         };
     }
 
-    private AwkRecordReadStatus TryReadCsvRecord(ReadOnlySpan<byte> content)
+    private AwkRecordReadStatus TryReadCsvRecord(ReadOnlySpan<byte> content, AwkRecordStorage? storage)
     {
         var start = GetRelativeScanStart(content);
         long nextCheckpoint = start;
@@ -50,13 +50,14 @@ internal sealed partial class AwkRecordCursor
             if (content[i] == (byte)'\n' && !_csvInQuote)
             {
                 _state.ThrowIfCancellationRequested();
-                return ConsumeRecord(content[..i], i + 1, AwkRecordTerminator.NewLine,
-                    AwkRecordFieldSplittingMode.Ordinary);
+                return ConsumePreparedRecord(PrepareCsvRecord(content[..i], AwkRecordTerminator.NewLine, storage), i + 1);
             }
         }
         _state.ThrowIfCancellationRequested();
         MarkScannedThroughEnd(0);
-        return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
+        return _descriptorReachedEof
+            ? ConsumePreparedRecord(PrepareCsvRecord(content, AwkRecordTerminator.Empty, storage), content.Length)
+            : AwkRecordReadStatus.Pending;
     }
 
     private AwkRecordReadStatus TryReadByteSeparator(ReadOnlySpan<byte> content, byte separator,
@@ -157,7 +158,7 @@ internal sealed partial class AwkRecordCursor
         return ConsumeRecord(
             content[..separatorIndex],
             separatorEnd,
-            AwkRecordTerminator.FromText(CreateText(content[separatorIndex..separatorEnd])),
+            AwkRecordTerminator.FromText(_state.CopyHostText(content[separatorIndex..separatorEnd])),
             AwkRecordFieldSplittingMode.Ordinary);
 
         AwkRecordReadStatus ContinueByteRun(
@@ -186,7 +187,7 @@ internal sealed partial class AwkRecordCursor
             return ConsumeRecord(
                 content[..separatorStart],
                 separatorEnd,
-                AwkRecordTerminator.FromText(CreateText(content[separatorStart..separatorEnd])),
+                AwkRecordTerminator.FromText(_state.CopyHostText(content[separatorStart..separatorEnd])),
                 AwkRecordFieldSplittingMode.Ordinary);
         }
     }
@@ -414,7 +415,7 @@ internal sealed partial class AwkRecordCursor
                 recordLength + (trailingNewlines.Length == 1 ? 0 : trailingNewlines.Length));
             var finalTerminator = trailingNewlines.Length == 1
                 ? AwkRecordTerminator.NewLine
-                : AwkRecordTerminator.FromText(CreateText(trailingNewlines));
+                : AwkRecordTerminator.FromText(_state.CopyHostText(trailingNewlines));
             return ConsumeRecord(
                 content[..recordLength],
                 recordStart + content.Length,
@@ -431,7 +432,7 @@ internal sealed partial class AwkRecordCursor
             return AwkRecordReadStatus.Pending;
         }
 
-        var terminator = AwkRecordTerminator.FromText(CreateText(
+        var terminator = AwkRecordTerminator.FromText(_state.CopyHostText(
             content.Slice(separatorIndex, separatorLength)));
         return ConsumeRecord(
             content[..TrimTrailingRecordNewlines(content[..separatorIndex], _scanCheckpoint)],
@@ -454,7 +455,7 @@ internal sealed partial class AwkRecordCursor
                 return AwkRecordReadStatus.Pending;
             }
 
-            var terminator = AwkRecordTerminator.FromText(CreateText(
+            var terminator = AwkRecordTerminator.FromText(_state.CopyHostText(
                 content[separatorStart..separatorEnd]));
             var recordBytes = content[_paragraphLeaderScanLength..separatorStart];
             return ConsumeRecord(
