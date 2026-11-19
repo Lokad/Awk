@@ -24,22 +24,24 @@ public sealed class AwkRecordScanCancellationTests
     [MemberData(nameof(RecordScans))]
     public async Task InterruptedOwnedScanPreservesTheRecordAndDeliveredInput(bool observed, string scenario)
     {
-        var large = new string('a', LongScan);
-        var (initial, selected, input, expected, terminator) = scenario switch
+        var (shortInitial, shortSelected, shortInput, shortExpected, shortTerminator) = ScanInput(scenario, 4);
+        var shortChecks = 0;
+        using (var memory = State(observed))
         {
-            "single" => ("|", "|", "first|" + large + "|next|", large, "|"),
-            "set" => ("[,|]", "[,|]", "first|" + large + "|next|", large, "|"),
-            "run-search" => ("([,|]+)", "([,|]+)", "first|" + large + "|next|", large, "|"),
-            "literal" => ("::", "::", "first::" + large + "::next::", large, "::"),
-            "paragraph-search" => ("", "", "first\n\n" + large + "\n\nnext\n\n", large, "\n\n"),
-            "run-extension" => ("|", "([,|]+)", "first|value" + new string('|', LongScan) + "next|", "value", new string('|', LongScan)),
-            "paragraph-extension" => ("|", "", "first|value" + new string('\n', LongScan) + "next\n\n", "value", new string('\n', LongScan)),
-            "paragraph-leaders" => ("|", "", "first|" + new string('\n', LongScan) + "value\n\nnext\n\n", "value", "\n\n"),
-            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
-        };
+            var shortHost = new TestOperationVisitor([]);
+            using var shortCursor = Open(memory.State, shortHost, shortInitial, Encoding.UTF8.GetBytes(shortInput),
+                () => shortChecks++);
+            await PositionAtSecondRecord(shortCursor, memory.State, shortSelected);
+            shortChecks = 0;
+            var shortResult = await shortCursor.ReadRecordAsync();
+            Assert.Equal(shortExpected, shortResult.RecordText.AsString());
+            Assert.Equal(shortTerminator, shortResult.Terminator.ByteText.AsString());
+            Assert.Single(shortHost.ReadByteCounts);
+        }
+
+        var (initial, selected, input, expected, terminator) = ScanInput(scenario, LongScan);
         var bytes = Encoding.UTF8.GetBytes(input);
         var host = new TestOperationVisitor([]);
-        host.EnqueueReadBuffer(AwkReadBuffer.FromContent(bytes, AwkReadCompletion.EndOfFile, static _ => { }));
         using var memoryForState = State(observed);
         var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
@@ -48,17 +50,12 @@ public sealed class AwkRecordScanCancellationTests
         void Check()
         {
             if (!armed) return;
-            if (++checks == 8) cancellation.Cancel();
+            if (++checks > shortChecks) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
 
-        Assign(state, "RS", initial);
-        var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
-        using var cursor = new AwkRecordCursor(state, reader, scanCheckpoint: Check);
-        Assert.Equal("first", (await cursor.ReadRecordAsync()).RecordText.AsString());
-        Assign(state, "RS", selected);
-        state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
-        Assign(state, "RT", "kept");
+        using var cursor = Open(state, host, initial, bytes, Check);
+        await PositionAtSecondRecord(cursor, state, selected);
 
         var committed = state.MemoryAccounting.LiveBytes;
         armed = true;
@@ -68,7 +65,6 @@ public sealed class AwkRecordScanCancellationTests
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         armed = false;
-        Assert.Equal(8, checks);
 
         Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
         Assert.Equal("seed fields", state.CurrentRecordByteText.AsString());
@@ -82,7 +78,39 @@ public sealed class AwkRecordScanCancellationTests
         Assert.Equal(observed ? bytes.Length : 0, state.Counters[AwkCounter.BytesRead]);
         Assert.Equal(0, state.Counters[AwkCounter.StringDecodes]);
 
-        cursor.Dispose();
+        static AwkRecordCursor Open(AwkRuntimeState state, TestOperationVisitor host, string initial,
+            byte[] bytes, Action checkpoint)
+        {
+            host.EnqueueReadBuffer(AwkReadBuffer.FromContent(bytes, AwkReadCompletion.EndOfFile, static _ => { }));
+            Assign(state, "RS", initial);
+            var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+            return new AwkRecordCursor(state, reader, scanCheckpoint: checkpoint);
+        }
+
+        static async Task PositionAtSecondRecord(AwkRecordCursor cursor, AwkRuntimeState state, string separator)
+        {
+            Assert.Equal("first", (await cursor.ReadRecordAsync()).RecordText.AsString());
+            Assign(state, "RS", separator);
+            state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
+            Assign(state, "RT", "kept");
+        }
+    }
+
+    private static (string Initial, string Selected, string Input, string Expected, string Terminator) ScanInput(string scenario, int length)
+    {
+        var record = new string('a', length);
+        return scenario switch
+        {
+            "single" => ("|", "|", "first|" + record + "|next|", record, "|"),
+            "set" => ("[,|]", "[,|]", "first|" + record + "|next|", record, "|"),
+            "run-search" => ("([,|]+)", "([,|]+)", "first|" + record + "|next|", record, "|"),
+            "literal" => ("::", "::", "first::" + record + "::next::", record, "::"),
+            "paragraph-search" => ("", "", "first\n\n" + record + "\n\nnext\n\n", record, "\n\n"),
+            "run-extension" => ("|", "([,|]+)", "first|value" + new string('|', length) + "next|", "value", new string('|', length)),
+            "paragraph-extension" => ("|", "", "first|value" + new string('\n', length) + "next\n\n", "value", new string('\n', length)),
+            "paragraph-leaders" => ("|", "", "first|" + new string('\n', length) + "value\n\nnext\n\n", "value", "\n\n"),
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
+        };
     }
 
     public static IEnumerable<object[]> Continuations()
