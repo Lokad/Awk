@@ -19,6 +19,9 @@ Formatting, including printf cursors and staged output, function storage and I/O
 controls and accounting from their owning runtime, keeping cancellation, admission and
 value interpretation in the same invocation. Supplied destination leases retain their
 publication funding.
+Lowering can store admitted directive metadata for literal `printf` formats.
+The synchronous renderer still consumes the arguments. Formats with runtime
+controls or parser failures use the execution-time parser.
 
 Each invocation parses, prepares and executes its own program. Programs, token caches
 and concatenation owners are not shared between executions. Concurrent invocations

@@ -30,9 +30,11 @@ internal static class AwkRegionPrinting
             // renderer finishes, including any admission during rendering.
             var format = print.LiteralFormat ?? state.DecodeText(storage.Values[print.Format].ByteText);
             if (print.Fields.Length != 0)
-                AppendPrintf(state, storage, output, print.Output, format, new AwkPrintfFieldArguments(print.Fields, state));
+                AppendPrintf(state, storage, output, print.Output, format,
+                    new AwkPrintfFieldArguments(print.Fields, state), print.Directives);
             else
-                AppendPrintf(state, storage, output, print.Output, format, new AwkValueArrayPrintfArguments(storage.Values, print.Count, state, print.Values));
+                AppendPrintf(state, storage, output, print.Output, format,
+                    new AwkValueArrayPrintfArguments(storage.Values, print.Count, state, print.Values), print.Directives);
         }
         finally
         {
@@ -42,20 +44,20 @@ internal static class AwkRegionPrinting
     }
 
     private static void AppendPrintf<TArguments>(AwkRuntimeState state, AwkRegionStorage storage,
-        AwkOutputSink output, AwkRegionOutput target, string format, TArguments arguments)
+        AwkOutputSink output, AwkRegionOutput target, string format, TArguments arguments, PrintfDirective[]? directives)
         where TArguments : IPrintfArguments
     {
         if (target.IsRedirected)
         {
             var redirected = storage.Builders[0].Buffer;
             redirected.Clear();
-            AwkFormattingRuntime.FormatPrintfToBuilder(redirected, format, arguments, state);
+            AwkFormattingRuntime.FormatPrintfToBuilder(redirected, format, arguments, state, directives);
             state.ThrowIfCancellationRequested();
             return;
         }
-        if (output.TryFormatPrintf(format, arguments, state)) return;
+        if (output.TryFormatPrintf(format, arguments, state, directives)) return;
         using var formatted = new AwkUtf8Builder(state.MemoryAccounting, capacity: 0);
-        AwkFormattingRuntime.FormatPrintfToBuilder(formatted, format, arguments, state);
+        AwkFormattingRuntime.FormatPrintfToBuilder(formatted, format, arguments, state, directives);
         state.ThrowIfCancellationRequested();
         output.Append(formatted.AsMemory());
     }

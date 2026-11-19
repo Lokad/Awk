@@ -20,7 +20,8 @@ internal sealed class AwkOutputSink : IDisposable
 
     internal bool HasPendingOutput => _standardOutput.Length != 0 || _diagnostics.Count != 0;
 
-    internal bool TryFormatPrintf<TArguments>(string format, TArguments arguments, AwkRuntimeState state)
+    internal bool TryFormatPrintf<TArguments>(string format, TArguments arguments, AwkRuntimeState state,
+        PrintfDirective[]? directives = null)
         where TArguments : IPrintfArguments
     {
         if (_standardOutput.Length != 0)
@@ -28,7 +29,7 @@ internal sealed class AwkOutputSink : IDisposable
 
         try
         {
-            AwkFormattingRuntime.FormatPrintfToBuilder(_standardOutput, format, arguments, state);
+            AwkFormattingRuntime.FormatPrintfToBuilder(_standardOutput, format, arguments, state, directives);
             state.ThrowIfCancellationRequested();
         }
         catch

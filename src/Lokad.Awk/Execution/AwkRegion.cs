@@ -254,7 +254,7 @@ internal sealed record AwkRegionPrint(int Texts, int Segments, AwkRegionPrintArg
 }
 // Format is -1 only for a bare printf statement without arguments.
 internal sealed record AwkRegionPrintf(int Format, int Values, int Count, AwkFieldIndex[] Fields,
-    AwkRegionOutput Output = default, string? LiteralFormat = null);
+    AwkRegionOutput Output = default, string? LiteralFormat = null, PrintfDirective[]? Directives = null);
 internal readonly record struct AwkRegionGetline(int Slot, int Source, AwkGetlineSourceKind Kind, int Result);
 internal readonly record struct AwkRegionOutput
 {

@@ -6,7 +6,7 @@ internal static class AwkBinder
         AwkParseResult parseResult,
         AwkCompatibilityProfile compatibilityProfile,
         Action? checkpoint = null,
-        AwkRuntimeArgumentPlan? externalArguments = null)
+        AwkRuntimeArgumentPlan? externalArguments = null, AwkFrontendMemory? memory = null)
     {
         checkpoint?.Invoke();
         if (!parseResult.Success)
@@ -22,7 +22,7 @@ internal static class AwkBinder
             return AwkBindingResult.Failure(semanticDiagnostics);
 
         var binding = AwkProgramLowerer.LowerValidated(parseResult.Syntax, symbols, compatibilityProfile.Mode, checkpoint,
-            externalArguments);
+            externalArguments, memory);
         if (binding.Success) checkpoint?.Invoke();
         return binding;
     }

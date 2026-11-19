@@ -45,7 +45,8 @@ internal static class PrintfEvaluation
         TArguments arguments,
         PrintfMissingArgumentPolicy missingArgumentPolicy,
         AwkRuntimeState state,
-        AwkStringUnitMode stringUnitMode = AwkStringUnitMode.Utf8Rune)
+        AwkStringUnitMode stringUnitMode = AwkStringUnitMode.Utf8Rune,
+        PrintfDirective[]? directives = null)
         where TArguments : IPrintfArguments
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -61,6 +62,7 @@ internal static class PrintfEvaluation
         var output = new PrintfByteOutput(builder, state, null);
         var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, state);
 
+        var directiveIndex = 0;
         long nextCheckpoint = 0;
         for (var index = 0; index < format.Length; index++)
         {
@@ -92,7 +94,9 @@ internal static class PrintfEvaluation
             }
 
             var directiveStart = index;
-            var directive = PrintfDirectiveParser.Read(format, index, compatibilityMode, ref argumentCursor, checkpoint);
+            var directive = directives is null
+                ? PrintfDirectiveParser.Read(format, index, compatibilityMode, ref argumentCursor, checkpoint)
+                : directives[directiveIndex++];
             index = directive.EndIndex;
             var flags = directive.Flags;
             var width = directive.Width;

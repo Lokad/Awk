@@ -23,7 +23,7 @@ internal static class AwkProgramLowerer
     public static AwkBindingResult LowerValidated(AwkSyntaxProgram syntax, AwkCollectedSymbols symbols,
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
-        AwkRuntimeArgumentPlan? externalArguments = null)
+        AwkRuntimeArgumentPlan? externalArguments = null, AwkFrontendMemory? memory = null)
     {
         checkpoint?.Invoke();
         if (syntax.Rules.Count == 0 && syntax.Functions.Count == 0)
@@ -60,7 +60,7 @@ internal static class AwkProgramLowerer
             checkpoint?.Invoke();
             var functionSyntax = syntax.Functions[functionIndex];
             var function = functions[new AwkFunctionName(functionSyntax.Identifier.Value)];
-            var scope = AwkLoweringScope.Function(function.LocalLayout, mode, checkpoint, globalReads, functions);
+            var scope = AwkLoweringScope.Function(function.LocalLayout, mode, checkpoint, globalReads, functions, memory);
             if (!AwkRegionCompiler.TryCompile(functionSyntax.BodyStatements, scope, out var region, out var diagnostic))
                 return AwkBindingResult.Failure([diagnostic]);
             function.PrepareRegion(region);
@@ -68,7 +68,7 @@ internal static class AwkProgramLowerer
 
         AwkFunctionHostEffects.Prepare(functions, checkpoint);
 
-        var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads, functions);
+        var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads, functions, memory);
         var main = AwkRegionCompiler.CreateMain(globalScope);
         var rangeCount = 0;
         for (var ruleIndex = 0; ruleIndex < syntax.Rules.Count; ruleIndex++)

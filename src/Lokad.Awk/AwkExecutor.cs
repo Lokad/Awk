@@ -270,7 +270,7 @@ internal static class AwkExecutor
         var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings, cancellationToken.ThrowIfCancellationRequested);
         cancellationToken.ThrowIfCancellationRequested();
         var binding = AwkBinder.Bind(parsed, invocation.ExecutionOptions.CompatibilityProfile,
-            cancellationToken.ThrowIfCancellationRequested, invocation.RuntimeArgumentsPlan);
+            cancellationToken.ThrowIfCancellationRequested, invocation.RuntimeArgumentsPlan, options.MemoryOwner.FrontendMemory);
         cancellationToken.ThrowIfCancellationRequested();
         if (!binding.Success)
         {

@@ -7,9 +7,67 @@ internal static class PrintfDirectiveParser
         Action? checkpoint = null)
         where TArguments : IPrintfArguments
     {
+        TryRead(format, index, mode, ref arguments, prepare: false, out var directive, checkpoint);
+        return directive;
+    }
+
+    internal static PrintfDirective[]? Prepare(string format, AwkCompatibilityMode mode,
+        AwkFrontendMemory memory, Action? checkpoint)
+    {
+        Span<PrintfDirective> staged = stackalloc PrintfDirective[8];
+        int count;
+        try
+        {
+            count = ReadStatic(format, 0, mode, staged, checkpoint);
+        }
+        catch (AwkRuntimeException)
+        {
+            // Syntax and width failures still occur when the statement executes.
+            return null;
+        }
+        if (count <= 0) return null;
+
+        memory.AdmitLoweringBytes(AwkRuntimeMemory.EstimatePrintfDirectiveArrayBytes(count));
+        checkpoint?.Invoke();
+        if (count <= staged.Length) return staged[..count].ToArray();
+
+        var directives = new PrintfDirective[count];
+        staged.CopyTo(directives);
+        ReadStatic(format, staged[^1].EndIndex + 1, mode, directives.AsSpan(staged.Length), checkpoint);
+        return directives;
+    }
+
+    private static int ReadStatic(string format, int start, AwkCompatibilityMode mode,
+        Span<PrintfDirective> destination, Action? checkpoint)
+    {
+        var arguments = default(PrintfArgumentCursor<AwkValueArrayPrintfArguments>);
+        var count = 0;
+        long nextCheckpoint = start;
+        for (var index = start; index < format.Length - 1; index++)
+        {
+            if (index >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)index + AwkRuntimeLimits.CancellationCheckBytes;
+            }
+            if (format[index] != '%') continue;
+            if (!TryRead(format, index, mode, ref arguments, prepare: true, out var directive, checkpoint))
+                return -1;
+            if (count < destination.Length) destination[count] = directive;
+            count++;
+            index = directive.EndIndex;
+        }
+        return count;
+    }
+
+    private static bool TryRead<TArguments>(
+        string format, int index, AwkCompatibilityMode mode, ref PrintfArgumentCursor<TArguments> arguments,
+        bool prepare, out PrintfDirective directive, Action? checkpoint)
+        where TArguments : IPrintfArguments
+    {
         checkpoint?.Invoke();
         var cursor = index + 1;
-        long nextCheckpoint = cursor;
+        var nextCheckpoint = (long)cursor + AwkRuntimeLimits.CancellationCheckBytes;
         var flags = PrintfFlags.None;
         var width = new PrintfWidthValue(0);
         var precision = PrintfPrecisionValue.None;
@@ -52,6 +110,7 @@ internal static class PrintfDirectiveParser
                     }
                     continue;
                 case '$':
+                    if (prepare) goto NeedsArguments;
                     if (mode != AwkCompatibilityMode.GnuDefault)
                         throw new AwkRuntimeException(AwkMessages.ErrorPrintfPositionalProfile);
                     var argumentNumber = part == PrintfDirectivePart.Width ? width.Value : precision.Value;
@@ -67,6 +126,7 @@ internal static class PrintfDirectiveParser
                 case '*':
                     if (part == PrintfDirectivePart.Complete)
                         goto Finish;
+                    if (prepare) goto NeedsArguments;
                     var control = ReadControlPosition(format, ref cursor, mode, checkpoint);
                     var number = arguments.ReadDynamicNumber(control);
                     if (part == PrintfDirectivePart.Width)
@@ -124,7 +184,11 @@ internal static class PrintfDirectiveParser
         specifier = '\0';
     Finish:
         checkpoint?.Invoke();
-        return new(flags, width, precision, PrintfConversionFacts.Parse(specifier), position, cursor - 1);
+        directive = new(flags, width, precision, PrintfConversionFacts.Parse(specifier), position, cursor - 1);
+        return true;
+    NeedsArguments:
+        directive = default;
+        return false;
     }
 
     private static PrintfArgumentPosition ReadControlPosition(string format, ref int cursor, AwkCompatibilityMode mode, Action? checkpoint)
@@ -167,7 +231,7 @@ internal static class PrintfDirectiveParser
     {
         checkpoint?.Invoke();
         var value = 0;
-        long nextCheckpoint = cursor;
+        var nextCheckpoint = (long)cursor + AwkRuntimeLimits.CancellationCheckBytes;
         while (cursor < format.Length && char.IsAsciiDigit(format[cursor]))
         {
             if (cursor >= nextCheckpoint)

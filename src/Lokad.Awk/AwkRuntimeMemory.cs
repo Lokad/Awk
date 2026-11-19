@@ -290,6 +290,9 @@ internal static class AwkRuntimeMemory
     internal static long EstimateFieldTextArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, FieldTextBytes);
 
+    internal static long EstimatePrintfDirectiveArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, System.Runtime.CompilerServices.Unsafe.SizeOf<PrintfDirective>());
+
     // A compact cached scalar includes its field backlink; presence lives in the descriptor.
     public static long EstimateFieldValueListBytes(int capacity) =>
         capacity <= 0 ? 0 : ListBufferOverheadBytes + (long)capacity * CachedFieldValueBytes;

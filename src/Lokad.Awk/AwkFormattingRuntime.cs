@@ -110,11 +110,13 @@ internal sealed class AwkFormattingRuntime(
         AwkUtf8Builder output,
         string format,
         TArguments arguments,
-        AwkRuntimeState state)
+        AwkRuntimeState state,
+        PrintfDirective[]? directives = null)
         where TArguments : IPrintfArguments
     {
 
-        PrintfEvaluation.FormatToBuilder(output, format, arguments, PrintfMissingArgumentPolicy.Throw, state, state.StringUnitMode);
+        PrintfEvaluation.FormatToBuilder(output, format, arguments, PrintfMissingArgumentPolicy.Throw,
+            state, state.StringUnitMode, directives);
     }
 
     private bool UsesDefaultFormat(AwkFormattingVariable variable)

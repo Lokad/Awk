@@ -8,7 +8,7 @@ internal sealed class AwkLoweringScope
 
     private AwkLoweringScope(AwkFunctionLocalLayout functionLocals, bool hasFunctionLocals, AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null, AwkGlobalReadLayout? globalReads = null,
-        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? functions = null)
+        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? functions = null, AwkFrontendMemory? memory = null)
     {
         _functionLocals = functionLocals;
         _hasFunctionLocals = hasFunctionLocals;
@@ -16,6 +16,7 @@ internal sealed class AwkLoweringScope
         Checkpoint = checkpoint;
         _globalReads = globalReads;
         Functions = functions;
+        Memory = memory ?? AwkFrontendMemory.Disabled;
     }
 
     public static AwkLoweringScope Global { get; } =
@@ -23,19 +24,20 @@ internal sealed class AwkLoweringScope
 
     public static AwkLoweringScope GlobalFor(AwkCompatibilityMode mode, Action? checkpoint = null,
         AwkGlobalReadLayout? globalReads = null,
-        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? functions = null) =>
-        mode == AwkCompatibilityMode.GnuDefault && checkpoint is null && globalReads is null && functions is null
+        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? functions = null, AwkFrontendMemory? memory = null) =>
+        mode == AwkCompatibilityMode.GnuDefault && checkpoint is null && globalReads is null && functions is null && memory is null
             ? Global
-            : new(AwkFunctionLocalLayout.Empty, false, mode, checkpoint, globalReads, functions);
+            : new(AwkFunctionLocalLayout.Empty, false, mode, checkpoint, globalReads, functions, memory);
 
     internal IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? Functions { get; }
+    internal AwkFrontendMemory Memory { get; }
     internal bool IsFunction => _hasFunctionLocals;
 
     public static AwkLoweringScope Function(AwkFunctionLocalLayout functionLocals,
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null, AwkGlobalReadLayout? globalReads = null,
-        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? functions = null) =>
-        new(functionLocals, true, mode, checkpoint, globalReads, functions: functions);
+        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? functions = null, AwkFrontendMemory? memory = null) =>
+        new(functionLocals, true, mode, checkpoint, globalReads, functions, memory);
 
     internal bool ConsumesArithmetic(AwkVariableName name) =>
         TryGetFunctionLocalSlot(name, out var slot)

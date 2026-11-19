@@ -662,7 +662,9 @@ internal sealed partial class AwkRegionCompiler
             }
         }
         var site = _printfs.Count;
-        _printfs.Add(new(formatSlot, values, count, fields, output, literalFormat));
+        var directives = literalFormat is null ? null :
+            PrintfDirectiveParser.Prepare(literalFormat, _scope.CompatibilityMode, _scope.Memory, _scope.Checkpoint);
+        _printfs.Add(new(formatSlot, values, count, fields, output, literalFormat, directives));
         Emit(new(AwkRegionInstructionKind.Printf, Left: site));
         return true;
     }
