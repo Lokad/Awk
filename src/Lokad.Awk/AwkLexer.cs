@@ -132,7 +132,13 @@ internal static class AwkLexer
                     continue;
                 }
 
-                var kind = AwkParsingSupport.ResolveTextKind(_source.AsSpan(start, length), _checkpoint);
+                var kind = lexeme.Token;
+                // The descriptor grammar recognizes ordinary tokens. Keep the
+                // existing source-based recovery for its unrecognized spans.
+                if (kind == AwkTokenKind.BadToken)
+                    kind = AwkParsingSupport.ResolveTextKind(_source.AsSpan(start, length), _checkpoint);
+                else
+                    _checkpoint?.Invoke();
                 AddToken(kind, start, length);
             }
 
