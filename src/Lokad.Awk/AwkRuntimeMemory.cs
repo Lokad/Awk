@@ -28,7 +28,7 @@ internal static class AwkRuntimeMemory
     internal const int IndexedValueSlotBytes = ScalarValueBytes + sizeof(long);
     // Scratch value arrays retain the existing conservative per-slot headroom.
     private const int ScalarScratchSlotCharge = ScalarValueBytes + sizeof(long);
-    internal const int FieldTextBytes = 24;
+    internal const int FieldTextBytes = 16;
     internal const int RecordFieldBytes = 24;
     internal const int CachedFieldValueBytes = 40;
     internal const int ListBufferOverheadBytes = ListObjectBytes + ByteArrayObjectBytes;

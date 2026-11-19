@@ -77,8 +77,9 @@ internal static class AwkRegionPrinting
         // Its actual owner remains live through this synchronous copy.
         state.ThrowIfCancellationRequested();
         var fields = storage.PrintSegments.AsSpan(print.Segments, print.Count);
-        var borrowed = storage.BorrowedPrintFields.AsSpan(print.Segments, print.Count);
+        long payloadByteLength = print.HasPreparedText ? finalText.Length : 0;
         var fieldViews = print.UsesFieldViews;
+        var formatCount = fieldViews ? 0 : print.Count - (print.HasPreparedText ? 1 : 0);
         AwkUtf8Builder? numbers = null;
         if (!fieldViews)
         {
@@ -94,9 +95,15 @@ internal static class AwkRegionPrinting
                 if ((index & 63) == 0) state.ThrowIfCancellationRequested();
                 var argument = print.Arguments[index];
                 var fieldIndex = new AwkFieldIndex(argument.Index);
-                borrowed[index] = state.RecordFields.TryGetUnmaterializedFieldText(fieldIndex, out fields[index]);
-                if (!borrowed[index]) storage.StoreValue(argument.FallbackValue,
-                    state.RecordFields.GetFieldValue(fieldIndex), preserveOrigin: true);
+                if (state.RecordFields.TryGetUnmaterializedFieldText(fieldIndex, out fields[index]))
+                    payloadByteLength += fields[index].ByteLength();
+                else
+                {
+                    storage.StoreValue(argument.FallbackValue,
+                        state.RecordFields.GetFieldValue(fieldIndex), preserveOrigin: true);
+                    fields[index] = AwkFieldText.PendingScalar;
+                    formatCount = index + 1;
+                }
                 state.ThrowIfCancellationRequested();
             }
         }
@@ -110,12 +117,10 @@ internal static class AwkRegionPrinting
         var terminatorValue = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         var separator = storage.FormatBorrowedText(print.Texts + print.Count, separatorValue, print: false);
         var terminator = storage.FormatBorrowedText(print.TerminatorText, terminatorValue, print: false);
-        long payloadByteLength = print.HasPreparedText ? finalText.Length : 0;
-        var capturedCount = print.HasPreparedText ? print.Count - 1 : print.Count;
-        for (var index = 0; index < capturedCount; index++)
+        for (var index = 0; index < formatCount; index++)
         {
             if ((index & 63) == 0) state.ThrowIfCancellationRequested();
-            if (!fieldViews || !borrowed[index])
+            if (!fieldViews || fields[index].NeedsFormatting)
             {
                 var argument = print.Arguments[index];
                 if (argument.Kind == AwkRegionPrintArgumentKind.Number)
@@ -158,10 +163,10 @@ internal static class AwkRegionPrinting
                         fields[index] = AwkFieldText.FromOwned(text);
                     }
                 }
+                // The sum of int-sized argument lengths fits in long. Delay the
+                // bounded-size check until every argument has been formatted.
+                payloadByteLength += fields[index].ByteLength();
             }
-            // The sum of int-sized argument lengths fits in long. Delay the
-            // bounded-size check until every argument has been formatted.
-            payloadByteLength += fields[index].ByteLength();
         }
         state.ThrowIfCancellationRequested();
         // Nonnegative int counts and lengths bound payload plus separators below long.MaxValue.
@@ -196,7 +201,6 @@ internal static class AwkRegionPrinting
         }
         // Local or array-backed segment references retire before their text claim.
         fields.Clear();
-        borrowed.Clear();
         storage.ReleaseTexts(print.Texts, print.TextCount);
         return payloadStart;
     }

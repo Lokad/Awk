@@ -9,49 +9,41 @@ internal enum AwkFieldTextKind
 
 internal readonly struct AwkFieldText
 {
+    private const int OwnedTextStart = -1;
+    private const int PendingScalarStart = -2;
     private readonly AwkText _ownedText;
     private readonly int _start;
     private readonly int _length;
 
-    private AwkFieldText(AwkFieldTextKind kind, AwkText ownedText, int start, int length)
+    private AwkFieldText(AwkText ownedText, int start, int length)
     {
-        Kind = kind;
         _ownedText = ownedText;
         _start = start;
         _length = length;
     }
 
-    public static AwkFieldText Empty { get; } =
-        new(AwkFieldTextKind.Empty, AwkText.Empty, 0, 0);
+    public static AwkFieldText Empty => default;
+
+    // A fixed-field print formats the captured scalar after resolving OFS and ORS.
+    internal static AwkFieldText PendingScalar => new(default, PendingScalarStart, 0);
+    internal bool NeedsFormatting => _start == PendingScalarStart;
 
     public static AwkFieldText FromOwned(AwkText text)
     {
-        return text.ByteLength == 0
-            ? Empty
-            : new AwkFieldText(AwkFieldTextKind.Owned, text, 0, text.ByteLength);
+        var length = text.ByteLength;
+        return length == 0 ? Empty : new AwkFieldText(text, OwnedTextStart, length);
     }
 
     public static AwkFieldText FromRecordSlice(int start, int length) =>
-        length == 0
-            ? Empty
-            : new AwkFieldText(AwkFieldTextKind.RecordSlice, AwkText.Empty, start, length);
+        length == 0 ? Empty : new AwkFieldText(default, start, length);
 
-    public AwkFieldTextKind Kind { get; }
-
-    public int ByteLength() =>
-        Kind switch
-        {
-            AwkFieldTextKind.Empty => 0,
-            AwkFieldTextKind.Owned => _ownedText.ByteLength,
-            AwkFieldTextKind.RecordSlice => _length,
-            _ => 0
-        };
+    public int ByteLength() => _length;
 
     internal ReadOnlySpan<byte> AsSpan(ReadOnlySpan<byte> recordBytes, Action? checkpoint = null) =>
-        Kind switch
+        _start switch
         {
-            AwkFieldTextKind.Owned => _ownedText.AsSpan(checkpoint),
-            AwkFieldTextKind.RecordSlice => recordBytes.Slice(_start, _length),
-            _ => ReadOnlySpan<byte>.Empty
+            OwnedTextStart => _ownedText.AsSpan(checkpoint),
+            PendingScalarStart => throw new InvalidOperationException("A print field has not been formatted."),
+            _ => recordBytes.Slice(_start, _length)
         };
 }
