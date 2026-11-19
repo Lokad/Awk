@@ -6,7 +6,7 @@ internal readonly struct AwkSingleValuePrintfArguments(
 {
     public int Count => 1;
 
-    public bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) { bytes = default; return false; }
+    public bool TryGetBorrowedBytes(int index, out AwkCopySource bytes) { bytes = default; return false; }
 
     public AwkText GetByteText(int index)
     {

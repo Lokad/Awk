@@ -53,7 +53,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var retained = AdjustEstimate(_retainedMemoryBytes, 0,
             AwkRuntimeMemory.EstimateTextBytes(BufferedRecord.Length));
         using var admission = state.MemoryAccounting.AdmitMutation(Math.Max(0, retained - _retainedMemoryBytes));
-        var text = state.CopyText(BufferedRecord.Span);
+        var text = state.CopyText(CaptureCopySource());
         state.CancellationCheckpoint?.Invoke();
         ReplaceRetainedMemory(retained);
         _recordText = text;
@@ -68,10 +68,10 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         if (field.Kind != AwkFieldTextKind.RecordSlice)
             return field.Kind == AwkFieldTextKind.Owned
                 ? _fieldValueCache[field.CacheSlot - 1].Spelling : AwkText.Empty;
-        if (!HasBufferedRecord)
+        if (_bufferedStorage is not { } storage)
             return state.CopyByteSlice(_recordText, field.RecordStart, field.ByteLength());
         return _recordTextIsCurrent && field.IsWholeRecord(RecordByteLength) ? OwnedRecordText() :
-            state.CopyText(field.BytesInRecord(RecordBytes()));
+            state.CopyText(new AwkCopySource(storage, _bufferedSlot, field.RecordStart, field.ByteLength()));
     }
 
     internal void SetBufferedRecord(AwkRecordStorage storage, int slot, AwkRecordSplitPlan splitPlan, long retainedBytes)
@@ -166,10 +166,37 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         return HasBufferedRecord;
     }
 
-    internal AwkRecordStorage? GetPrintableBufferedRecord(out int slot)
+    internal bool TryGetPrintableBufferedRecord(out AwkCopySource bytes)
     {
-        slot = _bufferedSlot;
-        return _recordTextIsCurrent ? _bufferedStorage : null;
+        bytes = default;
+        if (!_recordTextIsCurrent || _bufferedStorage is not { } storage) return false;
+        bytes = new(storage, _bufferedSlot);
+        return true;
+    }
+
+    internal AwkCopySource CaptureCopySource() => _bufferedStorage is { } storage
+        ? new(storage, _bufferedSlot) : new(RecordBytes());
+
+    internal AwkCopySource CaptureCopySlice(ReadOnlySpan<byte> bytes)
+    {
+        if (_bufferedStorage is { } storage && !bytes.IsEmpty)
+        {
+            var record = BufferedRecord.Span;
+            if (record.Overlaps(bytes, out var offset) && offset >= 0 && bytes.Length <= record.Length - offset)
+                return new(storage, _bufferedSlot, offset, bytes.Length);
+        }
+        return new(bytes);
+    }
+
+    internal bool TryGetFieldCopySource(AwkFieldIndex index, out AwkCopySource bytes)
+    {
+        bytes = default;
+        if (!TryGetUnmaterializedField(index, out var descriptor)) return false;
+        var length = descriptor.ByteLength();
+        if (length != 0)
+            bytes = _bufferedStorage is { } storage ? new(storage, _bufferedSlot, descriptor.RecordStart, length) :
+                new(descriptor.BytesInRecord(RecordBytes()));
+        return true;
     }
 
     public AwkText RecordAwkText
@@ -181,14 +208,14 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     }
 
     public bool TryGetRecomposedRecordFields(
-        out AwkRecordFields fields, out ReadOnlySpan<byte> record, out AwkText separator,
+        out AwkRecordFields fields, out AwkCopySource record, out AwkText separator,
         out int byteLength)
     {
         // Only text has a stable spelling without reconstruction. Numeric fields must
         // still freeze their CONVFMT spelling when $0 is first observed.
         var available = !_recordTextIsCurrent && _numericFieldCount == 0;
         fields = available ? new(_fieldTexts.AsSpan(), CollectionsMarshal.AsSpan(_fieldValueCache)) : default;
-        record = RecordBytes();
+        record = available ? CaptureCopySource() : default;
         separator = _recompositionSeparator;
         byteLength = available ? EstimateComposedRecordByteLength(
             separator.ByteLength, _fieldTexts.Count, _fieldPayloadByteLength) : 0;
@@ -358,7 +385,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var admitted = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateTextBytes(field.ByteLength()),
             capacity != _fieldValueCache.Capacity ? EstimateFieldCacheBufferBytes(capacity) : 0);
         using var admission = state.MemoryAccounting.AdmitMutation(admitted);
-        var text = state.CopyText(field.BytesInRecord(RecordBytes()));
+        var text = state.CopyText(CaptureCopySource().Slice(field.RecordStart, field.ByteLength()));
         var classified = field.HasInputClassification;
         var facts = classified ? field.InputClassification :
             field.TryGetNumericValue(out var number) ? AwkValue.FromNumber(number) : default;
@@ -601,17 +628,21 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     public bool TryGetUnmaterializedFieldBytes(
         AwkFieldIndex index, out ReadOnlySpan<byte> bytes)
     {
-        EnsureField(index);
         bytes = default;
+        if (!TryGetUnmaterializedField(index, out var field)) return false;
+        if (field.ByteLength() != 0) bytes = field.BytesInRecord(RecordBytes());
+        return true;
+    }
+
+    private bool TryGetUnmaterializedField(AwkFieldIndex index, out AwkRecordField field)
+    {
+        EnsureField(index);
+        field = default;
         if (!index.IsNamedField || index.Value > _fieldTexts.Count)
             return true;
 
-        var fieldIndex = index.Value - 1;
-        var field = _fieldTexts[fieldIndex];
-        if (HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
-            return false;
-        bytes = field.BytesInRecord(RecordBytes());
-        return true;
+        field = _fieldTexts[index.Value - 1];
+        return !HasCachedScalarValue(field) && field.Kind != AwkFieldTextKind.Owned;
     }
 
     internal bool TryGetStableFieldBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes)
@@ -635,15 +666,10 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         return true;
     }
 
-    public bool TryGetUnmaterializedFieldText(
-        AwkFieldIndex index,
-        out AwkFieldText field, out ReadOnlySpan<byte> record)
+    internal bool TryGetUnmaterializedFieldText(AwkFieldIndex index, out AwkFieldText field)
     {
-        // Reuse byte-view admission without transporting descriptors for existing byte consumers.
-        var borrowed = TryGetUnmaterializedFieldBytes(index, out _);
-        field = borrowed && index.IsNamedField && index.Value <= _fieldTexts.Count
-            ? FieldText(_fieldTexts[index.Value - 1]) : AwkFieldText.Empty;
-        record = RecordBytes();
+        var borrowed = TryGetUnmaterializedField(index, out var descriptor);
+        field = borrowed ? descriptor.Text(default) : AwkFieldText.Empty;
         return borrowed;
     }
 
@@ -989,7 +1015,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
 
     // Cache slots belong to this frame's descriptors; scalar snapshots never carry them.
     // All capacity and ownership changes are admitted before these non-fallible mutations.
-    private AwkFieldText FieldText(AwkRecordField field) => field.Text(CollectionsMarshal.AsSpan(_fieldValueCache));
     private AwkText FieldSpelling(AwkRecordField field) => field.CacheSlot > 0
         ? _fieldValueCache[field.CacheSlot - 1].Spelling : AwkText.Empty;
 

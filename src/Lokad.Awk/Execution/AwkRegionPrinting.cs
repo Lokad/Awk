@@ -60,7 +60,7 @@ internal static class AwkRegionPrinting
     }
 
     internal static int Append(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output,
-        AwkRegionPrint print, in AwkValue current, ReadOnlySpan<byte> finalText = default)
+        AwkRegionPrint print, in AwkValue current, AwkCopySource finalText = default)
     {
         if (print.Count == 1 && !print.Output.IsRedirected && print.Arguments[0].Kind != AwkRegionPrintArgumentKind.Field)
         {
@@ -71,7 +71,7 @@ internal static class AwkRegionPrinting
     }
 
     private static int AppendList(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output,
-        AwkRegionPrint print, in AwkValue current, ReadOnlySpan<byte> finalText)
+        AwkRegionPrint print, in AwkValue current, AwkCopySource finalText)
     {
         // The instruction captures its final source before entering formatting.
         // Its actual owner remains live through this synchronous copy.
@@ -85,23 +85,21 @@ internal static class AwkRegionPrinting
             numbers = storage.Builders[0].Buffer;
             numbers.Clear();
         }
-        ReadOnlySpan<byte> record = default;
         if (fieldViews)
         {
-            // All addresses are fixed and cannot mutate or suspend. Views are
-            // consumed in this synchronous primitive, before any host append.
-
+            // Each fixed field belongs to this same record. Retain its coordinates
+            // through formatting and resolve the backing at the output copy.
             for (var index = 0; index < print.Count; index++)
             {
                 if ((index & 63) == 0) state.ThrowIfCancellationRequested();
                 var argument = print.Arguments[index];
                 var fieldIndex = new AwkFieldIndex(argument.Index);
-                borrowed[index] = state.TryPreparePrintField(fieldIndex, out fields[index], out record);
+                borrowed[index] = state.RecordFields.TryGetUnmaterializedFieldText(fieldIndex, out fields[index]);
                 if (!borrowed[index]) storage.StoreValue(argument.FallbackValue,
                     state.RecordFields.GetFieldValue(fieldIndex), preserveOrigin: true);
+                state.ThrowIfCancellationRequested();
             }
         }
-        else { }
 
         if (print.Output.IsRedirected) storage.PrepareString(print.Output.Value);
 
@@ -171,6 +169,7 @@ internal static class AwkRegionPrinting
             payloadByteLength + (long)separator.ByteLength * Math.Max(0, print.Count - 1));
         var payloadStart = 0;
         var parts = print.HasPreparedText ? new AwkRecordFields(fields, finalText) : new AwkRecordFields(fields);
+        var record = fieldViews ? state.RecordFields.CaptureCopySource() : default;
         if (print.Output.IsRedirected)
         {
             var redirected = storage.Builders[0].Buffer;
@@ -183,14 +182,14 @@ internal static class AwkRegionPrinting
                 redirected.EnsureCapacity(AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(
                     payloadStart, AwkRuntimeMemory.CheckedAdd(recordByteLength,
                         terminator.ByteLength))));
-                record = numbers.AsSpan();
+                record = new(numbers.AsSpan());
             }
             redirected.AppendRecord(parts, record, separator,
                 terminator, recordByteLength, state.CancellationCheckpoint);
         }
         else
         {
-            if (numbers is not null) record = numbers.AsSpan();
+            if (numbers is not null) record = new(numbers.AsSpan());
             output.AppendRecord(parts, record, separator,
                 terminator, recordByteLength);
             numbers?.Clear();
@@ -203,7 +202,7 @@ internal static class AwkRegionPrinting
     }
 
     private static void AppendSingle(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output,
-        AwkRegionPrint print, in AwkValue current, ReadOnlySpan<byte> finalText)
+        AwkRegionPrint print, in AwkValue current, AwkCopySource finalText)
     {
         state.ThrowIfCancellationRequested();
 

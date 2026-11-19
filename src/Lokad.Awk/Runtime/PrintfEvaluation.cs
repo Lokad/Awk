@@ -124,7 +124,8 @@ internal static class PrintfEvaluation
                         continue;
                     }
 
-                    AppendString(output, precision.HasValue && precision.Value == 0 ? ReadOnlySpan<byte>.Empty : text.AsSpan(checkpoint), width.Value, precision,
+                    var source = precision.HasValue && precision.Value == 0 ? default : new AwkCopySource(text.AsSpan(checkpoint));
+                    AppendString(output, source, width.Value, precision,
                         flags.LeftJustify, stringUnitMode, checkpoint);
                 }
 
@@ -521,10 +522,11 @@ internal static class PrintfEvaluation
             return AwkRuntimeMemory.CheckedAdd(digits, overhead);
         }
 
-        static void AppendString(PrintfByteOutput output, ReadOnlySpan<byte> text, int width,
+        static void AppendString(PrintfByteOutput output, AwkCopySource source, int width,
             PrintfPrecisionValue precision, bool leftJustify, AwkStringUnitMode unitMode, Action? checkpoint)
         {
             checkpoint?.Invoke();
+            var text = source.AsSpan();
             var byteLength = text.Length;
             int units;
             if (unitMode == AwkStringUnitMode.Byte)
@@ -558,7 +560,7 @@ internal static class PrintfEvaluation
             var padding = Math.Max(0, width - units);
             output.PreflightAdditionalBytes(AwkRuntimeMemory.CheckedAdd(byteLength, padding));
             if (!leftJustify) output.AppendAscii(' ', padding);
-            output.Append(text[..byteLength]);
+            output.Append(source.Slice(0, byteLength));
             if (leftJustify) output.AppendAscii(' ', padding);
         }
 
@@ -656,6 +658,8 @@ internal static class PrintfEvaluation
             _builder.Append(bytes, _state.CancellationCheckpoint);
         }
 
+        public void Append(AwkCopySource bytes) => _builder.Append(bytes, _state.CancellationCheckpoint);
+
         public void Append(string text) => Append(text.AsSpan());
 
         public void Append(ReadOnlySpan<char> text)
@@ -725,7 +729,7 @@ internal interface IPrintfArguments
 
     bool IsNumeric(int index);
 
-    bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) { bytes = default; return false; }
+    bool TryGetBorrowedBytes(int index, out AwkCopySource bytes) { bytes = default; return false; }
 }
 
 internal readonly struct AwkValueArrayPrintfArguments(
@@ -736,7 +740,7 @@ internal readonly struct AwkValueArrayPrintfArguments(
 {
     public int Count => count;
 
-    public bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) { bytes = default; return false; }
+    public bool TryGetBorrowedBytes(int index, out AwkCopySource bytes) { bytes = default; return false; }
 
     public AwkText GetByteText(int index) =>
         state.FormatStringByteText(arguments[start + index].ForceScalar());
@@ -753,7 +757,7 @@ internal readonly struct AwkBuiltinContextPrintfArguments(
 {
     public int Count => context.ArgumentCount - startIndex;
 
-    public bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) { bytes = default; return false; }
+    public bool TryGetBorrowedBytes(int index, out AwkCopySource bytes) { bytes = default; return false; }
 
     public AwkText GetByteText(int index) =>
         context.State.FormatStringByteText(context.GetValue(index + startIndex).ForceScalar());

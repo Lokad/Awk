@@ -14,7 +14,7 @@ internal readonly struct AwkPrintfFieldArguments(AwkFieldIndex[] fields, AwkRunt
         return value.IsNumberValue || value.IsNumericStringValue;
     }
 
-    public bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) =>
-        state.RecordFields.TryGetUnmaterializedFieldBytes(fields[index], out bytes);
+    public bool TryGetBorrowedBytes(int index, out AwkCopySource bytes) =>
+        state.RecordFields.TryGetFieldCopySource(fields[index], out bytes);
 
 }

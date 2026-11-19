@@ -100,7 +100,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         return this;
     }
 
-    public void AppendRecord(AwkRecordFields fields, ReadOnlySpan<byte> record,
+    internal void AppendRecord(AwkRecordFields fields, AwkCopySource source,
         AwkText separator, AwkText terminator, int byteLength, Action? checkpoint = null)
     {
         ThrowIfDisposed();
@@ -114,6 +114,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         // copies cannot publish a prefix: Length changes only after all bytes are owned.
         EnsureCapacity(nextLength);
         checkpoint?.Invoke();
+        var record = source.AsSpan();
         var offset = Length;
         var bytesUntilCheck = AwkRuntimeLimits.CancellationCheckBytes;
         for (var index = 0; index < fields.Length; index++)
@@ -142,14 +143,27 @@ internal sealed class AwkUtf8Builder : IDisposable
         return this;
     }
 
-    internal void AppendBufferedRecord(AwkRecordStorage record, int slot, AwkText terminator, Action? checkpoint)
+    internal void Append(AwkCopySource source, AwkText terminator, Action? checkpoint)
     {
         ThrowIfDisposed();
         var ending = terminator.AsSpan(checkpoint);
-        var nextLength = AdmitAppend(record.LengthAt(slot), ending.Length);
-        // Admission may promote this slot and retire its former borrow.
+        var nextLength = AdmitAppend(source.Length, ending.Length);
         checkpoint?.Invoke();
-        CopyAdmittedAppend(record.ContentAt(slot).Span, ending, nextLength, checkpoint);
+        CopyAdmittedAppend(source.AsSpan(), ending, nextLength, checkpoint);
+    }
+
+    internal void Append(AwkCopySource source, Action? checkpoint)
+    {
+        ThrowIfDisposed();
+        if (source.Length == 0) return;
+        var length = Length;
+        if (source.Length > _buffer.Length - length)
+        {
+            EnsureCapacity(AwkRuntimeMemory.CheckedAdd(length, source.Length));
+            checkpoint?.Invoke();
+        }
+        AwkText.CopyBytes(source.AsSpan(), _buffer.AsSpan(length), checkpoint);
+        Length = length + source.Length;
     }
 
     private int AdmitAppend(int contentLength, int endingLength)

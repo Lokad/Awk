@@ -348,6 +348,81 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
+    [InlineData("field", false)]
+    [InlineData("dirty", false)]
+    [InlineData("list", false)]
+    [InlineData("list", true)]
+    [InlineData("printf", false)]
+    [InlineData("precision", true)]
+    [InlineData("concat", false)]
+    [InlineData("substring", false)]
+    [InlineData("substring-list", true)]
+    public async Task PrintSourcesSurviveBorrowPromotionDuringOutputGrowth(string form, bool redirected)
+    {
+        var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        using (memory)
+        {
+            var state = memory.State;
+            var payload = new string('x', 1500);
+            var record = "0007 café " + payload + " 😀";
+            var input = new InputHost(memory.Budget, record + "\n") { PoisonConsumedBytes = true };
+            using var reader = new AwkByteReader(input, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+            Assert.True(await reader.TryBufferAsync());
+            var slot = state.InputRecordStorage;
+            slot.StageBorrowed(reader, reader.Content[..^1]);
+            reader.Advance(reader.Content.Length);
+            state.PublishInputRecord(AwkInputRecordResult.Buffered(slot, AwkRecordTerminator.NewLine),
+                readsMainInput: true);
+            Assert.Equal(4, state.FieldCount);
+            if (form == "dirty") state.AssignFieldValue(new(1), AwkValue.FromText("same"));
+
+            var terminator = form.StartsWith("substring", StringComparison.Ordinal) ? new string('!', 1500) : "\n";
+            state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator, AwkValue.FromText(terminator));
+            var (statement, expected) = form switch
+            {
+                "field" => ("print $3", payload + "\n"),
+                "dirty" => ("print", "same café " + payload + " 😀\n"),
+                "list" => ("print $3,$2", payload + " café\n"),
+                "printf" => ("printf \"%s\",$3", payload),
+                "precision" => ("printf \"%.1400s\",$3", payload[..1400]),
+                "concat" => ("print $2 $3", "café" + payload + "\n"),
+                "substring" => ("print substr($2,2,3)", "afé" + terminator),
+                "substring-list" => ("print 7,substr($2,2,3)", "7 afé" + terminator),
+                _ => throw new ArgumentOutOfRangeException(nameof(form)),
+            };
+            var target = redirected ? " > \"/out\"" : "";
+            var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{" + statement + target + "}"));
+            Assert.True(binding.Success);
+            var program = binding.Program;
+            state.InitializeGlobalNames(program.GlobalNames);
+            state.InitializeGlobalReadSlots(program.GlobalReadCount);
+            var host = new MockFileSystem();
+            var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+                AwkFileDescriptor.StdErr, CancellationToken.None, state.Limits, state, static _ => []);
+            using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+            Assert.Equal(0, input.CommittedInputBytes);
+            memory.Budget.OnGrowth = amount =>
+            {
+                if (amount >= 1400) reader.ReleaseBorrow();
+            };
+            try
+            {
+                await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output);
+            }
+            finally
+            {
+                memory.Budget.OnGrowth = null;
+                await io.CloseAsync();
+            }
+
+            Assert.True(input.CommittedInputBytes > 0);
+            Assert.Equal(expected, redirected ? host.ReadFile("/out") : host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        }
+        AssertRefunded(memory.Budget);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task AsciiAndUnicodeBatchesKeepScalarLengthsAfterMutation(bool governed)

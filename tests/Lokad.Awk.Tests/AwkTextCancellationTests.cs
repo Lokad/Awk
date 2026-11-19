@@ -425,14 +425,14 @@ public sealed class AwkTextCancellationTests
         var byteLength = fields.Sum(field => field.ByteLength()) + Math.Max(0, fields.Length - 1) * separator.ByteLength;
         using var cancellation = new CancellationTokenSource();
         var failure = Assert.Throws<OperationCanceledException>(() => builder.AppendRecord(
-            new AwkRecordFields(fields), record, separator, terminator, byteLength, CancelOnCheck(cancellation, 6)));
+            new AwkRecordFields(fields), new AwkCopySource(record), separator, terminator, byteLength, CancelOnCheck(cancellation, 6)));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal("kept:", AwkUtf8Codec.Decode(builder.AsSpan()));
         Assert.True(memory.Accounting.LiveBytes > 0);
 
         // A separate attempt can reuse the still-funded destination, including when
         // responsiveness was required for metadata that emitted no bytes at all.
-        builder.AppendRecord(new AwkRecordFields(fields), record, separator, terminator, byteLength);
+        builder.AppendRecord(new AwkRecordFields(fields), new AwkCopySource(record), separator, terminator, byteLength);
         var expected = "kept:" + string.Join(separator.AsString(), fields.Select(field =>
             AwkUtf8Codec.Decode(field.AsSpan(record)))) + terminator.AsString();
         Assert.Equal(expected, AwkUtf8Codec.Decode(builder.AsSpan()));
@@ -450,7 +450,7 @@ public sealed class AwkTextCancellationTests
         var record = AwkUtf8Codec.Encode(value).ToArray();
         var fields = Enumerable.Repeat(AwkFieldText.FromRecordSlice(0, width), count).ToArray();
         var byteLength = count * width + count - 1;
-        builder.AppendRecord(new AwkRecordFields(fields), record, AwkText.FromSourceLiteralString("|"),
+        builder.AppendRecord(new AwkRecordFields(fields), new AwkCopySource(record), AwkText.FromSourceLiteralString("|"),
             AwkText.FromSourceLiteralString("!"), byteLength, static () => { });
         Assert.Equal(string.Join('|', Enumerable.Repeat(value, count)) + "!", AwkUtf8Codec.Decode(builder.AsSpan()));
 

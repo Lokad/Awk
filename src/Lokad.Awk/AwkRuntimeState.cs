@@ -339,6 +339,17 @@ internal sealed class AwkRuntimeState : IDisposable
         return AdoptText(ownedBytes);
     }
 
+    internal AwkText CopyText(AwkCopySource source)
+    {
+        if (source.Length == 0) return AwkText.Empty;
+
+        ThrowIfCancellationRequested();
+        var ownedBytes = AllocateTextBytes(source.Length, null);
+        ThrowIfCancellationRequested();
+        AwkText.CopyBytes(source.AsSpan(), ownedBytes, CancellationCheckpoint);
+        return AdoptText(ownedBytes);
+    }
+
     internal AwkText CopyByteSlice(AwkText source, int start, int length,
         AwkMemoryLease? destination = null)
     {
@@ -619,9 +630,8 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal void AppendFieldByteText(AwkUtf8Builder destination, AwkFieldIndex index)
     {
-        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
+        if (index.IsNamedField && _recordFields.TryGetFieldCopySource(index, out var bytes))
         {
-            // Copy synchronously; neither the field span nor its owner crosses an await.
             destination.Append(bytes, CancellationCheckpoint);
             return;
         }
@@ -633,8 +643,8 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (index.IsCurrentRecord && TryAppendCurrentRecord(output)) return;
 
-        ReadOnlySpan<byte> bytes = default;
-        var borrowed = index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out bytes);
+        AwkCopySource bytes = default;
+        var borrowed = index.IsNamedField && _recordFields.TryGetFieldCopySource(index, out bytes);
         var value = borrowed ? default : _recordFields.GetFieldValue(index);
         var terminatorValue = ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         // Stored spelling is already owned; only numeric formatting creates text
@@ -643,25 +653,26 @@ internal sealed class AwkRuntimeState : IDisposable
             ? MemoryAccounting.CreateTransientLease() : AwkMemoryLease.Disabled;
         var terminator = FormatStringByteText(terminatorValue, formatting);
         // Copy into owned output synchronously, before the record can advance or refund.
-        output.Append(borrowed ? bytes : FormatPrintByteText(value, formatting).AsSpan(CancellationCheckpoint), terminator);
+        if (borrowed) output.Append(bytes, terminator);
+        else output.Append(FormatPrintByteText(value, formatting).AsSpan(CancellationCheckpoint), terminator);
     }
 
     private bool TryAppendCurrentRecord(AwkOutputSink output)
     {
-        var buffered = _recordFields.GetPrintableBufferedRecord(out int slot);
+        var hasBuffered = _recordFields.TryGetPrintableBufferedRecord(out var buffered);
         AwkRecordFields fields = default;
-        ReadOnlySpan<byte> record = default;
+        AwkCopySource record = default;
         AwkText separator = default;
         int byteLength = 0;
-        if (buffered is null && !_recordFields.TryGetRecomposedRecordFields(
+        if (!hasBuffered && !_recordFields.TryGetRecomposedRecordFields(
             out fields, out record, out separator, out byteLength)) return false;
 
         var terminator = ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
         using var formatting = terminator.IsNumberValue
             ? MemoryAccounting.CreateTransientLease() : AwkMemoryLease.Disabled;
         var ending = FormatStringByteText(terminator, formatting);
-        if (buffered is not null)
-            output.AppendBufferedRecord(buffered, slot, ending);
+        if (hasBuffered)
+            output.Append(buffered, ending);
         else output.AppendRecord(fields, record, separator, ending, byteLength);
         return true;
     }
@@ -674,14 +685,6 @@ internal sealed class AwkRuntimeState : IDisposable
             return CountStringUnits(FormatStringByteText(_recordFields.GetFieldValue(index)));
 
         return length;
-    }
-
-    internal bool TryPreparePrintField(AwkFieldIndex index, out AwkFieldText field, out ReadOnlySpan<byte> record)
-    {
-        if (!_recordFields.TryGetUnmaterializedFieldText(index, out field, out record)) return false;
-        // Field preparation can admit storage; check again before consuming the view.
-        ThrowIfCancellationRequested();
-        return true;
     }
 
     internal void PreflightPrintfField(AwkFieldIndex index)

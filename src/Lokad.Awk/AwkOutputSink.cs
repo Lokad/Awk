@@ -68,10 +68,10 @@ internal sealed class AwkOutputSink : IDisposable
     public void Append(ReadOnlySpan<byte> content, AwkText terminator) =>
         _standardOutput.Append(content, terminator, _checkpoint);
 
-    internal void AppendBufferedRecord(AwkRecordStorage record, int slot, AwkText terminator) =>
-        _standardOutput.AppendBufferedRecord(record, slot, terminator, _checkpoint);
+    internal void Append(AwkCopySource content, AwkText terminator) =>
+        _standardOutput.Append(content, terminator, _checkpoint);
 
-    public void AppendRecord(AwkRecordFields fields, ReadOnlySpan<byte> record,
+    internal void AppendRecord(AwkRecordFields fields, AwkCopySource record,
         AwkText separator, AwkText terminator, int byteLength) =>
         _standardOutput.AppendRecord(fields, record, separator, terminator, byteLength, _checkpoint);
 

@@ -359,8 +359,10 @@ internal sealed class AwkRegionStorage : IDisposable
             var text = slice.Own(_state, _payload);
             StoreText(print.Texts + print.Count - 1, text);
         }
-        return AwkRegionPrinting.Append(_state, this, output, print, default,
-            slice.AsSpan(_state.CancellationCheckpoint));
+        var bytes = slice.AsSpan(_state.CancellationCheckpoint);
+        var prepared = source.IsOwned || slice.IsOwned ? new AwkCopySource(bytes) :
+            _state.RecordFields.CaptureCopySlice(bytes);
+        return AwkRegionPrinting.Append(_state, this, output, print, default, prepared);
     }
 
     private void StoreProducedText(int index, AwkText text, long producedBytes)
