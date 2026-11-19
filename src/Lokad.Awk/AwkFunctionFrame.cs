@@ -90,10 +90,10 @@ internal sealed class AwkFunctionFrame
         GetSlot(index).InitializeScalar(in value);
     }
 
-    internal void StageReaderText(int index, AwkReadBuffer borrow, int offset, int length)
+    internal void StageRecordText(int index, AwkRecordStorage record, int slot, int offset, int length)
     {
         System.Diagnostics.Debug.Assert(IsIncoming);
-        GetSlot(index).InitializeReaderText(borrow, offset, length);
+        GetSlot(index).InitializeRecordText(record, slot, offset, length);
     }
 
     internal void StageCell(int index, in AwkFunctionLocalSlot argument)
@@ -204,7 +204,7 @@ internal sealed class AwkFunctionFrame
 
 internal struct AwkFunctionLocalSlot
 {
-    // The role selects scalar bits, a key, reader coordinates or an alias frame ID.
+    // The role selects scalar bits, a key, record coordinates or an alias frame ID.
     // Alias values carry only a reference/kind, leaving this word for their full ID.
     private object? _reference;
     private long _word;
@@ -233,23 +233,23 @@ internal struct AwkFunctionLocalSlot
         _arrayIdentifier = default;
     }
 
-    internal readonly bool TryGetReaderText(out ReadOnlyMemory<byte> bytes)
+    internal readonly bool TryGetRecordSource(out AwkCopySource source)
     {
-        if (Kind == AwkFunctionLocalSlotKind.ReaderText && _reference is AwkReadBuffer borrow)
+        if (Kind == AwkFunctionLocalSlotKind.RecordText && _reference is AwkRecordStorage record)
         {
-            bytes = borrow.Content.Slice((int)(_word >> 32), (int)_word);
+            source = new(record, _payloadTag, (int)(_word >> 32), (int)_word);
             return true;
         }
-        bytes = default;
+        source = default;
         return false;
     }
 
     internal readonly bool TryGetTextInput(out AwkTextInput text, Action? checkpoint)
     {
-        if (Kind == AwkFunctionLocalSlotKind.ReaderText && _reference is AwkReadBuffer reader)
+        if (Kind == AwkFunctionLocalSlotKind.RecordText && _reference is AwkRecordStorage record)
         {
             var word = _word;
-            text = AwkTextInput.FromReader(reader, (int)(word >> 32), (int)word);
+            text = AwkTextInput.FromRecord(record, _payloadTag, (int)(word >> 32), (int)word, field: -1);
             return true;
         }
         var kind = (AwkValueKind)_payloadTag;
@@ -265,9 +265,9 @@ internal struct AwkFunctionLocalSlot
         return true;
     }
 
-    internal readonly bool HasSameReaderText(in AwkFunctionLocalSlot other) =>
-        Kind == AwkFunctionLocalSlotKind.ReaderText && other.Kind == Kind &&
-        ReferenceEquals(_reference, other._reference) && _word == other._word;
+    internal readonly bool HasSameRecordText(in AwkFunctionLocalSlot other) =>
+        Kind == AwkFunctionLocalSlotKind.RecordText && other.Kind == Kind &&
+        ReferenceEquals(_reference, other._reference) && _payloadTag == other._payloadTag && _word == other._word;
 
     public AwkFunctionLocalSlotKind Kind { readonly get; private set; }
 
@@ -284,7 +284,7 @@ internal struct AwkFunctionLocalSlot
 
     internal readonly bool TryGetArrayBinding([NotNullWhen(true)] out AwkArrayIdentity? array)
     {
-        if (Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key or AwkFunctionLocalSlotKind.ReaderText)
+        if (Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key or AwkFunctionLocalSlotKind.RecordText)
         {
             array = null;
             return false;
@@ -294,8 +294,8 @@ internal struct AwkFunctionLocalSlot
 
     internal readonly AwkValue ReadValue(Action? checkpoint)
     {
-        if (Kind == AwkFunctionLocalSlotKind.ReaderText)
-            throw new InvalidOperationException("Reader text requires its funded frame consumer.");
+        if (Kind == AwkFunctionLocalSlotKind.RecordText)
+            throw new InvalidOperationException("Record text requires its funded frame consumer.");
         // Capture before the callback; the cell can retire while it runs.
         var value = Value;
         if (AwkValue.HasInputClassification(value.StoredKind) &&
@@ -359,12 +359,13 @@ internal struct AwkFunctionLocalSlot
         Kind = AwkFunctionLocalSlotKind.Scalar;
     }
 
-    internal void InitializeReaderText(AwkReadBuffer borrow, int offset, int length)
+    internal void InitializeRecordText(AwkRecordStorage record, int slot, int offset, int length)
     {
         System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
-        _reference = borrow;
+        _reference = record;
         _word = ((long)offset << 32) | (uint)length;
-        Kind = AwkFunctionLocalSlotKind.ReaderText;
+        _payloadTag = slot;
+        Kind = AwkFunctionLocalSlotKind.RecordText;
     }
 
     internal void InitializeKey(AwkArrayKey key)
@@ -428,7 +429,7 @@ internal enum AwkFunctionLocalSlotKind
     PotentialArrayAlias,
     UntypedScalar,
     Key,
-    ReaderText
+    RecordText
 }
 
 internal readonly struct AwkResolvedFunctionLocal

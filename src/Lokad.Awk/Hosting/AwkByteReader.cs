@@ -20,17 +20,6 @@ internal sealed class AwkByteReader(
     internal bool ContentIsAscii => _borrowIsAscii;
     internal bool HasBorrow => _borrow is not null;
 
-    internal bool TryCaptureText(ReadOnlySpan<byte> bytes,
-        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkReadBuffer? borrow, out int offset)
-    {
-        borrow = _borrow;
-        offset = 0;
-        if (borrow is not null && !bytes.IsEmpty && borrow.Content.Span.Overlaps(bytes, out offset) &&
-            offset >= 0 && bytes.Length <= borrow.Content.Length - offset) return true;
-        borrow = null;
-        return false;
-    }
-
     public ValueTask<bool> TryBufferAsync() => !Content.IsEmpty
         ? ValueTask.FromResult(true) : ReadBufferAsync();
 

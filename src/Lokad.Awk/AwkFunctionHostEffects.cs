@@ -1,6 +1,6 @@
 namespace Lokad.Awk;
 
-// One function-level fact for reader-backed arguments. Unknown operations are
+// One function-level fact for record-backed arguments. Unknown operations are
 // conservative; parameter consumption remains its separate use lattice.
 internal static class AwkFunctionHostEffects
 {
@@ -65,7 +65,7 @@ internal static class AwkFunctionHostEffects
             var site = instruction.Left;
             var call = region.Calls[site];
             var start = first[site] < 0 ? index : first[site];
-            region.Calls[site] = call with { CanBorrowReaderText = !call.Function.MayInvokeHost && prefix[index] == prefix[start] };
+            region.Calls[site] = call with { CanBorrowRecordText = !call.Function.MayInvokeHost && prefix[index] == prefix[start] };
         }
     }
 

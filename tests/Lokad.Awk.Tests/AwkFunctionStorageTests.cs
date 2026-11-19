@@ -6,15 +6,16 @@ public sealed partial class AwkFunctionStorageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ReaderTextMaterializationFailureLeavesBorrowedCellUnchanged(bool cancel)
+    public void RecordTextMaterializationFailureLeavesBorrowedCellUnchanged(bool cancel)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(1 << 20);
         using var cancellation = new CancellationTokenSource();
         var stack = Stack(memory, cancellation.Token, counters);
         var frame = stack.PrepareFrame(new([AwkVariableName.FromText("s")]));
-        using var borrow = AwkReadBuffer.FromContent(new byte[3000], AwkReadCompletion.EndOfFile, static _ => { });
-        stack.StageReaderText(frame, 0, borrow, 0, 3000);
+        var record = memory.State.InputRecordStorage;
+        record.StageValidated(new byte[3000]);
+        stack.StageRecordText(frame, 0, record, record.CurrentSlot, 0, 3000);
         var before = memory.Budget.Reserved;
         var allocations = counters[AwkCounter.TextAllocations];
         if (cancel)
@@ -29,7 +30,7 @@ public sealed partial class AwkFunctionStorageTests
             Assert.Equal(1, memory.Budget.Refusals);
             Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         }
-        Assert.Equal(AwkFunctionLocalSlotKind.ReaderText, frame.GetSlot(0).Kind);
+        Assert.Equal(AwkFunctionLocalSlotKind.RecordText, frame.GetSlot(0).Kind);
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(before, memory.Budget.Reserved);
         Assert.Equal(0, frame.RetainedMemoryBytes);
@@ -42,14 +43,15 @@ public sealed partial class AwkFunctionStorageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ReaderTextMaterializesOnceWithinItsFundedFrame(bool governed)
+    public void RecordTextMaterializesOnceWithinItsFundedFrame(bool governed)
     {
         using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         var stack = Stack(memory);
         var bytes = "0007é"u8.ToArray();
-        using var borrow = AwkReadBuffer.FromContent(bytes, AwkReadCompletion.EndOfFile, _ => bytes.AsSpan().Fill(0xFF));
+        var record = memory.State.InputRecordStorage;
+        record.StageValidated(bytes);
         var frame = stack.PrepareFrame(new([AwkVariableName.FromText("s")]));
-        stack.StageReaderText(frame, 0, borrow, 0, bytes.Length);
+        stack.StageRecordText(frame, 0, record, record.CurrentSlot, 0, bytes.Length);
         var before = memory.Budget.Reserved;
         var value = stack.ReadFrameValue(frame, new(0));
         var funded = memory.Budget.Reserved;
@@ -57,7 +59,7 @@ public sealed partial class AwkFunctionStorageTests
         memory.Budget.OnGrowth = _ => throw new InvalidOperationException("Cached owning text cannot admit again.");
         Assert.Equal(AwkFunctionLocalSlotKind.Scalar, frame.GetSlot(0).Kind);
         Assert.Equal(funded, memory.Budget.Reserved);
-        borrow.Dispose();
+        record.Dispose();
         Assert.Equal("0007é", value.ByteText.AsString());
         Assert.Equal(AwkRuntimeValueKind.String, value.RuntimeKind);
         Assert.Equal(7, value.AsNumber());
@@ -69,7 +71,7 @@ public sealed partial class AwkFunctionStorageTests
     }
 
     [Fact]
-    public void ReaderForwardingUsesFundedCellsWithoutPrepayingForCopies()
+    public void RecordForwardingUsesFundedCellsWithoutPrepayingForCopies()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(1 << 20);
@@ -77,14 +79,15 @@ public sealed partial class AwkFunctionStorageTests
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("s")]);
         var first = stack.PrepareFrame(layout);
         var second = stack.PrepareFrame(layout);
-        using var borrow = AwkReadBuffer.FromContent("text"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { });
+        var record = memory.State.InputRecordStorage;
+        record.StageValidated("text"u8);
         Assert.True(memory.Budget.TryReserve(memory.Budget.Limit - memory.Budget.Reserved, out var pressure));
         using (pressure)
         {
-            stack.StageReaderText(first, 0, borrow, 0, 4);
+            stack.StageRecordText(first, 0, record, record.CurrentSlot, 0, 4);
             stack.StageArgument(second, 0, in first.GetSlot(0));
-            Assert.True(second.GetSlot(0).TryGetReaderText(out var forwarded));
-            Assert.True(forwarded.Span.SequenceEqual("text"u8));
+            Assert.True(second.GetSlot(0).TryGetRecordSource(out var forwarded));
+            Assert.True(forwarded.AsSpan().SequenceEqual("text"u8));
             Assert.Equal(0, first.RetainedMemoryBytes);
             Assert.Equal(0, second.RetainedMemoryBytes);
             Assert.Equal(0, memory.Budget.Refusals);
@@ -99,14 +102,15 @@ public sealed partial class AwkFunctionStorageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ReaderMaterializationPreservesItsSnapshotAfterAdmissionChangesTheCell(bool recycle)
+    public void RecordMaterializationPreservesItsSnapshotAfterAdmissionChangesTheCell(bool recycle)
     {
         using var memory = new CooperativeTestMemory(1 << 20);
         var stack = Stack(memory);
         var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("s")]);
         var frame = stack.PrepareFrame(layout);
-        using var borrow = AwkReadBuffer.FromContent("0007é"u8.ToArray(), AwkReadCompletion.EndOfFile, static _ => { });
-        stack.StageReaderText(frame, 0, borrow, 0, borrow.Content.Length);
+        var record = memory.State.InputRecordStorage;
+        record.StageValidated("0007é"u8);
+        stack.StageRecordText(frame, 0, record, record.CurrentSlot, 0, record.Content.Length);
         var before = memory.Budget.Reserved;
         memory.Budget.OnGrowth = _ =>
         {
@@ -134,17 +138,18 @@ public sealed partial class AwkFunctionStorageTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ReaderArgumentSlicesKeepTheirSpellingAndAdjacentCells(bool governed, bool empty)
+    public void RecordArgumentSlicesKeepTheirSpellingAndAdjacentCells(bool governed, bool empty)
     {
         using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         var stack = Stack(memory);
         var bytes = "prefix0007é suffix"u8.ToArray();
-        using var borrow = AwkReadBuffer.FromContent(bytes, AwkReadCompletion.EndOfFile, _ => bytes.AsSpan().Fill(0xFF));
+        var record = memory.State.InputRecordStorage;
+        record.StageValidated(bytes);
         var frame = stack.PrepareFrame(new([AwkVariableName.FromText("n"), AwkVariableName.FromText("s")]));
         frame.StageNumber(0, 9);
-        stack.StageReaderText(frame, 1, borrow, 6, empty ? 0 : 6);
+        stack.StageRecordText(frame, 1, record, record.CurrentSlot, 6, empty ? 0 : 6);
         var value = stack.ReadFrameValue(frame, new(1));
-        borrow.Dispose();
+        record.Dispose();
         Assert.Equal(empty ? "" : "0007é", value.ByteText.AsString());
         Assert.Equal(AwkRuntimeValueKind.String, value.RuntimeKind);
         Assert.Equal(9, stack.ReadFrameValue(frame, new(0)).AsNumber());

@@ -200,7 +200,7 @@ internal readonly record struct AwkRegionCall
     internal int Slot { get; }
     internal ReadOnlySpan<AwkRegionArgument> Arguments => _arguments;
     internal int FinalFieldDemand { get; }
-    internal bool CanBorrowReaderText { get; init; }
+    internal bool CanBorrowRecordText { get; init; }
 }
 // Known sources bind their actual location. Only generic values retain an operand
 // index; names preserve ordinary resolution when a bound location is unavailable.

@@ -435,7 +435,7 @@ internal partial struct AwkRegionMachine
             int first, int count, int fieldDemand)
         {
             if (count == 0) return;
-            var borrowReader = call.CanBorrowReaderText &&
+            var borrowRecord = call.CanBorrowRecordText &&
                 (!state.TryGetExecutionContext(out var execution) || !execution.Output.HasPendingOutput);
             var arguments = call.Arguments;
 
@@ -468,7 +468,7 @@ internal partial struct AwkRegionMachine
                         if (argument.Consumption == AwkParameterInput.Key &&
                             state.TryStageFunctionFieldKey(fieldIndex, incoming, index)) break;
                         if (argument.Consumption == AwkParameterInput.Text &&
-                            state.TryStageFunctionFieldText(fieldIndex, incoming, index, borrowReader)) break;
+                            state.TryStageFunctionFieldText(fieldIndex, incoming, index, borrowRecord)) break;
                         var fieldNumber = 0d;
                         var numeric = argument.Consumption == AwkParameterInput.Arithmetic
                             ? state.RecordFields.TryGetFieldArithmeticNumber(fieldIndex, state.NumberParsingMode, out fieldNumber)

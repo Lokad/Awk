@@ -103,8 +103,9 @@ internal static partial class AwkBuiltins
             }
 
             // Result admission can promote a borrowed record before the conversion reads it again.
-            var inputSource = field >= 0 && !source.IsOwned
-                ? state.RecordFields.CaptureCopySlice(bytes) : new AwkCopySource(bytes);
+            if (!source.TryGetRecordSource(out var inputSource))
+                inputSource = field >= 0 && !source.IsOwned
+                    ? state.RecordFields.CaptureCopySlice(bytes) : new AwkCopySource(bytes);
             var converted = AwkText.AllocateOwnedBytes(bytes.Length, state.MemoryAccounting, destination, state.CancellationCheckpoint);
             bytes = inputSource.AsSpan();
             // Publish into the admitted result directly instead of copying all

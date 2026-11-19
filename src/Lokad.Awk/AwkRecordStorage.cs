@@ -29,15 +29,6 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
     internal int LengthAt(int slot) => BufferAt(slot).Length;
     internal bool IsKnownAsciiAt(int slot) => BufferAt(slot).IsKnownAscii;
 
-    internal bool TryCaptureText(int slot, ReadOnlySpan<byte> bytes,
-        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkReadBuffer? borrow, out int offset)
-    {
-        if (BufferAt(slot).Borrower is { } reader) return reader.TryCaptureText(bytes, out borrow, out offset);
-        borrow = null;
-        offset = 0;
-        return false;
-    }
-
     internal static bool CanStage(int length) => length is > 0 and <= MaxReusableRecordBytes;
     internal static bool CanBorrow(int length) => length is > 0 and <= MaxBorrowedRecordBytes;
 

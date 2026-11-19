@@ -6,7 +6,7 @@ namespace Lokad.Awk;
 // within this computation. The snapshot cannot cross a host suspension.
 internal readonly ref struct AwkTextInput
 {
-    private const int OwnedText = -1, RecordSlot0 = -2, RecordSlot1 = -3, TextRange = -4, ReaderBytes = -5;
+    private const int OwnedText = -1, RecordSlot0 = -2, RecordSlot1 = -3, TextRange = -4;
     private readonly object? _reference;
     private readonly long _word;
     private readonly int _kind;
@@ -45,19 +45,10 @@ internal readonly ref struct AwkTextInput
         return new(storage, offset, length, slot == 0 ? RecordSlot0 : RecordSlot1, field);
     }
 
-    internal static AwkTextInput FromReader(AwkReadBuffer reader, int offset, int length)
-    {
-        _ = reader.Content.Slice(offset, length).Span;
-        return new(reader, offset, length, ReaderBytes, -1);
-    }
-
     internal static AwkTextInput FromTextRange(AwkText text, int offset, int length, int field) =>
         new(text.Backing, offset, length, TextRange, field);
 
     internal int TextField => _field;
-
-    internal AwkByteReader? RecordBorrower => _reference is AwkRecordStorage storage
-        ? storage.BorrowerAt(_kind == RecordSlot0 ? 0 : 1) : null;
 
     internal AwkByteTextOperand ReadyText
     {
@@ -69,9 +60,8 @@ internal readonly ref struct AwkTextInput
             {
                 OwnedText => new(AwkText.FromBacking(_reference)),
                 RecordSlot0 or RecordSlot1 when _reference is AwkRecordStorage storage =>
-                    new(storage.BytesAt(_kind == RecordSlot0 ? 0 : 1).Slice(offset, length)),
+                    new(storage, _kind == RecordSlot0 ? 0 : 1, offset, length),
                 TextRange => new(AwkText.FromBacking(_reference).AsSpan().Slice(offset, length)),
-                ReaderBytes when _reference is AwkReadBuffer reader => new(reader.Content.Span.Slice(offset, length)),
                 _ => throw new InvalidOperationException("A scalar text input requires formatting at use.")
             };
         }

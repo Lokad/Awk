@@ -281,14 +281,14 @@ public sealed class AwkFunctionLocalSlotTests
         var potential = AwkFunctionLocalSlot.PotentialArrayAlias(name, value);
         var untyped = AwkFunctionLocalSlot.UntypedScalar(value);
         var scalar = AwkFunctionLocalSlot.Scalar(value);
-        using var reader = AwkReadBuffer.EndOfFile;
-        var readerCell = AwkFunctionLocalSlot.MissingScalar();
-        readerCell.InitializeReaderText(reader, 0, 0);
+        using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var recordCell = AwkFunctionLocalSlot.MissingScalar();
+        recordCell.InitializeRecordText(state.InputRecordStorage, 0, 0, 0);
         AwkFunctionLocalSlot[] unbound = [AwkFunctionLocalSlot.MissingScalar(),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromNumber(7)),
             AwkFunctionLocalSlot.Scalar(AwkValue.FromText("a")), scalar,
             AwkFunctionLocalSlot.PreparedKey(AwkArrayKey.FromOrdinal(7)),
-            AwkFunctionLocalSlot.ArrayAlias(name), potential, untyped, readerCell];
+            AwkFunctionLocalSlot.ArrayAlias(name), potential, untyped, recordCell];
         foreach (var cell in unbound)
         {
             Assert.False(cell.Value.TryGetArrayBinding(out var missing));

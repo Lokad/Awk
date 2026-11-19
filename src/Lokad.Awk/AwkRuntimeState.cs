@@ -694,20 +694,29 @@ internal sealed class AwkRuntimeState : IDisposable
         ThrowIfCancellationRequested();
     }
 
-    internal int CompareByteText(AwkByteTextOperand left, AwkByteTextOperand right, bool sorting = false) =>
-        _stringRuntime.Compare(left.AsSpan(CancellationCheckpoint), right.AsSpan(CancellationCheckpoint), IsCaseInsensitive, sorting);
+    internal int CompareByteText(AwkByteTextOperand left, AwkByteTextOperand right, bool sorting = false)
+    {
+        ResolveTextPair(left, right, out var first, out var second);
+        return _stringRuntime.Compare(first, second, IsCaseInsensitive, sorting);
+    }
 
     internal int IndexOfStringUnits(in AwkTextInput source, in AwkTextInput value)
     {
-        var left = source.Prepare(this, forceScalar: true);
-        var right = value.Prepare(this);
-        var bytes = left.ReadyText.AsSpan(CancellationCheckpoint);
+        var left = source.Prepare(this, forceScalar: true).ReadyText;
+        var right = value.Prepare(this).ReadyText;
+        ResolveTextPair(left, right, out var bytes, out var needle);
+        return _stringRuntime.IndexOfUnits(bytes, needle, IsCaseInsensitive);
+    }
+
+    private void ResolveTextPair(AwkByteTextOperand left, AwkByteTextOperand right,
+        out ReadOnlySpan<byte> first, out ReadOnlySpan<byte> second)
+    {
+        first = left.AsSpan(CancellationCheckpoint);
         var borrower = left.RecordBorrower;
-        var needle = right.ReadyText.AsSpan(CancellationCheckpoint);
+        second = right.AsSpan(CancellationCheckpoint);
         // The second custom memory access can retire the first span.
         if (borrower is not null && left.RecordBorrower is null)
-            bytes = left.ReadyText.AsSpan(CancellationCheckpoint);
-        return _stringRuntime.IndexOfUnits(bytes, needle, IsCaseInsensitive);
+            first = left.AsSpan(CancellationCheckpoint);
     }
 
     internal int CompareByteText(AwkText left, AwkText right, bool sorting = false) =>
@@ -1015,12 +1024,12 @@ internal sealed class AwkRuntimeState : IDisposable
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    internal bool TryStageFunctionFieldText(AwkFieldIndex field, AwkFunctionFrame incoming, int index, bool borrowReader)
+    internal bool TryStageFunctionFieldText(AwkFieldIndex field, AwkFunctionFrame incoming, int index, bool borrowRecord)
     {
-        if (borrowReader && _recordFields.TryCaptureReaderText(field, out var borrow, out var offset, out var length))
+        if (borrowRecord && _recordFields.TryCaptureRecordText(field, out var record, out var slot, out var offset, out var length))
         {
             ThrowIfCancellationRequested();
-            _functions.StageReaderText(incoming, index, borrow, offset, length);
+            _functions.StageRecordText(incoming, index, record, slot, offset, length);
             return true;
         }
         if (!TryGetFieldTextArgument(field, out var value)) return false;
@@ -1049,7 +1058,8 @@ internal sealed class AwkRuntimeState : IDisposable
         if (field < 0 || text.IsOwned) return text.Own(this, destination);
         if (whole) return CaptureFieldStringText(new(field));
 
-        var source = _recordFields.CaptureCopySlice(text.AsSpan(CancellationCheckpoint));
+        if (!text.TryGetRecordSource(out var source))
+            source = _recordFields.CaptureCopySlice(text.AsSpan(CancellationCheckpoint));
         return CopyText(source, destination);
     }
 
@@ -1074,7 +1084,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
                 return value;
             }
-            if (slot.Kind == AwkFunctionLocalSlotKind.ReaderText)
+            if (slot.Kind == AwkFunctionLocalSlotKind.RecordText)
             {
                 var value = _functions.ReadFrameValue(frame, slotId);
 

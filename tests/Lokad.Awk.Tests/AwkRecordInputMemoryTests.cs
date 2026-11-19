@@ -76,7 +76,7 @@ public sealed class AwkRecordInputMemoryTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task CapturedReaderRangeKeepsSpellingAfterRecordSlotsAreReplaced(bool governed, bool customMemory)
+    public async Task CapturedRecordRangeKeepsSpellingAfterPromotionAndStaging(bool governed, bool customMemory)
     {
         using var memory = new CooperativeTestMemory(1 << 20, enabled: governed).InitializeRuntime(AwkRuntimeCounters.Disabled);
         var baseline = memory.Budget.Reserved;
@@ -102,18 +102,16 @@ public sealed class AwkRecordInputMemoryTests
         Assert.True(await reader.TryBufferAsync());
         reader.Advance(4);
         storage.StageBorrowed(reader, reader.Content[..^1]);
-        Assert.True(storage.TryCaptureText(storage.CurrentSlot, storage.Content.Span[..5], out var owner, out var offset));
-        Assert.Equal(4, offset);
+        var captured = AwkTextInput.FromRecord(storage, storage.CurrentSlot, 0, 5, field: 1);
         storage.StageValidated("replacement"u8);
-        storage.StageValidated("another replacement"u8);
         reader.Advance(reader.Content.Length);
-        Assert.Equal("café"u8.ToArray(), owner.Content.Slice(offset, 5).ToArray());
+        Assert.Equal("café"u8.ToArray(), captured.ReadyText.AsSpan(null).ToArray());
         Assert.Equal(0, completions);
         reader.ReleaseBorrow();
         reader.ReleaseBorrow();
         Assert.Equal(1, completions);
-        Assert.Throws<ObjectDisposedException>(() => owner.Content);
-        Assert.False(storage.TryCaptureText(storage.CurrentSlot, storage.Content.Span, out _, out _));
+        Assert.Equal("café"u8.ToArray(), captured.ReadyText.AsSpan(null).ToArray());
+        Assert.True(storage.Content.Span.SequenceEqual("replacement"u8));
         storage.Dispose();
         Assert.Equal(baseline, memory.Budget.Reserved);
         memory.Dispose();
@@ -426,6 +424,69 @@ public sealed class AwkRecordInputMemoryTests
 
             Assert.True(input.CommittedInputBytes > 0);
             Assert.Equal(expected, redirected ? host.ReadFile("/out") : host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        }
+        AssertRefunded(memory.Budget);
+    }
+
+    [Theory]
+    [InlineData("case")]
+    [InlineData("forwarded")]
+    [InlineData("substring")]
+    [InlineData("search")]
+    public async Task FunctionFieldTextSurvivesPromotionDuringAdmission(string form)
+    {
+        var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        using (memory)
+        {
+            var state = memory.State;
+            var payload = form == "search" ? "1.5" + new string('0', 1499) : new string('x', 1500);
+            var record = "0007 café " + payload + " 😀";
+            var input = new InputHost(memory.Budget, record + "\n") { PoisonConsumedBytes = true };
+            using var reader = new AwkByteReader(input, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+            Assert.True(await reader.TryBufferAsync());
+            var slot = state.InputRecordStorage;
+            slot.StageBorrowed(reader, reader.Content[..^1]);
+            reader.Advance(reader.Content.Length);
+            state.PublishInputRecord(AwkInputRecordResult.Buffered(slot, AwkRecordTerminator.NewLine),
+                readsMainInput: true);
+            Assert.Equal(4, state.FieldCount);
+            var (source, expected) = form switch
+            {
+                "case" => ("function f(s){return toupper(s)} BEGIN{print f($3)}", new string('X', 1500) + "\n"),
+                "forwarded" => ("function leaf(s){return toupper(s)} function f(s){$0=\"changed\";return leaf(s)} BEGIN{print f($3)}",
+                    new string('X', 1500) + "\n"),
+                "substring" => ("function f(s){return substr(s,2,1400)} BEGIN{print f($3)}", new string('x', 1400) + "\n"),
+                "search" => ("function f(s){return index(s,1.5)} BEGIN{CONVFMT=\"%.1500f\";print f($3)}", "1\n"),
+                _ => throw new ArgumentOutOfRangeException(nameof(form)),
+            };
+            var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
+            Assert.True(binding.Success);
+            var program = binding.Program;
+            state.InitializeGlobalNames(program.GlobalNames);
+            state.InitializeGlobalReadSlots(program.GlobalReadCount);
+            state.InitializeFunctions(program.Functions);
+            var host = new MockFileSystem();
+            var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+                AwkFileDescriptor.StdErr, CancellationToken.None, state.Limits, state, static _ => []);
+            using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+            Assert.Equal(0, input.CommittedInputBytes);
+            memory.Budget.OnGrowth = amount =>
+            {
+                if (amount >= 1400) reader.ReleaseBorrow();
+            };
+            try
+            {
+                await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output);
+            }
+            finally
+            {
+                memory.Budget.OnGrowth = null;
+                await io.CloseAsync();
+            }
+
+            Assert.True(input.CommittedInputBytes > 0);
+            Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         }
         AssertRefunded(memory.Budget);

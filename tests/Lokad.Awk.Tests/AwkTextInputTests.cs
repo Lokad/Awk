@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Runtime.CompilerServices;
 
 namespace Lokad.Awk.Tests;
@@ -6,8 +5,11 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkTextInputTests
 {
     [Fact]
-    public void TextCaptureKeepsTheCanonicalThreeWordWidth() =>
+    public void TextCapturesKeepTheCanonicalThreeWordWidth()
+    {
         Assert.Equal(24, Unsafe.SizeOf<AwkTextInput>());
+        Assert.Equal(24, Unsafe.SizeOf<AwkByteTextOperand>());
+    }
 
     [Theory]
     [InlineData("number", "1.3")]
@@ -44,36 +46,18 @@ public sealed class AwkTextInputTests
     }
 
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ReaderCaptureKeepsItsRangeAfterTheSourceCellIsReplaced(bool managerBacked)
+    [Fact]
+    public void RecordCaptureKeepsItsRangeAfterTheSourceCellIsReplaced()
     {
-        var bytes = "_0007_"u8.ToArray();
-        using var manager = new TestMemory(bytes);
-        ReadOnlyMemory<byte> memory = managerBacked ? manager.Memory : bytes;
-        var retired = false;
-        using var reader = AwkReadBuffer.FromContent(memory, AwkReadCompletion.EndOfFile, _ => retired = true);
+        using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var record = state.InputRecordStorage;
+        record.StageValidated("_0007_"u8);
         var cell = AwkFunctionLocalSlot.MissingScalar();
-        cell.InitializeReaderText(reader, 1, 4);
+        cell.InitializeRecordText(record, record.CurrentSlot, 1, 4);
         Assert.True(cell.TryGetTextInput(out var captured, null));
         cell = AwkFunctionLocalSlot.Scalar(AwkValue.FromText("changed"));
-        Assert.False(retired);
         Assert.Equal("0007", AwkUtf8Codec.Decode(captured.ReadyText.AsSpan(null)));
         Assert.Equal(-1, captured.TextField);
         Assert.Equal("changed", cell.Value.AsString());
-    }
-
-    private sealed class TestMemory(byte[] bytes) : MemoryManager<byte>
-    {
-        private bool _disposed;
-        public override Span<byte> GetSpan()
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            return bytes;
-        }
-        public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
-        public override void Unpin() { }
-        protected override void Dispose(bool disposing) => _disposed = true;
     }
 }

@@ -357,22 +357,29 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         return true;
     }
 
-    internal bool TryCaptureReaderText(AwkFieldIndex index,
-        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkReadBuffer? borrow,
-        out int offset, out int length)
+    internal bool TryCaptureRecordText(AwkFieldIndex index,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AwkRecordStorage? record,
+        out int slot, out int offset, out int length)
     {
-        borrow = null;
-        offset = length = 0;
-        if (_bufferedStorage is not { } storage) return false;
-        ReadOnlySpan<byte> bytes;
+        record = null;
+        slot = offset = length = 0;
+        if (_bufferedStorage is null) return false;
         if (index.IsCurrentRecord)
         {
             if (!_recordTextIsCurrent || _recordValueIsCurrent && _recordValue.IsNumberValue) return false;
-            bytes = BufferedRecord.Span;
+            length = BufferedRecord.Length;
         }
-        else if (!TryGetUnmaterializedFieldBytes(index, out bytes)) return false;
-        if (!storage.TryCaptureText(_bufferedSlot, bytes, out borrow, out offset)) return false;
-        length = bytes.Length;
+        else
+        {
+            if (!TryGetUnmaterializedField(index, out var field)) return false;
+            length = field.ByteLength();
+            offset = field.RecordStart;
+        }
+        if (length == 0) return false;
+        record = _bufferedStorage;
+        slot = _bufferedSlot;
+        if (record is null) return false;
+        _ = record.BytesAt(slot);
         return true;
     }
 

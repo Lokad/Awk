@@ -127,6 +127,9 @@ and allocation observations until it can publish a complete copy.
 
 Incoming function storage belongs to its frame, while arguments evaluate in caller scope
 and source order. Known bindings may bypass name lookup only while visibility is valid.
+Text-only arguments can retain a record slot and range while call preparation and the
+callee cannot advance input. The slot holds funded fallback bytes when admission retires
+the host borrow. Text operations resolve the range after admission before copying.
 Initialized special scalars use their bound cells for writes. Numeric and general
 assignments enter the same format, separator and admission logic. Computed field
 count reads and writes belong to the record frame.
