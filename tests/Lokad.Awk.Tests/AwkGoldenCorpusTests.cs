@@ -141,8 +141,8 @@ public sealed class AwkGoldenCorpusTests(ITestOutputHelper output)
                     else
                     {
                         var rangePattern = Assert.IsType<AwkRangePatternSyntax>(rule.PatternSyntax);
-                        AssertExpressionOutline(caseName + " rule range start " + ruleIndex, rangePattern.Start.Expression);
-                        AssertExpressionOutline(caseName + " rule range end " + ruleIndex, rangePattern.End.Expression);
+                        AssertExpressionOutline(caseName + " rule range start " + ruleIndex, rangePattern.Start);
+                        AssertExpressionOutline(caseName + " rule range end " + ruleIndex, rangePattern.End);
                     }
                 }
 

@@ -12,8 +12,8 @@ public sealed class AwkRangeParagraphTests
         var syntax = AwkSyntaxParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         Assert.Empty(syntax.Diagnostics);
         var range = Assert.IsType<AwkRangePatternSyntax>(Assert.Single(syntax.Rules).PatternSyntax);
-        var regex = regexEnd ? range.End.Expression : range.Start.Expression;
-        var other = regexEnd ? range.Start.Expression : range.End.Expression;
+        var regex = regexEnd ? range.End : range.Start;
+        var other = regexEnd ? range.Start : range.End;
         Assert.NotNull(regex);
         Assert.NotNull(other);
         Assert.Equal(AwkExpressionKind.Regex, regex.Kind);

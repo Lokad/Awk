@@ -9,6 +9,14 @@ public sealed class AwkSourceDiagnosticMapTests
     [InlineData("BEGIN{print 1}\n] {print}\n", 2, 1, "invalid pattern.")]
     [InlineData("function () { print 2 }\n", 1, 10, "expected function name.")]
     [InlineData("BEGIN {\n print 1\n", 1, 7, "unterminated action block.")]
+    [InlineData("($1 == ), ($2 > 0) { print }", 1, 8, "invalid action block.")]
+    [InlineData("($1 == 1), ($2 > ) { print }", 1, 18, "invalid action block.")]
+    [InlineData("($1 == ), ($2 > ) { print }", 1, 8, "invalid action block.")]
+    [InlineData("($1 == 1), ($2 > )", 1, 18, "invalid pattern.")]
+    [InlineData("($1 == 1), ($2 >\\\r\n ) { print }", 2, 2, "invalid action block.")]
+    [InlineData("($1 > ), $2 { ] }", 1, 15, "invalid action block.")]
+    [InlineData("($1 > ), $2 { print \"bad\n }", 1, 21, "unrecognized awk token.")]
+    [InlineData("($1 > ), $2 { print }\nEND { print unavailable(1) }", 2, 13, "undefined function: unavailable")]
     public async Task GrammarFailuresReportTheSourceFileAndToken(string source, int line, int column, string message)
     {
         var host = new MockFileSystem();

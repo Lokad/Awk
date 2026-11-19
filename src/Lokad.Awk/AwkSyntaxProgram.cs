@@ -94,27 +94,24 @@ internal sealed class AwkSinglePatternSyntax(
 
 internal sealed class AwkRangePatternSyntax(
     IReadOnlyList<AwkToken> tokens,
-    AwkPatternPartSyntax start,
-    AwkPatternPartSyntax end) : AwkPatternSyntax(tokens)
+    AwkExpressionSyntax? start,
+    AwkExpressionSyntax? end,
+    AwkTextSpan? failureSpan) : AwkPatternSyntax(tokens)
 {
-    public AwkPatternPartSyntax Start { get; } = start;
+    public AwkExpressionSyntax? Start { get; } = start;
 
-    public AwkPatternPartSyntax End { get; } = end;
+    public AwkExpressionSyntax? End { get; } = end;
+
+    public AwkTextSpan? FailureSpan { get; } = failureSpan;
 
     public override IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions()
     {
-        if (Start.Expression != null)
-            yield return Start.Expression;
+        if (Start != null)
+            yield return Start;
 
-        if (End.Expression != null)
-            yield return End.Expression;
+        if (End != null)
+            yield return End;
     }
-}
-
-internal sealed class AwkPatternPartSyntax(
-    AwkExpressionSyntax? expression)
-{
-    public AwkExpressionSyntax? Expression { get; } = expression;
 }
 
 internal sealed class AwkFunctionSyntax

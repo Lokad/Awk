@@ -297,10 +297,9 @@ internal sealed class AwkTopLevelSyntaxParser
                 tokens.Count - startSource.Count - endSource.Count);
             tokens = AwkTokenNavigation.Flatten([startTokens, separator, endTokens], _checkpoint);
         }
-        return new AwkRangePatternSyntax(
-            tokens,
-            new AwkPatternPartSyntax(ParseExpression(startTokens)),
-            new AwkPatternPartSyntax(ParseExpression(endTokens)));
+        var startExpression = AwkExpressionSyntaxParser.Parse(_source, startTokens, out var startFailure, _checkpoint);
+        var endExpression = AwkExpressionSyntaxParser.Parse(_source, endTokens, out var endFailure, _checkpoint);
+        return new AwkRangePatternSyntax(tokens, startExpression, endExpression, startFailure ?? endFailure);
     }
 
     [Rule]
@@ -369,9 +368,6 @@ internal sealed class AwkTopLevelSyntaxParser
         }
         return tokens;
     }
-
-    private AwkExpressionSyntax? ParseExpression(IReadOnlyList<AwkToken> tokens) =>
-        AwkExpressionSyntaxParser.Parse(_source, tokens, _checkpoint);
 
     private AwkToken ToToken(AwkTokenKind kind, Pos<string> value) =>
         AwkParsingSupport.ToToken(kind, value, _checkpoint);

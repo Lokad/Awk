@@ -16,13 +16,19 @@ internal sealed class AwkExpressionSyntaxParser
     }
 
     public static AwkExpressionSyntax? Parse(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
-        (ParseCore(source, tokens, checkpoint) as RootParseResult.Expression)?.Syntax;
+        Parse(source, tokens, out _, checkpoint);
+
+    internal static AwkExpressionSyntax? Parse(AwkParsingSource source, IReadOnlyList<AwkToken> tokens,
+        out AwkTextSpan? failureSpan, Action? checkpoint) =>
+        (ParseCore(source, tokens, out failureSpan, checkpoint) as RootParseResult.Expression)?.Syntax;
 
     public static AwkExpressionSyntax? ParseList(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
-        ParseCore(source, tokens, checkpoint)?.Syntax;
+        ParseCore(source, tokens, out _, checkpoint)?.Syntax;
 
-    private static RootParseResult? ParseCore(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint)
+    private static RootParseResult? ParseCore(AwkParsingSource source, IReadOnlyList<AwkToken> tokens,
+        out AwkTextSpan? failureSpan, Action? checkpoint)
     {
+        failureSpan = null;
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         var count = CountExpressionTokens(tokens, out var separator, out var hasEndOfFile, checkpoint);
@@ -41,8 +47,9 @@ internal sealed class AwkExpressionSyntaxParser
             checkpoint?.Invoke();
             return parsed;
         }
-        catch (ParseException)
+        catch (ParseException error)
         {
+            failureSpan = AwkParsingSupport.FailureSpan(error, source);
             return null;
         }
     }

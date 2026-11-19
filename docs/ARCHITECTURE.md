@@ -28,6 +28,8 @@ Parser results carry syntax, errors and warnings. Binding validates function
 declarations and builtin call shapes before lowering and returns a prepared program
 or diagnostics. Preparation reports malformed constructs that reach lowering.
 Generic top-level and statement grammar failures retain the failing source span.
+Range endpoint grammar failures carry the rejected span to preparation, preserving
+the precedence of lexical, action syntax and binding diagnostics.
 The contextual lexer uses ordinary token kinds from the lexer descriptors and
 resolves context-sensitive tokens from source. The grammars share the lexer's
 absolute newline offsets.

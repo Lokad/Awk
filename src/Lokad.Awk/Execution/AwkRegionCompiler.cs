@@ -137,7 +137,7 @@ internal sealed partial class AwkRegionCompiler
             if (rule.PatternSyntax is AwkSinglePatternSyntax { Expression: { } expression })
                 condition = expression;
             else if (rangeIndex >= 0 && rule.PatternSyntax is AwkRangePatternSyntax
-                { Start.Expression: { } start, End.Expression: { } end })
+                { Start: { } start, End: { } end })
             {
                 condition = start;
                 rangeEnd = end;
@@ -159,7 +159,8 @@ internal sealed partial class AwkRegionCompiler
         return success;
     }
 
-    private static AwkDiagnostic InvalidRule(AwkRuleSyntax rule) => new(rule.Span,
+    private static AwkDiagnostic InvalidRule(AwkRuleSyntax rule) => new(
+        (rule.PatternSyntax as AwkRangePatternSyntax)?.FailureSpan ?? rule.Span,
         rule.HasExplicitAction ? "Invalid action block." : "Invalid pattern.", AwkDiagnosticId.BindInvalidProgram);
 
     private bool Compile(IReadOnlyList<AwkStatementSyntax> statements, AwkExpressionSyntax? condition,
