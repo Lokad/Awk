@@ -1086,6 +1086,10 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var checkpoint = state.CancellationCheckpoint;
         var destination = AwkText.AllocateOwnedBytes(byteLength, state.MemoryAccounting, buffers, checkpoint);
         var separator = byteLength == 0 ? default : _recompositionSeparator.AsSpan(checkpoint);
+        // Resolve the source after admission. The frame keeps it live through the copy.
+        var record = byteLength == 0 ? default : RecordBytes();
+        var sourceFields = _fieldTexts.AsSpan();
+        var cache = CollectionsMarshal.AsSpan(_fieldValueCache);
         var offset = 0;
         var bytesUntilCheck = AwkRuntimeLimits.CancellationCheckBytes;
         var nextFormatted = 0;
@@ -1098,14 +1102,12 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             }
             if (index > 0 && !separator.IsEmpty)
                 AwkText.CopyFragment(separator, destination, ref offset, ref bytesUntilCheck, checkpoint);
-            var descriptor = _fieldTexts[index];
-            var field = nextFormatted < formattedCount && formatted[nextFormatted].FieldIndex == index
-                ? AwkFieldText.FromOwned(formatted[nextFormatted++].Text) : FieldText(descriptor);
-            var length = field.ByteLength();
-            stagedFields[index] = AwkRecordField.FromRecordSlice(offset, length).WithCacheFrom(descriptor);
-            if (length != 0)
-                AwkText.CopyFragment(field.AsSpan(RecordBytes(), checkpoint), destination,
-                    ref offset, ref bytesUntilCheck, checkpoint);
+            ref readonly var descriptor = ref sourceFields[index];
+            var bytes = nextFormatted < formattedCount && formatted[nextFormatted].FieldIndex == index
+                ? formatted[nextFormatted++].Text.AsSpan(checkpoint) : descriptor.Bytes(record, cache, checkpoint);
+            descriptor.WriteRebased(out stagedFields[index], offset, bytes.Length);
+            if (!bytes.IsEmpty)
+                AwkText.CopyFragment(bytes, destination, ref offset, ref bytesUntilCheck, checkpoint);
         }
         var recordText = byteLength == 0 ? AwkText.Empty : state.AdoptText(destination);
         checkpoint?.Invoke();

@@ -252,6 +252,48 @@ public sealed class AwkRecordInputMemoryTests
         AssertRefunded(memory.Budget);
     }
 
+    [Fact]
+    public async Task RecordRebuildReadsThePromotedBorrowAfterDestinationAdmission()
+    {
+        var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        using (memory)
+        {
+            var frame = memory.State.RecordFields;
+            var separator = AwkText.FromSourceLiteralString("§");
+            frame.SetRecordText(AwkText.FromSourceLiteralString("warm old record"));
+            frame.AssignFieldValue(new(2), AwkValue.FromText("new"), separator);
+            Assert.Equal("warm§new§record", frame.RecordAwkText.AsString());
+
+            const string input = "café old 😀\n";
+            var host = new InputHost(memory.Budget, input) { PoisonConsumedBytes = true };
+            using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None,
+                memory.State.Options);
+            Assert.True(await reader.TryBufferAsync());
+            var storage = memory.State.InputRecordStorage;
+            storage.StageBorrowed(reader, reader.Content[..^1]);
+            reader.Advance(reader.Content.Length);
+            memory.State.PublishInputRecord(AwkInputRecordResult.Buffered(storage, AwkRecordTerminator.NewLine),
+                readsMainInput: true);
+            frame.AssignFieldValue(new(2), AwkValue.FromText("new"), separator);
+            Assert.Equal(0, host.CommittedInputBytes);
+
+            memory.Budget.OnGrowth = _ => reader.ReleaseBorrow();
+            try
+            {
+                Assert.Equal("café§new§😀", frame.RecordAwkText.AsString());
+            }
+            finally
+            {
+                memory.Budget.OnGrowth = null;
+            }
+
+            Assert.Equal("café old 😀\n"u8.Length, host.CommittedInputBytes);
+            Assert.Equal("café", frame.GetFieldValue(new(1)).AsString());
+            Assert.Equal("😀", frame.GetFieldValue(new(3)).AsString());
+        }
+        AssertRefunded(memory.Budget);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

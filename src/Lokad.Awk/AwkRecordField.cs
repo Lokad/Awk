@@ -63,9 +63,9 @@ internal readonly struct AwkRecordField
         return CacheSlot == -(int)AwkValueKind.NumericString - 2;
     }
     internal AwkRecordField WithRuneLength(int length) => new(_start, _length, CacheSlot, _number, length);
-    internal AwkRecordField WithCacheFrom(AwkRecordField source) =>
-        new(_length == 0 && source.IsUnassigned ? -2 : _start,
-            _length, source.CacheSlot, source._number, source._runeLength);
+    internal void WriteRebased(out AwkRecordField destination, int start, int length) =>
+        destination = new(length != 0 ? start : IsUnassigned ? -2 : 0,
+            length, CacheSlot, _number, _runeLength);
 
     internal bool TryGetNumericValue(out double number)
     {
@@ -81,6 +81,12 @@ internal readonly struct AwkRecordField
         AwkFieldTextKind.Owned => AwkFieldText.FromOwned(cache[CacheSlot - 1].Spelling),
         _ => AwkFieldText.Empty
     };
+
+    internal ReadOnlySpan<byte> Bytes(ReadOnlySpan<byte> record,
+        ReadOnlySpan<AwkFieldFrame.CachedFieldValue> cache, Action? checkpoint) =>
+        _start < 0 && _length != 0
+            ? cache[CacheSlot - 1].Spelling.AsSpan(checkpoint)
+            : BytesInRecord(record);
 }
 
 internal enum AwkFieldCacheKind : byte { TextOnly, ClassifiedText, Scalar }
@@ -118,9 +124,6 @@ internal readonly ref struct AwkRecordFields
         if (_fields.IsEmpty)
             return _hasFinalText && index == _texts.Length - 1 ? _finalText :
                 _texts[index].AsSpan(record, checkpoint);
-        ref readonly var field = ref _fields[index];
-        return field.Kind == AwkFieldTextKind.Owned
-            ? _cache[field.CacheSlot - 1].Spelling.AsSpan(checkpoint)
-            : field.BytesInRecord(record);
+        return _fields[index].Bytes(record, _cache, checkpoint);
     }
 }
