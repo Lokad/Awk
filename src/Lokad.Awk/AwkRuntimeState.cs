@@ -273,15 +273,15 @@ internal sealed class AwkRuntimeState : IDisposable
         return key.WithTextProjection(AdoptText(AwkText.CopyFundedBytes(key.AsSpan(buffer), checkpoint: null)));
     }
 
-    internal AwkArrayKey CopyArrayKey(ReadOnlySpan<byte> bytes)
+    internal AwkArrayKey CopyArrayKey(in AwkCopySource source)
     {
-        if (bytes.Length is > 0 and <= AwkArrayKey.InlineByteCapacity)
+        if (source.Length is > 0 and <= AwkArrayKey.InlineByteCapacity)
         {
             ThrowIfCancellationRequested();
-            return AwkArrayKey.FromInlineBytes(bytes);
+            return AwkArrayKey.FromInlineBytes(source.AsSpan());
         }
 
-        return new AwkArrayKey(CopyText(bytes), CancellationCheckpoint);
+        return new AwkArrayKey(CopyText(source), CancellationCheckpoint);
     }
 
     internal string DecodeArrayKey(AwkArrayKey key)
@@ -995,12 +995,10 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal bool TryStageFunctionFieldKey(AwkFieldIndex field, AwkFunctionFrame incoming, int index)
     {
-        if (!field.IsNamedField || !_recordFields.TryGetUnmaterializedFieldBytes(field, out var bytes)) return false;
-        // One existing admission funds construction through publication into its
-        // incoming owner. Only immutable bytes are borrowed during this copy.
-        using var admission = MemoryAccounting.AdmitMutation(AwkArrayKey.EstimateRetainedTextBytes(bytes.Length));
-        var key = CopyArrayKey(bytes)
-            .WithInputOrigin(true);
+        if (!field.IsNamedField || !_recordFields.TryGetFieldCopySource(field, out var source)) return false;
+        // Fund the incoming cell before resolving the bytes of a promotable record.
+        using var admission = MemoryAccounting.AdmitMutation(AwkArrayKey.EstimateRetainedTextBytes(source.Length));
+        var key = CopyArrayKey(in source).WithInputOrigin(true);
         ThrowIfCancellationRequested();
         _functions.StageKey(incoming, index, key);
         return true;
@@ -1566,9 +1564,8 @@ internal sealed class AwkRuntimeState : IDisposable
 
     internal AwkArrayKey CaptureFieldKey(AwkFieldIndex index)
     {
-        if (index.IsNamedField && _recordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
-            return CopyArrayKey(bytes)
-                .WithInputOrigin(true);
+        if (index.IsNamedField && _recordFields.TryGetFieldCopySource(index, out var source))
+            return CopyArrayKey(in source).WithInputOrigin(true);
         return ToArrayKey(_recordFields.GetFieldValue(index));
     }
 

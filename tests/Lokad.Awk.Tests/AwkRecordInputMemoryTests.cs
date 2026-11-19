@@ -425,6 +425,128 @@ public sealed class AwkRecordInputMemoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task CapturedFieldKeyRetainsSpellingThroughAdmission(bool functionArgument)
+    {
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        var state = memory.State;
+        var longKey = "café" + new string('x', 1500) + "😀";
+        var input = new InputHost(memory.Budget, "0007 " + longKey + "\n") { PoisonConsumedBytes = true };
+        using var reader = new AwkByteReader(input, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        Assert.True(await reader.TryBufferAsync());
+        var slot = state.InputRecordStorage;
+        slot.StageBorrowed(reader, reader.Content[..^1]);
+        reader.Advance(reader.Content.Length);
+        state.PublishInputRecord(AwkInputRecordResult.Buffered(slot, AwkRecordTerminator.NewLine),
+            readsMainInput: true);
+        Assert.Equal(2, state.FieldCount);
+        var incoming = functionArgument
+            ? state.FunctionCalls.PrepareFrame(new([AwkVariableName.FromText("key")]))
+            : null;
+
+        try
+        {
+            var available = memory.Budget.Limit - memory.Budget.Reserved;
+            memory.Budget.SetAvailableBytes(0);
+            CheckKey(new(1), "0007");
+            memory.Budget.SetAvailableBytes(available);
+            Assert.Equal(0, input.CommittedInputBytes);
+            memory.Budget.OnGrowth = amount =>
+            {
+                if (amount >= longKey.Length) reader.ReleaseBorrow();
+            };
+            CheckKey(new(2), longKey);
+            Assert.True(input.CommittedInputBytes > 0);
+        }
+        finally
+        {
+            memory.Budget.OnGrowth = null;
+            if (incoming is not null) state.FunctionCalls.DiscardIncomingFrame(incoming);
+        }
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
+
+        void CheckKey(AwkFieldIndex field, string expected)
+        {
+            AwkArrayKey key;
+            if (incoming is null)
+                key = state.CaptureFieldKey(field);
+            else
+            {
+                Assert.True(state.TryStageFunctionFieldKey(field, incoming, 0));
+                key = incoming.GetSlot(0).Key;
+            }
+            Assert.Equal(expected, state.DecodeArrayKey(key));
+            Assert.True(key.HasInputOrigin);
+        }
+    }
+
+    [Theory]
+    [InlineData("write")]
+    [InlineData("read")]
+    [InlineData("number")]
+    [InlineData("update")]
+    [InlineData("composite")]
+    public async Task MissingFieldKeysSurvivePromotionDuringInsertion(string form)
+    {
+        var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
+        using (memory)
+        {
+            var state = memory.State;
+            var payload = new string('x', 1500);
+            var record = "0007 café " + payload + " 😀";
+            var input = new InputHost(memory.Budget, record + "\n") { PoisonConsumedBytes = true };
+            using var reader = new AwkByteReader(input, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+            Assert.True(await reader.TryBufferAsync());
+            var slot = state.InputRecordStorage;
+            slot.StageBorrowed(reader, reader.Content[..^1]);
+            reader.Advance(reader.Content.Length);
+            state.PublishInputRecord(AwkInputRecordResult.Buffered(slot, AwkRecordTerminator.NewLine),
+                readsMainInput: true);
+            Assert.Equal(4, state.FieldCount);
+
+            var (statement, expected) = form switch
+            {
+                "write" => ("a[$3]=7;delete a[\"seed\"];for(k in a)print k,a[k]", payload + " 7\n"),
+                "read" => ("n=a[$3];delete a[\"seed\"];for(k in a)print k,length(a[k])", payload + " 0\n"),
+                "number" => ("n=a[$3]+0;delete a[\"seed\"];for(k in a)print k,n", payload + " 0\n"),
+                "update" => ("a[$3]++;a[$3]+=2;delete a[\"seed\"];for(k in a)print k,a[k]", payload + " 3\n"),
+                "composite" => ("SUBSEP=\"|\";a[$2,$3]=9;delete a[\"seed\"];for(k in a)print k,a[k]", "café|" + payload + " 9\n"),
+                _ => throw new ArgumentOutOfRangeException(nameof(form)),
+            };
+            var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource("BEGIN{a[\"seed\"]=1;" + statement + "}"));
+            Assert.True(binding.Success);
+            var program = binding.Program;
+            state.InitializeGlobalNames(program.GlobalNames);
+            state.InitializeGlobalReadSlots(program.GlobalReadCount);
+            var host = new MockFileSystem();
+            var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+                AwkFileDescriptor.StdErr, CancellationToken.None, state.Limits, state, static _ => []);
+            using var output = new AwkOutputSink(state.MemoryAccounting, state.CancellationCheckpoint);
+            Assert.Equal(0, input.CommittedInputBytes);
+            memory.Budget.OnGrowth = amount =>
+            {
+                if (amount >= 1400) reader.ReleaseBorrow();
+            };
+            try
+            {
+                await Assert.Single(program.BeginActions).ExecuteAsync(state, io, output);
+            }
+            finally
+            {
+                memory.Budget.OnGrowth = null;
+                await io.CloseAsync();
+            }
+
+            Assert.True(input.CommittedInputBytes > 0);
+            Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        }
+        AssertRefunded(memory.Budget);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task AsciiAndUnicodeBatchesKeepScalarLengthsAfterMutation(bool governed)
     {
         var budget = new CooperativeTestBudget(8 << 20);

@@ -286,7 +286,7 @@ internal partial struct AwkRegionMachine
             if (operand.Kind == AwkRegionOperandKind.Literal) return region.Literals[operand.Index].Key;
             if (IsField(operand)) return state.CaptureFieldKey(FieldIndex(in operand));
             if (operand.Kind == AwkRegionOperandKind.KeyBuilder)
-                return state.CopyArrayKey(storage.Builders[operand.Index].Buffer.AsSpan());
+                return state.CopyArrayKey(new(storage.Builders[operand.Index].Buffer.AsSpan()));
             return ReadKey(index);
         }
 

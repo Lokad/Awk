@@ -167,7 +167,7 @@ public sealed class AwkIndexedArrayStorageTests
         var owner = variables.ResolveOrdinaryArray(name);
         for (var index = 1; index <= 257; index++)
         {
-            if (borrowed) variables.InsertArrayValue(owner, System.Text.Encoding.UTF8.GetBytes(index.ToString(System.Globalization.CultureInfo.InvariantCulture)), AwkValue.FromNumber(index));
+            if (borrowed) variables.InsertArrayValue(owner, new(System.Text.Encoding.UTF8.GetBytes(index.ToString(System.Globalization.CultureInfo.InvariantCulture))), AwkValue.FromNumber(index));
             else variables.SetArrayValue(owner, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
         }
         Assert.True(owner.IsIndexed);

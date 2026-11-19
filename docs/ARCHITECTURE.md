@@ -197,7 +197,9 @@ values before RHS effects. Never keep a dictionary-entry or page reference acros
 evaluation, suspension or admission callbacks; validate/re-locate the current logical
 owner before commit. Detached nested owners and aliases retain their language behavior.
 The runtime owns key text copying, admission and conversion observations. A compact
-key can be constructed directly from a bounded byte span.
+key can be constructed directly from a bounded byte span. Field-key captures, function
+arguments and missing-entry insertions resolve their source after admission. If a callback
+promotes the input borrow, they copy the current bytes with the original spelling.
 The array runtime resolves named operands. Operations on an already resolved array
 use the variable store directly. Numeric reads classify an ordinal once and pass
 any captured location by value through binding. The store validates the current

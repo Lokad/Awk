@@ -189,10 +189,11 @@ public sealed class AwkArrayCellTests
             variables.SetArrayValue(array, key, AwkValue.FromNumber(99));
         }
 
+        var source = new AwkCopySource("kept"u8);
         if (update)
         {
             var target = borrowedKey
-                ? variables.PrepareArrayUpdate(array, "kept"u8)
+                ? variables.PrepareArrayUpdate(array, in source)
                 : variables.PrepareArrayUpdate(array, key);
             if (!input) ReplaceCell();
             Assert.True(replaced);
@@ -204,7 +205,7 @@ public sealed class AwkArrayCellTests
         }
         else
         {
-            var number = borrowedKey ? variables.GetArrayNumber(array, "kept"u8) : variables.GetArrayNumber(array, key);
+            var number = borrowedKey ? variables.GetArrayNumber(array, in source) : variables.GetArrayNumber(array, key);
             if (!input) ReplaceCell();
             Assert.True(replaced);
             Assert.Equal(7, number);

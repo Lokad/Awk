@@ -226,7 +226,7 @@ public sealed class AwkArrayKeyTests
         var bytes = AwkUtf8Codec.Encode(text).ToArray();
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var runtime = AwkTestHarness.CreateRuntimeStateWithCounters(counters);
-        var key = runtime.CopyArrayKey(bytes);
+        var key = runtime.CopyArrayKey(new(bytes));
         Assert.Equal(bytes.Length > 7 ? 1 : 0, counters[AwkCounter.TextAllocations]);
         Assert.Equal(0, counters[AwkCounter.StringDecodes]);
         Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);

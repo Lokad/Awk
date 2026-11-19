@@ -101,16 +101,16 @@ internal sealed partial class AwkArrayRuntime
 
     public AwkValue GetFieldValue(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding = default)
     {
-        if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
-            TryGetBorrowedAwkValue(name, bytes, out var value, binding, input: true))
+        if (index.IsNamedField && _state.RecordFields.TryGetFieldCopySource(index, out var source) &&
+            TryGetBorrowedAwkValue(name, in source, out var value, binding, input: true))
             return value;
         return GetAwkValue(name, _state.ToArrayKey(_state.RecordFields.GetFieldValue(index)), binding);
     }
 
     internal double GetFieldNumber(AwkArrayName name, AwkFieldIndex index, AwkArrayBinding binding)
     {
-        if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
-            TryGetBorrowedNumber(name, bytes, out var number, binding, input: true))
+        if (index.IsNamedField && _state.RecordFields.TryGetFieldCopySource(index, out var source) &&
+            TryGetBorrowedNumber(name, in source, out var number, binding, input: true))
             return number;
         return GetNumber(name, _state.ToArrayKey(_state.RecordFields.GetFieldValue(index)), binding);
     }
@@ -125,8 +125,8 @@ internal sealed partial class AwkArrayRuntime
 
     internal void SetFieldValue(AwkArrayName name, AwkFieldIndex index, AwkValue value, AwkArrayBinding binding)
     {
-        if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes) &&
-            TrySetBorrowedAwkValue(name, bytes, value, binding, input: true)) return;
+        if (index.IsNamedField && _state.RecordFields.TryGetFieldCopySource(index, out var source) &&
+            TrySetBorrowedAwkValue(name, in source, value, binding, input: true)) return;
         var key = _state.ToArrayKey(_state.RecordFields.GetFieldValue(index));
         _state.ThrowIfCancellationRequested();
         SetAwkValue(name, key, value, binding);
@@ -135,11 +135,11 @@ internal sealed partial class AwkArrayRuntime
     internal AwkArrayUpdateTarget PrepareFieldUpdate(in AwkArrayName name, AwkFieldIndex index,
         AwkArrayBinding binding = default, in AwkArrayUpdateTarget previous = default)
     {
-        if (index.IsNamedField && _state.RecordFields.TryGetUnmaterializedFieldBytes(index, out var bytes))
+        if (index.IsNamedField && _state.RecordFields.TryGetFieldCopySource(index, out var source))
         {
             if (_state.TryGetBoundArray(in name, binding, out var array))
-                return _variables.PrepareArrayUpdate(array, bytes, in previous, input: true);
-            if (TryPrepareUnboundBorrowedUpdate(name, bytes, binding, out var target, input: true))
+                return _variables.PrepareArrayUpdate(array, in source, in previous, input: true);
+            if (TryPrepareUnboundBorrowedUpdate(name, in source, binding, out var target, input: true))
                 return target;
         }
         return PrepareUpdate(name, _state.ToArrayKey(_state.RecordFields.GetFieldValue(index)), binding, in previous);
@@ -202,41 +202,41 @@ internal sealed partial class AwkArrayRuntime
                 .AsNumber(_state.CancellationCheckpoint);
     }
 
-    public bool TryGetBorrowedNumber(AwkArrayName name, ReadOnlySpan<byte> index, out double number,
+    private bool TryGetBorrowedNumber(AwkArrayName name, in AwkCopySource index, out double number,
         AwkArrayBinding binding, bool input = false)
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
         {
-            number = _variables.GetArrayNumber(array, index, input);
+            number = _variables.GetArrayNumber(array, in index, input);
             return true;
         }
-        var found = TryReadUnboundBorrowedValue(name, index, out var value, binding, input);
+        var found = TryReadUnboundBorrowedValue(name, in index, out var value, binding, input);
         number = found ? value.AsNumber(_state.CancellationCheckpoint) : 0;
         return found;
     }
 
-    public bool TryGetBorrowedAwkValue(AwkArrayName name, ReadOnlySpan<byte> index, out AwkValue value,
+    private bool TryGetBorrowedAwkValue(AwkArrayName name, in AwkCopySource index, out AwkValue value,
         AwkArrayBinding binding = default, bool input = false)
     {
         if (_state.TryGetBoundArray(name, binding, out var array))
         {
-            value = _variables.GetArrayValue(array, index, input);
+            value = _variables.GetArrayValue(array, in index, input);
             return true;
         }
-        return TryReadUnboundBorrowedValue(name, index, out value, binding, input);
+        return TryReadUnboundBorrowedValue(name, in index, out value, binding, input);
     }
 
-    private bool TryReadUnboundBorrowedValue(AwkArrayName name, ReadOnlySpan<byte> index, out AwkValue value,
+    private bool TryReadUnboundBorrowedValue(AwkArrayName name, in AwkCopySource index, out AwkValue value,
         AwkArrayBinding binding, bool input)
     {
         var resolved = _variableRuntime.ResolveArrayReadName(name);
         if (_variables.TryGetOrdinaryArray(resolved, out var array))
         {
-            value = _variables.GetArrayValue(array, index, input);
+            value = _variables.GetArrayValue(array, in index, input);
             _state.BindGlobalArray(binding, resolved);
             return true;
         }
-        var found = _variables.TryGetExistingArrayValue(resolved, index, out value);
+        var found = _variables.TryGetExistingArrayValue(resolved, index.AsSpan(), out value);
         if (found) _state.BindGlobalArray(binding, resolved);
         return found;
     }
@@ -251,17 +251,17 @@ internal sealed partial class AwkArrayRuntime
         return found;
     }
 
-    private bool TryPrepareUnboundBorrowedUpdate(AwkArrayName name, ReadOnlySpan<byte> index,
+    private bool TryPrepareUnboundBorrowedUpdate(AwkArrayName name, in AwkCopySource index,
         AwkArrayBinding binding, out AwkArrayUpdateTarget target, bool input = false)
     {
         var resolved = _variableRuntime.ResolveArrayReadName(name);
         if (_variables.TryGetOrdinaryArray(resolved, out var array))
         {
-            target = _variables.PrepareArrayUpdate(array, index, input: input);
+            target = _variables.PrepareArrayUpdate(array, in index, input: input);
             _state.BindGlobalArray(binding, resolved);
             return true;
         }
-        else if (_variables.TryGetExistingArrayKeyValue(resolved, index, out var key, out var value))
+        else if (_variables.TryGetExistingArrayKeyValue(resolved, index.AsSpan(), out var key, out var value))
         {
             _state.BindGlobalArray(binding, resolved);
             target = new(key.WithInputOrigin(input), value.AsNumber(_state.CancellationCheckpoint), null);
@@ -275,7 +275,7 @@ internal sealed partial class AwkArrayRuntime
         TryGetBorrowedKey(name, builder.AsSpan(), out var key, binding)
             ? key.WithInputOrigin(false) : CopyKey(builder);
 
-    internal bool TrySetBorrowedAwkValue(AwkArrayName name, ReadOnlySpan<byte> index,
+    private bool TrySetBorrowedAwkValue(AwkArrayName name, in AwkCopySource index,
         AwkValue value, AwkArrayBinding binding, bool input = false)
     {
         AwkArrayCell? cell;
@@ -283,9 +283,9 @@ internal sealed partial class AwkArrayRuntime
         AwkValue prior;
         if (_state.TryGetBoundArray(name, binding, out var array))
         {
-            if (!_variables.TryGetArrayKeySlot(array, index, out key, out prior, out cell))
+            if (!_variables.TryGetArrayKeySlot(array, index.AsSpan(), out key, out prior, out cell))
             {
-                _variables.InsertArrayValue(array, index, value, input);
+                _variables.InsertArrayValue(array, in index, value, input);
                 return true;
             }
         }
@@ -297,14 +297,14 @@ internal sealed partial class AwkArrayRuntime
                 // Special arrays keep their mutation policy and existing key.
                 // Materializing a field first could move admission before a
                 // required read-only diagnostic.
-                if (!_variables.TryGetExistingArrayKey(resolved, index, out var specialKey)) return false;
+                if (!_variables.TryGetExistingArrayKey(resolved, index.AsSpan(), out var specialKey)) return false;
                 _state.ThrowIfCancellationRequested();
                 SetAwkValue(name, specialKey, value, binding);
                 return true;
             }
-            if (!_variables.TryGetArrayKeySlot(array, index, out key, out prior, out cell))
+            if (!_variables.TryGetArrayKeySlot(array, index.AsSpan(), out key, out prior, out cell))
             {
-                _variables.InsertArrayValue(array, index, value, input);
+                _variables.InsertArrayValue(array, in index, value, input);
                 _state.BindGlobalArray(binding, resolved);
                 return true;
             }
@@ -319,25 +319,25 @@ internal sealed partial class AwkArrayRuntime
 
     internal void SetBuilderValue(AwkArrayName name, AwkUtf8Builder builder, AwkValue value, AwkArrayBinding binding)
     {
-        if (TrySetBorrowedAwkValue(name, builder.AsSpan(), value, binding)) return;
+        if (TrySetBorrowedAwkValue(name, new(builder.AsSpan()), value, binding)) return;
         var key = CopyKey(builder);
         _state.ThrowIfCancellationRequested();
         SetAwkValue(name, key, value, binding);
     }
 
     public AwkValue GetAwkValue(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
-        TryGetBorrowedAwkValue(name, builder.AsSpan(), out var value, binding) ? value : GetAwkValue(name, CopyKey(builder), binding);
+        TryGetBorrowedAwkValue(name, new(builder.AsSpan()), out var value, binding) ? value : GetAwkValue(name, CopyKey(builder), binding);
 
     public double GetNumber(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding) =>
-        TryGetBorrowedNumber(name, builder.AsSpan(), out var number, binding) ? number : GetNumber(name, CopyKey(builder), binding);
+        TryGetBorrowedNumber(name, new(builder.AsSpan()), out var number, binding) ? number : GetNumber(name, CopyKey(builder), binding);
 
     public AwkArrayUpdateTarget PrepareUpdate(AwkArrayName name, AwkUtf8Builder builder, AwkArrayBinding binding,
         in AwkArrayUpdateTarget previous = default)
     {
-        var bytes = builder.AsSpan();
+        var source = new AwkCopySource(builder.AsSpan());
         if (_state.TryGetBoundArray(name, binding, out var array))
-            return _variables.PrepareArrayUpdate(array, bytes, in previous);
-        return TryPrepareUnboundBorrowedUpdate(name, bytes, binding, out var target)
+            return _variables.PrepareArrayUpdate(array, in source, in previous);
+        return TryPrepareUnboundBorrowedUpdate(name, in source, binding, out var target)
             ? target : PrepareUpdate(name, CopyKey(builder), binding, in previous);
     }
 

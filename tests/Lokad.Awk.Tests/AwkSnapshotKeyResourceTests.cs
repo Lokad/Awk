@@ -232,7 +232,7 @@ public sealed class AwkSnapshotKeyResourceTests
             var key = source switch
             {
                 "ordinals" => AwkArrayKey.FromOrdinal(index),
-                "compact" => state.CopyArrayKey(AwkUtf8Codec.Encode("v" + index).Span),
+                "compact" => state.CopyArrayKey(new(AwkUtf8Codec.Encode("v" + index).Span)),
                 // Keep owned-text lifetime/refusal coverage distinct from compact keys.
                 _ => new AwkArrayKey("long-key-" + index)
             };
