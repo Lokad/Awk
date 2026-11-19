@@ -38,20 +38,31 @@ internal sealed partial class AwkRecordCursor
     private AwkRecordReadStatus TryReadCsvRecord(ReadOnlySpan<byte> content, AwkRecordStorage? storage)
     {
         var start = GetRelativeScanStart(content);
-        long nextCheckpoint = start;
-        for (var i = start; i < content.Length; i++)
+        while (start < content.Length)
         {
-            if (i >= nextCheckpoint)
+            _scanCheckpoint();
+            var chunkEnd = start + Math.Min(AwkRuntimeLimits.CancellationCheckBytes, content.Length - start);
+            var position = start;
+            while (position < chunkEnd)
             {
-                _scanCheckpoint();
-                nextCheckpoint = (long)i + AwkRuntimeLimits.CancellationCheckBytes;
+                var remaining = content[position..chunkEnd];
+                var newline = remaining.IndexOf((byte)'\n');
+                if (newline < 0)
+                {
+                    if ((remaining.Count((byte)'"') & 1) != 0) _csvInQuote = !_csvInQuote;
+                    break;
+                }
+                if ((remaining[..newline].Count((byte)'"') & 1) != 0) _csvInQuote = !_csvInQuote;
+                position += newline;
+                if (!_csvInQuote)
+                {
+                    _state.ThrowIfCancellationRequested();
+                    return ConsumePreparedRecord(PrepareCsvRecord(content[..position],
+                        AwkRecordTerminator.NewLine, storage), position + 1);
+                }
+                position++;
             }
-            if (content[i] == (byte)'"') _csvInQuote = !_csvInQuote;
-            if (content[i] == (byte)'\n' && !_csvInQuote)
-            {
-                _state.ThrowIfCancellationRequested();
-                return ConsumePreparedRecord(PrepareCsvRecord(content[..i], AwkRecordTerminator.NewLine, storage), i + 1);
-            }
+            start = chunkEnd;
         }
         _state.ThrowIfCancellationRequested();
         MarkScannedThroughEnd(0);
