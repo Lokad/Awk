@@ -1207,8 +1207,6 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("+00007:-00007\n+00012:000000\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-
-        Assert.Equal(1, result.Counters[AwkCounter.StringDecodes]);
     }
 
     [Fact]
@@ -1280,7 +1278,7 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(2, owned.Counters[AwkCounter.TextAllocations] - direct.Counters[AwkCounter.TextAllocations]);
         Assert.Equal(18, owned.Counters[AwkCounter.TextBytes] - direct.Counters[AwkCounter.TextBytes]);
         Assert.Equal(owned.Counters[AwkCounter.Utf8Encodes], direct.Counters[AwkCounter.Utf8Encodes]);
-        Assert.Equal(owned.Counters[AwkCounter.StringDecodes], direct.Counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, direct.Counters[AwkCounter.StringDecodes]);
     }
 
     [Theory]
@@ -1519,8 +1517,8 @@ public sealed partial class AwkBenchmarkCounterTests
     internal async Task Awk_UnicodeStringEscapesShareLiteralRuntimeCounters()
     {
         var control = await RunAsync(["BEGIN{v=\"\U0001f600\";printf \"%s\",v;exit}"], "");
-        // Plain %s keeps the value in UTF-8; only the source escape boundary decodes.
-        Assert.Equal(1, control.Counters[AwkCounter.StringDecodes]);
+        // The literal format is ready and plain %s consumes the value in UTF-8.
+        Assert.Equal(0, control.Counters[AwkCounter.StringDecodes]);
         foreach (var literal in new[] { "\\u1f600", "\U0001f600" })
         {
             var (exit, host, counters) = await RunAsync(

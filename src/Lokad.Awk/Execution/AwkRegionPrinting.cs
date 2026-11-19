@@ -4,7 +4,7 @@ internal static class AwkRegionPrinting
 {
     internal static void Printf(AwkRuntimeState state, AwkRegionStorage storage, AwkOutputSink output, AwkRegionPrintf print)
     {
-        if (print.Format < 0)
+        if (print is { Format: < 0, LiteralFormat: null })
         {
             if (print.Output.IsRedirected) storage.PrepareString(print.Output.Value);
             if (state.CompatibilityMode is not (AwkCompatibilityMode.Posix or AwkCompatibilityMode.Traditional))
@@ -26,7 +26,7 @@ internal static class AwkRegionPrinting
                 }
             }
             if (print.Output.IsRedirected) storage.PrepareString(print.Output.Value);
-            var format = storage.PrepareFormattedString(storage.Values[print.Format], out formatBytes);
+            var format = print.LiteralFormat ?? storage.PrepareFormattedString(storage.Values[print.Format], out formatBytes);
             if (print.Fields.Length != 0)
                 AppendPrintf(state, storage, output, print.Output, format, new AwkPrintfFieldArguments(print.Fields, state));
             else
@@ -36,7 +36,7 @@ internal static class AwkRegionPrinting
         {
             if (print.Fields.Length == 0) storage.ReleaseValues(print.Values, print.Count);
             storage.ReleaseFormattedString(formatBytes);
-            storage.ReleaseValue(print.Format);
+            if (print.Format >= 0) storage.ReleaseValue(print.Format);
         }
     }
 

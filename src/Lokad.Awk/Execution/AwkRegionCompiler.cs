@@ -622,11 +622,23 @@ internal sealed partial class AwkRegionCompiler
         if (syntax.Kind == AwkExpressionKind.Group && syntax.FirstChild is { Kind: AwkExpressionKind.ExpressionList } list)
             syntax = list;
         IReadOnlyList<AwkExpressionSyntax> arguments = syntax.Kind == AwkExpressionKind.ExpressionList ? syntax.Children : [syntax];
-        if (arguments.Count == 0 || !Expression(arguments[0], out var format, preserveOrigin: true)) return false;
-        var formatSlot = _values++;
-        // Capture the value before arguments; numeric formatting uses CONVFMT
-        // after their effects. The captured text survives record/variable writes.
-        Emit(new(AwkRegionInstructionKind.Value, formatSlot, format, Detail: 1));
+        if (arguments.Count == 0) return false;
+        var formatSlot = -1;
+        string? literalFormat = null;
+        if (arguments[0].Kind == AwkExpressionKind.String)
+        {
+            if (!AwkSourceLiterals.TryReadStringLiteral(arguments[0], _scope, out var literal)) return false;
+            // Retain the original text in the representation used by the formatter.
+            _ = AwkUtf8Codec.GetEncodedByteCount(literal);
+            literalFormat = literal;
+        }
+        else
+        {
+            if (!Expression(arguments[0], out var format, preserveOrigin: true)) return false;
+            formatSlot = _values++;
+            // Capture before arguments; numeric formatting uses CONVFMT after their effects.
+            Emit(new(AwkRegionInstructionKind.Value, formatSlot, format, Detail: 1));
+        }
         var count = arguments.Count - 1;
         var fields = new AwkFieldIndex[count];
         for (var index = 0; index < count; index++)
@@ -650,7 +662,7 @@ internal sealed partial class AwkRegionCompiler
             }
         }
         var site = _printfs.Count;
-        _printfs.Add(new(formatSlot, values, count, fields, output));
+        _printfs.Add(new(formatSlot, values, count, fields, output, literalFormat));
         Emit(new(AwkRegionInstructionKind.Printf, Left: site));
         return true;
     }
