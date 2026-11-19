@@ -208,7 +208,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Same(program, source.Text);
         var segment = Assert.Single(source.Segments);
         Assert.Equal(new AwkTextSpan(0, program.Length), segment.Span);
@@ -223,7 +223,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal(new AwkSourceName("<inline:1>"), source.SourceName);
         Assert.Equal("function helper(){ return 1 }\nBEGIN{print helper()}", source.Text);
         Assert.Equal(
@@ -249,7 +249,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal("BEGIN{marker=1}\nBEGIN{print marker}", source.Text);
         Assert.Equal(
             [AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Inline],
@@ -279,7 +279,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal(includeCount, source.Segments.Sum(segment => segment.LineContinuations.Count));
         var position = source.Text.LastIndexOf("value", StringComparison.Ordinal);
         var mapped = Assert.Single(AwkSourceDiagnosticMap.MapDiagnostics(source,
@@ -317,7 +317,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal("BEGIN{marker=\"included\"}\nBEGIN{print marker}", source.Text);
     }
 
@@ -333,7 +333,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal(program, source.Text);
         Assert.DoesNotContain("marker=\"included\"", source.Text);
     }
@@ -351,13 +351,22 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var sources = LoadedSources(result);
-        Assert.Equal(2, sources.Count);
-        Assert.Equal(new AwkSourceName("/lib/common.awk"), sources[0].SourceName);
-        Assert.Equal(new AwkSourceName("/main.awk"), sources[1].SourceName);
-        Assert.Contains("marker=\"include\"", sources[0].Text);
-        Assert.DoesNotContain("marker=\"include\"", sources[1].Text);
-        Assert.Contains("BEGIN{print marker}", sources[1].Text);
+        var source = LoadedSource(result);
+        Assert.Collection(source.Segments,
+            include =>
+            {
+                Assert.Equal(AwkSourceSegmentKind.Include, include.Kind);
+                Assert.Equal(new AwkSourceName("/lib/common.awk"), include.SourceName);
+                Assert.Contains("marker=\"include\"", source.Text.Substring(include.Span.Start, include.Span.Length));
+            },
+            main =>
+            {
+                Assert.Equal(AwkSourceSegmentKind.File, main.Kind);
+                Assert.Equal(new AwkSourceName("/main.awk"), main.SourceName);
+                var mainText = source.Text.Substring(main.Span.Start, main.Span.Length);
+                Assert.Contains("BEGIN{print marker}", mainText);
+                Assert.DoesNotContain("marker=\"include\"", mainText);
+            });
     }
 
     [Fact]
@@ -371,7 +380,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal("BEGIN{marker=\"relative\"}\nBEGIN{print marker}", source.Text);
         Assert.Equal(new AwkSourceName("lib/common.awk"), source.Segments[0].SourceName);
         Assert.Equal(new AwkSourceName("<inline:1>"), source.Segments[^1].SourceName);
@@ -386,7 +395,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal("BEGIN{marker=\"in\" \"clude\"}\nBEGIN{print marker}", source.Text);
         Assert.Equal(
             [AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Inline],
@@ -401,7 +410,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal("BEGIN{print 1 + 2}", source.Text);
         var segment = Assert.Single(source.Segments);
         Assert.Equal(AwkSourceSegmentKind.Inline, segment.Kind);
@@ -417,7 +426,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal("BEGIN{value=1 + 2}\n{print \"@marker\", value + 3}", source.Text);
         var segment = Assert.Single(source.Segments);
         Assert.Equal(2, segment.LineContinuations.Count);
@@ -438,7 +447,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal(program, source.Text);
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.DoesNotContain(
@@ -464,7 +473,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.Equal(AwkDiagnosticId.UnsupportedPolicy, diagnostic.Id);
@@ -514,7 +523,7 @@ public sealed class AwkSourceLoaderTests
 
         var result = await LoadAsync(fileSystem, invocation);
 
-        var source = Assert.Single(LoadedSources(result));
+        var source = LoadedSource(result);
         Assert.Equal("BEGIN{print _ \"text\"}", source.Text);
         var binding = AwkTestHarness.BindDefaultProfile(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.Empty(binding.Diagnostics);
@@ -703,9 +712,9 @@ public sealed class AwkSourceLoaderTests
                 environment));
     }
 
-    private static IReadOnlyList<AwkSourceUnit> LoadedSources(AwkSourceLoadResult result) =>
+    private static AwkSourceUnit LoadedSource(AwkSourceLoadResult result) =>
         result is AwkSourceLoadResult.Loaded loaded
-            ? loaded.Sources
+            ? loaded.CompilationSource
             : throw new InvalidOperationException("Expected loaded awk sources.");
 
     private static Task<AwkSourceLoadResult> LoadAsync(

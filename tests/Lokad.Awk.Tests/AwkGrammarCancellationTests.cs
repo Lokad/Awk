@@ -228,9 +228,10 @@ public sealed class AwkGrammarCancellationTests
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         var completed = Assert.IsType<AwkSourceLoadResult.Loaded>(AwkSourceLoadResult.FromSources(sources));
         Assert.Equal(firstText + "\n" + secondText, completed.CompilationSource.Text);
+        Assert.Equal(2, completed.CompilationSource.Segments.Count);
+        Assert.Equal(sources[0].Segments[0], completed.CompilationSource.Segments[0]);
         Assert.Equal(12_001, completed.CompilationSource.Segments[1].Span.Start);
         Assert.Equal(secondName, completed.CompilationSource.Segments[1].SourceName);
-        Assert.Same(sources, completed.Sources);
     }
 
     [Fact]

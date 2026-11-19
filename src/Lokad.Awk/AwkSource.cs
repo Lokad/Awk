@@ -216,15 +216,13 @@ internal abstract record AwkSourceLoadResult
 
         var compilationSource = AssembleCompilationSource(sources, checkpoint, memory ?? AwkFrontendMemory.Disabled);
         checkpoint?.Invoke();
-        return new Loaded(sources, compilationSource);
+        return new Loaded(compilationSource);
     }
 
     public static AwkSourceLoadResult Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
         new Failed(errorMessage, id);
 
-    internal sealed record Loaded(
-        IReadOnlyList<AwkSourceUnit> Sources,
-        AwkSourceUnit CompilationSource) : AwkSourceLoadResult;
+    internal sealed record Loaded(AwkSourceUnit CompilationSource) : AwkSourceLoadResult;
 
     internal sealed record Failed(
         ReadOnlyMemory<byte> ErrorMessage,
