@@ -14,22 +14,30 @@ public sealed class AwkStructuredCloseTests
 
     [Theory]
     [MemberData(nameof(FailureCases))]
+    [InlineData("source", true, "none")]
+    [InlineData("output-pipe-exit", false, "none")]
+    [InlineData("fflush-variable", true, "none")]
+    [InlineData("fflush-expression", true, "none")]
     public async Task ExpectedCloseFailuresKeepTheirCauseAndRetirementContract(string kind, bool retired, string details)
     {
-        var host = new CloseHost { RetiredFailure = retired };
+        var host = new CloseHost { RetiredFailure = retired, FailureWithoutCause = details == "none" };
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (details != "none") policy = policy.WithMemoryBudget(budget);
         if (details == "hidden") policy = policy.WithHostErrorDetails(false);
         if (details == "oversize") policy = policy.WithMaxHostErrorBytes(4);
         var (arguments, output, identity) = Case(kind);
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", arguments, []));
         Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
         Assert.Equal(output, host.Output.ToString());
-        var prefix = kind is "source" or "include" ? "Close failed" : "close failed";
-        Assert.Equal("awk: " + identity + ": " + prefix + ": " +
-            (details == "visible" ? "storage unavailable" : "Operation failed.") + "\n", host.Error.ToString());
+        var sourceClose = kind is "source" or "include";
+        var prefix = sourceClose ? "Close failed" : "close failed";
+        var diagnostic = details == "none"
+            ? prefix + (sourceClose ? "." : "")
+            : prefix + ": " + (details == "visible" ? "storage unavailable" : "Operation failed.");
+        Assert.Equal("awk: " + identity + ": " + diagnostic + "\n", host.Error.ToString());
         Assert.Empty(host.Active);
-        Assert.Equal(retired ? 1 : 2, host.CloseAttempts[kind == "output-pipe" ? 11 : 10]);
+        Assert.Equal(retired ? 1 : 2, host.CloseAttempts[kind is "output-pipe" or "output-pipe-exit" ? 11 : 10]);
         Assert.Equal(0, host.SuccessfulCloseReplays);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
@@ -153,10 +161,14 @@ public sealed class AwkStructuredCloseTests
         "redirect-output" => (["BEGIN{print \"before\";print 1>\"out\"}"], "before\n", "out"),
         "close" => (["BEGIN{print \"before\";print 1>\"out\";close(\"out\")}"], "before\n", "out"),
         "fflush" => (["BEGIN{print \"before\";print 1>\"out\";fflush(\"out\")}"], "before\n", "out"),
+        "fflush-variable" => (["BEGIN{p=\"one\";print \"before\";print \"x\">p;fflush(p);print \"after\"}"], "before\n", "one"),
+        "fflush-expression" => (["BEGIN{p=\"one\";print \"before\";print \"x\">p;print fflush(p);print \"after\"}"], "before\n", "one"),
         "source" => (["-f", "/script.awk"], "", "/script.awk"),
         "include" => (["-i", "/include.awk", "BEGIN{print \"body\"}"], "", "/include.awk"),
         "input-pipe" => (["BEGIN{print \"before\";\"source a:b\"|getline x;close(\"source a:b\")}"], "before\n", "source a:b"),
-        _ => (["BEGIN{print \"before\";print 1|\"sink a:b\";close(\"sink a:b\")}"], "before\n", "sink a:b")
+        "output-pipe" => (["BEGIN{print \"before\";print 1|\"sink a:b\";close(\"sink a:b\")}"], "before\n", "sink a:b"),
+        "output-pipe-exit" => (["BEGIN{print \"payload\"|\"consumer\";exit}"], "", "consumer"),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
     private sealed class CloseHost : IAwkHost
@@ -165,6 +177,7 @@ public sealed class AwkStructuredCloseTests
         private bool _failed;
         private readonly Dictionary<AwkFileDescriptor, byte[]> _inputs = [];
         public bool RetiredFailure { get; init; }
+        public bool FailureWithoutCause { get; init; }
         public bool FailReads { get; init; }
         public bool RejectStderr { get; init; }
         public Func<Task>? BeforeFirstClose { get; init; }
@@ -192,7 +205,8 @@ public sealed class AwkStructuredCloseTests
                 _failed = true;
                 if (BeforeFirstClose is { } before) await before();
                 if (RetiredFailure) Active.Remove(descriptor);
-                return AwkDescriptorCloseResult.Failure(new(AwkOperationErrorKind.IoFailure, "storage unavailable"), RetiredFailure);
+                var error = FailureWithoutCause ? default : new AwkOperationError(AwkOperationErrorKind.IoFailure, "storage unavailable");
+                return AwkDescriptorCloseResult.Failure(error, RetiredFailure);
             }
             Active.Remove(descriptor);
             return AwkDescriptorCloseResult.Closed();

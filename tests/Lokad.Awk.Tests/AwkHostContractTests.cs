@@ -593,30 +593,6 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         Assert.Empty(host.CommandInvocations);
     }
 
-    [Fact]
-    public async Task Awk_FailedPipeDescriptorCloseIsAnAwkDiagnostic()
-    {
-        var host = new TestOperationVisitor([]);
-        host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(
-            new AwkFileDescriptor(20),
-            new AwkFileDescriptor(21)));
-        host.EnqueueCommandExitCode(0);
-        host.EnqueueAppendResult(AwkAppendResult.Accepted());
-        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Failure(default, descriptorRetired: false));
-        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
-        host.EnqueueAppendResult(AwkAppendResult.Accepted());
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
-            "awk",
-            "BEGIN{print \"payload\" | \"consumer\"; exit}"));
-
-        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(
-            "awk: consumer: close failed\n",
-            host.GetAppendedOutput(AwkFileDescriptor.StdErr));
-    }
-
     private sealed class TraversalHost : IAwkHost
     {
         private readonly HashSet<string> _directories = ["/", "/work", "/target", "/target/sub"];
@@ -662,24 +638,5 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => Files.CloseDescriptorAsync(descriptor, token);
         public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => Files.RunCommandAsync(command, token);
         public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => Files.CreatePipeAsync(token);
-    }
-
-    [Fact]
-    public async Task Awk_FailedSourceDescriptorCloseIsAPathDiagnostic()
-    {
-        var host = new MockFileSystem
-        {
-            CloseDescriptorResultOverride = static (_, _) => false
-        };
-        host.AddFile("/script.awk", "BEGIN{print 1}");
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
-
-        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(0, host.OpenFileCount);
-        Assert.Equal(
-            "awk: /script.awk: Close failed.\n",
-            host.GetOutput(AwkFileDescriptor.StdErr));
     }
 }

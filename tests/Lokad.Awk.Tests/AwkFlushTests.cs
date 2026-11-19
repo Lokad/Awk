@@ -155,30 +155,6 @@ public sealed class AwkFlushTests
         Assert.Equal(0, host.OpenPipeCount);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task FlushHostFailurePreservesPriorOutputAndCleansUp(bool statement)
-    {
-        var files = new MockFileSystem();
-        var failures = 0;
-        files.CloseDescriptorResultOverride = (_, closed) =>
-        {
-            if (failures++ == 0)
-            {
-                return false;
-            }
-            return closed;
-        };
-        var call = statement ? "fflush(p)" : "print fflush(p)";
-        var exit = await Run(files, "BEGIN{p=\"one\";print \"before\";print \"x\">p;" + call + ";print \"after\"}");
-        Assert.Equal(2, exit.Value);
-        Assert.Equal("before\n", files.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: one: close failed\n", files.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, files.OpenFileCount);
-        Assert.Equal(1, failures);
-    }
-
     [Fact]
     public async Task WarningHostExceptionDoesNotRepeatTheWarning()
     {

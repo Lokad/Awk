@@ -23,8 +23,6 @@ public sealed class MockFileSystem : IAwkHost
 
     public Action? AfterCloseDescriptor { get; set; }
 
-    public Func<AwkFileDescriptor, bool, bool>? CloseDescriptorResultOverride { get; set; }
-
     public Func<AwkFileDescriptor, CancellationToken, Task<AwkDescriptorCloseResult>>?
         CloseDescriptorAsyncOverride { get; set; }
 
@@ -176,12 +174,8 @@ public sealed class MockFileSystem : IAwkHost
 
         var closed = _descriptors.Close(descriptor);
         AfterCloseDescriptor?.Invoke();
-        var closeDescriptorResultOverride = CloseDescriptorResultOverride;
-        var succeeded = closeDescriptorResultOverride == null
-            ? closed
-            : closeDescriptorResultOverride(descriptor, closed);
         return Task.FromResult(
-            succeeded ? AwkDescriptorCloseResult.Closed() : AwkDescriptorCloseResult.Failure(default, descriptorRetired: closed));
+            closed ? AwkDescriptorCloseResult.Closed() : AwkDescriptorCloseResult.Failure(default, descriptorRetired: false));
     }
 
     public ValueTask<AwkReadBuffer> ReadAsync(
