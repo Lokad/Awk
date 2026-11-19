@@ -45,6 +45,49 @@ public sealed partial class AwkInternalFailureTests
         Assert.Equal(0, budget.Reserved);
     }
 
+    [Theory]
+    [InlineData("inner()")]
+    [InlineData("outer()")]
+    public async Task FunctionReturnPreservesBudgetCallbackFault(string call)
+    {
+        var host = new MockFileSystem();
+        var notifications = new List<Exception>();
+        var budget = new CooperativeTestBudget(4 << 20);
+        var refundFailed = false;
+        var clock = new CallbackClock(() => budget.OnRefund = () =>
+        {
+            budget.OnRefund = null;
+            refundFailed = true;
+            throw new InvalidOperationException("private refund detail");
+        });
+        var policy = AwkTestHarness.CreatePolicy().WithMemoryBudget(budget)
+            .WithTimeProvider(clock).WithInternalFailureObserver(notifications.Add);
+        // The clock arms the callback after the inner frame owns its text.
+        const string functions = """
+            function inner(v) { v=tolower("LONGER TARGET TEXT FOR THE LOCAL"); systime(); return 7 }
+            function outer(v) { v=tolower("LONGER OUTER TEXT"); return 2+inner() }
+            """;
+        var program = functions + "\nBEGIN{print \"ready\"; print " + call + "; print \"late\"}";
+        var result = await AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", program))
+            .ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.True(refundFailed);
+        Assert.Equal(AwkExitCode.FatalError, result);
+        Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: execution failed without exposing host exception details\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Empty(notifications);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    private sealed class CallbackClock(Action callback) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow()
+        {
+            callback();
+            return DateTimeOffset.UnixEpoch;
+        }
+    }
+
     private sealed class FaultRegex(string stage) : IAwkRegexEngine
     {
         private static void Fail() => throw new InvalidOperationException("private provider detail");

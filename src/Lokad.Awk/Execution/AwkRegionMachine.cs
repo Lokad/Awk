@@ -290,8 +290,7 @@ internal partial struct AwkRegionMachine
             // Conversion consumes the actual funded callee snapshot before retirement.
             storage.Numbers[resumePoint.Destination] = value.AsNumber(_state.CancellationCheckpoint);
         else _storage.MoveRetiringReturnValueTo(storage, resumePoint.Destination, in value);
-        _state.PopFunctionFrame();
-        RestoreCaller(region, storage, resumePoint.Position, callerFrame);
+        RetireToCaller(region, storage, resumePoint.Position, callerFrame);
         if (resumePoint.IsAssignment)
         {
             ref readonly var variable = ref region.Operands[region.Instructions[_position].Target];
@@ -317,8 +316,7 @@ internal partial struct AwkRegionMachine
             {
                 // This number is the caller's complete return value. Its actual
                 // frame still owns aliases and scratch until its own retirement.
-                _state.PopFunctionFrame();
-                RestoreCaller(region, storage, resumePoint.Position, callerFrame);
+                RetireToCaller(region, storage, resumePoint.Position, callerFrame);
                 _state.ThrowIfCancellationRequested();
 
                 if (_output.HasPendingOutput && !TryFlush(_position + 1))
@@ -338,8 +336,7 @@ internal partial struct AwkRegionMachine
                 storage.ReleaseValue(destination);
             else if (resumePoint.Consumer != AwkRegionReturnConsumer.ArrayUpdate)
                 storage.StoreValue(destination, AwkValue.FromNumber(number));
-            _state.PopFunctionFrame();
-            RestoreCaller(region, storage, resumePoint.Position, callerFrame);
+            RetireToCaller(region, storage, resumePoint.Position, callerFrame);
             if (resumePoint.Consumer == AwkRegionReturnConsumer.ArrayUpdate)
             {
                 CompleteReturnedArrayUpdate(region, storage, number);
@@ -367,12 +364,15 @@ internal partial struct AwkRegionMachine
         storage.CompleteCapturedArrayUpdate(in instruction, in update, in target, number, pathSlot);
     }
 
-    private void RestoreCaller(AwkRegion region, AwkRegionStorage storage, int position, AwkFunctionFrame? frame)
+    private void RetireToCaller(AwkRegion region, AwkRegionStorage storage, int position, AwkFunctionFrame? frame)
     {
+        // The binding stack detaches the callee before retiring its resources.
+        // Publish the caller before a refund callback can interrupt retirement.
         _region = region;
         _storage = storage;
         _position = position;
         _frame = frame;
+        _state.PopFunctionFrame();
     }
 
     private void UnwindFrames()
@@ -381,8 +381,7 @@ internal partial struct AwkRegionMachine
         {
             if (!frame.TryGetCaller(out var region, out var storage, out var callerFrame, out var resumePoint))
                 throw new InvalidOperationException("A called function requires a caller.");
-            _state.PopFunctionFrame();
-            RestoreCaller(region, storage, resumePoint.Position, callerFrame);
+            RetireToCaller(region, storage, resumePoint.Position, callerFrame);
         }
     }
 
