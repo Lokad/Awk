@@ -144,7 +144,7 @@ internal static class AwkCommandParser
                             optionParser.TryReadShortGroupRemainder(out var optionalValue);
                             return AwkOptionValueResult.Success(optionalValue);
                         case AwkOptionValueCardinality.Required:
-                            if (AwkOptionValueReader.TryReadShortAttachedOrRaw(optionParser, out var value))
+                            if (optionParser.TryReadShortGroupRemainder(out var value) || optionParser.TryReadRaw(out value))
                                 return AwkOptionValueResult.Success(value);
 
                             return AwkOptionValueResult.Fail(
@@ -171,27 +171,11 @@ internal static class AwkCommandParser
                         return RejectInvalidWOption(name);
 
                     var spelling = AwkOptionSpelling.W(name);
-                    var valueResult = ReadWOptionValue(parser, spec, optionValue, spelling.Display);
+                    var valueResult = ReadNamedOptionValue(parser, spec, optionValue, spelling.Display);
                     if (valueResult.Status == AwkOptionValueStatus.Error)
                         return AwkCommandParseResult.Fail(valueResult.Message, valueResult.Id);
 
                     return ApplyOption(spec, valueResult.Value, spelling);
-
-                    static AwkOptionValueResult ReadWOptionValue(
-                        CommandLineOptionParser parser,
-                        AwkOptionSpec spec,
-                        CommandLineOptionValue inlineValue,
-                        string optionName)
-                    {
-                        return ReadNamedOptionValue(
-                            spec,
-                            inlineValue,
-                            optionName,
-                            (out string requiredValue) => AwkOptionValueReader.TryReadW(
-                                parser,
-                                inlineValue,
-                                out requiredValue));
-                    }
 
                     static AwkCommandParseResult RejectInvalidWOption(string name) =>
                         AwkCommandParseResult.Fail(
@@ -208,24 +192,12 @@ internal static class AwkCommandParser
                         AwkDiagnosticId.OptionInvalid);
 
                 var spelling = AwkOptionSpelling.Long(item.Name);
-                var valueResult = ReadLongOptionValue(parser, item, spec, spelling);
+                var valueResult = ReadNamedOptionValue(parser, spec, item.Value, spelling.Display);
                 if (valueResult.Status == AwkOptionValueStatus.Error)
                     return AwkCommandParseResult.Fail(valueResult.Message, valueResult.Id);
 
                 return ApplyOption(spec, valueResult.Value, spelling);
 
-                static AwkOptionValueResult ReadLongOptionValue(
-                    CommandLineOptionParser parser,
-                    CommandLineOptionItem.LongOption item,
-                    AwkOptionSpec spec,
-                    AwkOptionSpelling spelling)
-                {
-                    return ReadNamedOptionValue(
-                        spec,
-                        item.Value,
-                        spelling.Display,
-                        (out string requiredValue) => AwkOptionValueReader.TryReadLong(parser, item, out requiredValue));
-                }
             }
         }
 
@@ -335,10 +307,10 @@ internal static class AwkCommandParser
         }
 
         private static AwkOptionValueResult ReadNamedOptionValue(
+            CommandLineOptionParser parser,
             AwkOptionSpec spec,
             CommandLineOptionValue inlineValue,
-            string optionName,
-            TryReadRequiredOptionValue tryReadRequired)
+            string optionName)
         {
             if (spec.IsUnsupportedGnuOption &&
                 spec.ValueCardinality != AwkOptionValueCardinality.Required)
@@ -354,7 +326,9 @@ internal static class AwkCommandParser
 
                     return AwkOptionValueResult.Empty;
                 case AwkOptionValueCardinality.Required:
-                    if (tryReadRequired(out var requiredValue))
+                    if (inlineValue.HasInlineValue)
+                        return AwkOptionValueResult.Success(inlineValue.Text);
+                    if (parser.TryReadRaw(out var requiredValue))
                         return AwkOptionValueResult.Success(requiredValue);
 
                     return AwkOptionValueResult.Fail(
@@ -499,6 +473,5 @@ internal static class AwkCommandParser
             WOption
         }
 
-        private delegate bool TryReadRequiredOptionValue(out string value);
     }
 }
