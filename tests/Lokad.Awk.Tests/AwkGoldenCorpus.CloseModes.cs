@@ -73,26 +73,29 @@ internal static partial class AwkGoldenCorpus
     }
 
     // A supporting command host runs these canonical cases in AwkIoCloseDirectionTests.
-    internal static IEnumerable<AwkGoldenCase> CloseModePipeCases()
+    internal static IEnumerable<(AwkGoldenCase Case, int CommandStatus)> CloseModePipeCases()
     {
         foreach (var input in new[] { false, true })
-        foreach (var mode in new[] { "to", "from" })
         {
             var open = input ? "cmd|getline x;" : "print \"new\"|cmd;";
-            yield return AwkGoldenCaseBuilder.Create($"close-mode-pipe-{input}-{mode}",
-                ["BEGIN{cmd=\"worker a:b\";" + open + "ERRNO=\"keep\";print close(cmd,\"" + mode +
-                    "\"),ERRNO;print close(cmd)}"], [])
-                .WithStdOut((input ? "7" : "17") + " keep\n-1\n").Build();
-        }
+            var commandStatus = input ? 7 : 17;
+            foreach (var mode in new[] { "to", "from" })
+            {
+                var test = AwkGoldenCaseBuilder.Create($"close-mode-pipe-{input}-{mode}",
+                    ["BEGIN{cmd=\"worker a:b\";" + open + "ERRNO=\"keep\";print close(cmd,\"" + mode +
+                        "\"),ERRNO;print close(cmd)}"], [])
+                    .WithStdOut($"{commandStatus} keep\n-1\n").Build();
+                yield return (test, commandStatus);
+            }
 
-        foreach (var input in new[] { false, true })
-        foreach (var mode in new[] { "\"bad\"", "\"\"", "17", "unknown" })
-        {
-            var open = input ? "cmd|getline x;" : "print \"new\"|cmd;";
-            yield return AwkGoldenCaseBuilder.Create($"close-mode-pipe-{input}-invalid-{mode}",
-                ["BEGIN{cmd=\"worker a:b\";" + open + "print \"before\";print close(cmd," + mode +
-                    ");print \"unreachable\"}"], []).WithStdOut("before\n")
-                .WithStdErr("awk: close second argument must be `to' or `from'\n").ExitsWith(2).Build();
+            foreach (var mode in new[] { "\"bad\"", "\"\"", "17", "unknown" })
+            {
+                var test = AwkGoldenCaseBuilder.Create($"close-mode-pipe-{input}-invalid-{mode}",
+                    ["BEGIN{cmd=\"worker a:b\";" + open + "print \"before\";print close(cmd," + mode +
+                        ");print \"unreachable\"}"], []).WithStdOut("before\n")
+                    .WithStdErr("awk: close second argument must be `to' or `from'\n").ExitsWith(2).Build();
+                yield return (test, commandStatus);
+            }
         }
     }
 }

@@ -207,6 +207,11 @@ public sealed class AwkGoldenCorpusTests(ITestOutputHelper output)
     public void Awk_GoldenCorpusCaseNamesAreUnique()
     {
         var duplicates = AwkGoldenCorpus.DirectCases
+            .Concat(AwkGoldenCorpus.PipeGetlineCases().Select(row => row.Case))
+            .Concat(AwkGoldenCorpus.PipeGetlinePostfixCases())
+            .Concat(AwkGoldenCorpus.PipeParagraphEofCases.Select(row => row.Case))
+            .Concat(AwkGoldenCorpus.CloseModePipeCases().Select(row => row.Case))
+            .Append(AwkGoldenCorpus.OpaquePipeCloseCase)
             .GroupBy(testCase => testCase.Name, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .Select(group => group.Key)

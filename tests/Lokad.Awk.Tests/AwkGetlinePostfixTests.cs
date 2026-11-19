@@ -17,17 +17,15 @@ public sealed class AwkGetlinePostfixTests
         var files = AwkTestHarness.BuildFileSystem(testCase);
         var host = new AwkGetlinePipeTestHost(files);
         var invocation = AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment);
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
+        var tool = AwkTestHarness.ParseAwk(invocation);
 
-        var exit = await AwkExecutor.ExecuteAsync(host, invocation,
-            CancellationToken.None, options);
+        var exit = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
         Assert.Equal(testCase.ExpectedExitCode, exit.Value);
         Assert.Equal(testCase.ExpectedStdErr, files.GetOutput(AwkFileDescriptor.StdErr));
 
         Assert.Equal(testCase.ExpectedStdOut, files.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, host.OpenPipeCount);
+        Assert.Equal(0, files.OpenFileCount);
         if (testCase.ExpectedExitCode != 0)
         {
             Assert.Empty(host.Commands);
@@ -36,10 +34,7 @@ public sealed class AwkGetlinePostfixTests
         }
         else
         {
-            var command = Assert.Single(host.Commands);
-            Assert.Equal("cat data", command.CommandName);
-            Assert.Equal(invocation.CurrentDirectory, command.CurrentDirectory);
-            Assert.Contains(command.Environment, entry => entry.Name == "LC_ALL" && entry.Value == "C.UTF-8");
+            host.AssertInputCommands(invocation, 1);
         }
     }
 

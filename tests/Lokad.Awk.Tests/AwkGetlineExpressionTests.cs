@@ -55,41 +55,28 @@ public sealed class AwkGetlineExpressionTests
 
     public static IEnumerable<object[]> PipeCases()
     {
-        foreach (var testCase in AwkGoldenCorpus.PipeGetlineExpressionCases()
-            .Concat(AwkGoldenCorpus.PipeGetlineDestinationCases()))
-
-            yield return [testCase];
+        foreach (var (testCase, commandCount) in AwkGoldenCorpus.PipeGetlineCases())
+            yield return [testCase, commandCount];
     }
 
     [Theory]
     [MemberData(nameof(PipeCases))]
     public async Task PipeExpressionsKeepTheHostCommandAndDescriptorLifecycle(
-        AwkGoldenCase testCase)
+        AwkGoldenCase testCase, int commandCount)
     {
         var files = AwkTestHarness.BuildFileSystem(testCase);
         var host = new AwkGetlinePipeTestHost(files);
         var invocation = AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment);
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var executionCommand = invocation;
+        var tool = AwkTestHarness.ParseAwk(invocation);
 
-        var exit = await AwkExecutor.ExecuteAsync(host, executionCommand, CancellationToken.None, options);
+        var exit = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(testCase.ExpectedStdOut, files.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, files.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.OpenPipeCount);
-        var bypassed = testCase.Arguments.Any(argument =>
-            argument.Contains("print 0 &&", StringComparison.Ordinal) ||
-            argument.Contains("print 1 ||", StringComparison.Ordinal));
-        Assert.Equal(bypassed ? 0 : 1, host.Commands.Count);
-        foreach (var command in host.Commands)
-        {
-            Assert.Equal("cat data", command.CommandName);
-            Assert.Equal(invocation.CurrentDirectory, command.CurrentDirectory);
-            Assert.Contains(command.Environment, entry => entry.Name == "LC_ALL" && entry.Value == "C.UTF-8");
-        }
+        Assert.Equal(0, files.OpenFileCount);
+        host.AssertInputCommands(invocation, commandCount);
     }
 
     [Theory]

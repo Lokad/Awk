@@ -7,10 +7,16 @@ internal static partial class AwkGoldenCorpus
     private static IEnumerable<AwkGoldenCase> GetlineExpressionCompatibilityCases() =>
         BuildGetlineExpressionCases(GetlineExpressionRows);
 
-    internal static IEnumerable<AwkGoldenCase> PipeGetlineExpressionCases() =>
-        BuildGetlineExpressionCases(PipeGetlineExpressionRows);
+    internal static IEnumerable<(AwkGoldenCase Case, int CommandCount)> PipeGetlineCases()
+    {
+        foreach (var test in BuildGetlineExpressionCases(PipeGetlineExpressionRows.Concat(PipeGetlineDestinationRows)))
+            yield return (test, 1);
 
-    private static IEnumerable<AwkGoldenCase> BuildGetlineExpressionCases(RangeParagraphRow[] rows)
+        foreach (var test in BuildGetlineExpressionCases(ShortCircuitedPipeGetlineRows))
+            yield return (test, 0);
+    }
+
+    private static IEnumerable<AwkGoldenCase> BuildGetlineExpressionCases(IEnumerable<RangeParagraphRow> rows)
     {
         foreach (var row in rows)
             yield return AwkGoldenCaseBuilder.Create(row.Name, row.Arguments, row.Files)
@@ -187,8 +193,6 @@ internal static partial class AwkGoldenCorpus
         new("getline-expression-pipe-contexts-52", ["BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";while ((\"cat data\" | getline)>0) print $0}"], [File("/data", "one two\nthree four\n")], "", "one two\nthree four\n"),
         new("getline-expression-pipe-contexts-53", ["BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print sprintf(\"%d\",(\"cat data\" | getline))}"], [File("/data", "one two\nthree four\n")], "", "1\n"),
         new("getline-expression-pipe-contexts-54", ["BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print ((\"cat data\" | getline)?\"read\":\"eof\")}"], [File("/data", "one two\nthree four\n")], "", "read\n"),
-        new("getline-expression-pipe-contexts-55", ["BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 0 && (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "0\nseed fields\n"),
-        new("getline-expression-pipe-contexts-56", ["BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 1 || (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "1\nseed fields\n"),
         new("getline-expression-pipe-contexts-57", ["BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print ((\"cat data\" | getline)+7)}"], [File("/data", "one two\nthree four\n")], "", "8\n"),
         new("getline-expression-pipe-contexts-58", ["BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print (!(\"cat data\" | getline))}"], [File("/data", "one two\nthree four\n")], "", "0\n"),
         new("getline-expression-pipe-contexts-59", ["BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print ((\"cat data\" | getline)==1)}"], [File("/data", "one two\nthree four\n")], "", "1\n"),
@@ -227,8 +231,6 @@ internal static partial class AwkGoldenCorpus
         new("getline-expression-pipe-contexts-141", ["--posix", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";while ((\"cat data\" | getline)>0) print $0}"], [File("/data", "one two\nthree four\n")], "", "one two\nthree four\n"),
         new("getline-expression-pipe-contexts-142", ["--posix", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print sprintf(\"%d\",(\"cat data\" | getline))}"], [File("/data", "one two\nthree four\n")], "", "1\n"),
         new("getline-expression-pipe-contexts-143", ["--posix", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print ((\"cat data\" | getline)?\"read\":\"eof\")}"], [File("/data", "one two\nthree four\n")], "", "read\n"),
-        new("getline-expression-pipe-contexts-144", ["--posix", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 0 && (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "0\nseed fields\n"),
-        new("getline-expression-pipe-contexts-145", ["--posix", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 1 || (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "1\nseed fields\n"),
         new("getline-expression-pipe-contexts-146", ["--posix", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print ((\"cat data\" | getline)+7)}"], [File("/data", "one two\nthree four\n")], "", "8\n"),
         new("getline-expression-pipe-contexts-147", ["--posix", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print (!(\"cat data\" | getline))}"], [File("/data", "one two\nthree four\n")], "", "0\n"),
         new("getline-expression-pipe-contexts-148", ["--posix", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print ((\"cat data\" | getline)==1)}"], [File("/data", "one two\nthree four\n")], "", "1\n"),
@@ -267,8 +269,6 @@ internal static partial class AwkGoldenCorpus
         new("getline-expression-pipe-contexts-230", ["--traditional", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";while ((\"cat data\" | getline)>0) print $0}"], [File("/data", "one two\nthree four\n")], "", "one two\nthree four\n"),
         new("getline-expression-pipe-contexts-231", ["--traditional", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print sprintf(\"%d\",(\"cat data\" | getline))}"], [File("/data", "one two\nthree four\n")], "", "1\n"),
         new("getline-expression-pipe-contexts-232", ["--traditional", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print ((\"cat data\" | getline)?\"read\":\"eof\")}"], [File("/data", "one two\nthree four\n")], "", "read\n"),
-        new("getline-expression-pipe-contexts-233", ["--traditional", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 0 && (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "0\nseed fields\n"),
-        new("getline-expression-pipe-contexts-234", ["--traditional", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 1 || (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "1\nseed fields\n"),
         new("getline-expression-pipe-contexts-235", ["--traditional", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print ((\"cat data\" | getline)+7)}"], [File("/data", "one two\nthree four\n")], "", "8\n"),
         new("getline-expression-pipe-contexts-236", ["--traditional", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print (!(\"cat data\" | getline))}"], [File("/data", "one two\nthree four\n")], "", "0\n"),
         new("getline-expression-pipe-contexts-237", ["--traditional", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print ((\"cat data\" | getline)==1)}"], [File("/data", "one two\nthree four\n")], "", "1\n"),
@@ -312,5 +312,15 @@ internal static partial class AwkGoldenCorpus
         new("getline-expression-pipe-complex-target-320", ["--traditional", "BEGIN{$0=\"seed fields\";i=1;j=\"key\";code=(\"cat data\" | getline $i^2);print code,i,j,NF,\"[\"$0\"]\";for(k in a) print \"[\"k\"]\",\"[\"a[k]\"]\"}"], [File("/data", "one two\nthree four\n")], "", "1 1 key 2 [one two fields]\n"),
         new("getline-expression-pipe-complex-target-321", ["--traditional", "BEGIN{$0=\"seed fields\";i=1;j=\"key\";code=(\"cat data\" | getline a[i,j]);print code,i,j,NF,\"[\"$0\"]\";for(k in a) print \"[\"k\"]\",\"[\"a[k]\"]\"}"], [File("/data", "one two\nthree four\n")], "", "1 1 key 2 [seed fields]\n[1\u001ckey] [one two]\n"),
         new("getline-expression-pipe-complex-target-322", ["--traditional", "BEGIN{$0=\"seed fields\";i=1;j=\"key\";code=(\"cat data\" | getline a[i++]);print code,i,j,NF,\"[\"$0\"]\";for(k in a) print \"[\"k\"]\",\"[\"a[k]\"]\"}"], [File("/data", "one two\nthree four\n")], "", "1 2 key 2 [seed fields]\n[1] [one two]\n"),
+    ];
+
+    private static readonly RangeParagraphRow[] ShortCircuitedPipeGetlineRows =
+    [
+        new("getline-expression-pipe-contexts-55", ["BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 0 && (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "0\nseed fields\n"),
+        new("getline-expression-pipe-contexts-56", ["BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 1 || (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "1\nseed fields\n"),
+        new("getline-expression-pipe-contexts-144", ["--posix", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 0 && (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "0\nseed fields\n"),
+        new("getline-expression-pipe-contexts-145", ["--posix", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 1 || (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "1\nseed fields\n"),
+        new("getline-expression-pipe-contexts-233", ["--traditional", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 0 && (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "0\nseed fields\n"),
+        new("getline-expression-pipe-contexts-234", ["--traditional", "BEGIN{$0=\"seed fields\";v=\"kept\";RT=\"marker\";print 1 || (\"cat data\" | getline);print $0}"], [File("/data", "one two\nthree four\n")], "", "1\nseed fields\n"),
     ];
 }

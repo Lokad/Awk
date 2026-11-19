@@ -6,9 +6,6 @@ internal static partial class AwkGoldenCorpus
     private static IEnumerable<AwkGoldenCase> GetlineDestinationCompatibilityCases() =>
         BuildGetlineExpressionCases(GetlineDestinationRows).Concat(GetlineDestinationFailureCases());
 
-    internal static IEnumerable<AwkGoldenCase> PipeGetlineDestinationCases() =>
-        BuildGetlineExpressionCases(PipeGetlineDestinationRows);
-
     private static IEnumerable<AwkGoldenCase> GetlineDestinationFailureCases()
     {
         foreach (var row in GetlineDestinationFailureRows)

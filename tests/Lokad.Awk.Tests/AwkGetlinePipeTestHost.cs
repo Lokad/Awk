@@ -11,6 +11,17 @@ internal sealed class AwkGetlinePipeTestHost(MockFileSystem files) : IAwkHost
     public List<AwkCommandInvocation> Commands { get; } = [];
     public List<byte[]> Writes { get; } = [];
 
+    public void AssertInputCommands(AwkCommandInvocation invocation, int count)
+    {
+        Assert.Equal(count, Commands.Count);
+        foreach (var command in Commands)
+        {
+            Assert.Equal("cat data", command.CommandName);
+            Assert.Equal(invocation.CurrentDirectory, command.CurrentDirectory);
+            Assert.Contains(command.Environment, entry => entry.Name == "LC_ALL" && entry.Value == "C.UTF-8");
+        }
+    }
+
     public async Task<AwkExitCode> RunCommandAsync(
         AwkCommandInvocation command, CancellationToken cancellationToken)
     {

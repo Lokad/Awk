@@ -96,18 +96,18 @@ public sealed class AwkIoCloseDirectionTests
 
     public static IEnumerable<object[]> CloseCases()
     {
-        foreach (var test in AwkGoldenCorpus.CloseModes.Concat(AwkGoldenCorpus.CloseModePipeCases()))
+        var fileCases = AwkGoldenCorpus.CloseModes.Select(test => (test, CommandStatus: 0));
+        foreach (var (test, commandStatus) in fileCases.Concat(AwkGoldenCorpus.CloseModePipeCases()))
             foreach (var governed in new[] { false, true })
-                yield return [test, governed];
+                yield return [test, governed, commandStatus];
     }
 
     [Theory]
     [MemberData(nameof(CloseCases))]
-    public async Task PublicClosePreservesStreamStatusAndLifetime(AwkGoldenCase test, bool governed)
+    public async Task PublicClosePreservesStreamStatusAndLifetime(AwkGoldenCase test, bool governed, int commandStatus)
     {
         var files = AwkTestHarness.BuildFileSystem(test);
-        var input = test.Name.StartsWith("close-mode-pipe-True-", StringComparison.Ordinal);
-        var host = new AwkEmptyPipeTestHost(files) { InputRecord = "row\n", CommandStatus = input ? 7 : 17 };
+        var host = new AwkEmptyPipeTestHost(files) { InputRecord = "row\n", CommandStatus = commandStatus };
         var budget = new CooperativeTestBudget(16 << 20);
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);

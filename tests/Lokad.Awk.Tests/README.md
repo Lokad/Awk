@@ -30,6 +30,7 @@ share one source load and parse per case.
 Golden failures report the fixture file and line, including the generator location
 for cases built in loops. Focused policy drivers reuse explicit fixture families from
 the corpus and assert their additional host behavior, authority or budget lifetime.
+Pipe fixtures declare their expected command effects and share the corresponding test host.
 
 Initialize a CooperativeTestMemory runtime before using its accounting view. That view
 is the runtime's ledger; a standalone fixture instead creates its own ledger on first use.
