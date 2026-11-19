@@ -14,7 +14,6 @@ internal static class AwkRegionPrinting
             if (print.Output.IsRedirected) storage.Builders[0].Buffer.Clear();
             return;
         }
-        var formatBytes = 0L;
         try
         {
             if (print.Fields.Length != 0)
@@ -26,7 +25,10 @@ internal static class AwkRegionPrinting
                 }
             }
             if (print.Output.IsRedirected) storage.PrepareString(print.Output.Value);
-            var format = print.LiteralFormat ?? storage.PrepareFormattedString(storage.Values[print.Format], out formatBytes);
+            if (print.Format >= 0) storage.PrepareByteText(print.Format);
+            // The captured format funds its text and decoding until the synchronous
+            // renderer finishes, including any admission during rendering.
+            var format = print.LiteralFormat ?? state.DecodeText(storage.Values[print.Format].ByteText);
             if (print.Fields.Length != 0)
                 AppendPrintf(state, storage, output, print.Output, format, new AwkPrintfFieldArguments(print.Fields, state));
             else
@@ -35,7 +37,6 @@ internal static class AwkRegionPrinting
         finally
         {
             if (print.Fields.Length == 0) storage.ReleaseValues(print.Values, print.Count);
-            storage.ReleaseFormattedString(formatBytes);
             if (print.Format >= 0) storage.ReleaseValue(print.Format);
         }
     }

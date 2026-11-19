@@ -484,14 +484,6 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > nextBytes) _payload.Release(oldBytes - nextBytes);
     }
 
-    internal string PrepareFormattedString(AwkValue value, out long retainedBytes) =>
-        AwkFormattingRuntime.PrepareStringValue(value, _state, _payload, out retainedBytes);
-
-    internal void ReleaseFormattedString(long retainedBytes)
-    {
-        if (retainedBytes > 0) _payload.Release(retainedBytes);
-    }
-
     internal void PrepareByteText(int index)
     {
         var value = _values[index];
