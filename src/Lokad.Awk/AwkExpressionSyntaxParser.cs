@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Lokad.Parsing.Error;
 using Lokad.Parsing.Lexer;
 using Lokad.Parsing.Parser;
@@ -26,87 +25,14 @@ internal sealed class AwkExpressionSyntaxParser
     {
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
+        var count = CountExpressionTokens(tokens, out var separator, out var hasEndOfFile, checkpoint);
         var parser = new AwkExpressionSyntaxParser(checkpoint);
-        if (TryGetSeparatorDiagnostic(tokens, out var separatorDiagnostic, checkpoint))
-        {
-            for (var index = 0; index < tokens.Count; index++)
-            {
-                checkpoint?.Invoke();
-                var token = tokens[index];
-                if (token.Span.Start == separatorDiagnostic.Span.Start &&
-                    token.Span.Length == separatorDiagnostic.Span.Length)
-                    return new RootParseResult.Expression(parser.CreateTokenNode(AwkExpressionKind.Unknown, token));
-            }
-            throw new InvalidOperationException("A separator diagnostic must reference a lexical token.");
-        }
-
-        static bool TryCreateLexerResult(
-            AwkParsingSource source,
-            IReadOnlyList<AwkToken> tokens,
-            [NotNullWhen(true)] out LexerResult<AwkTokenKind>? result, Action? checkpoint)
-        {
-            static bool IsExpressionToken(AwkTokenKind kind) =>
-                kind is not AwkTokenKind.Comment and
-                    not AwkTokenKind.NewLine and
-                    not AwkTokenKind.Semicolon;
-
-            var expressionTokenCount = 0;
-            var hasEndOfFile = false;
-            for (var index = 0; index < tokens.Count; index++)
-            {
-                checkpoint?.Invoke();
-                if (!IsExpressionToken(tokens[index].Kind))
-                    continue;
-
-                expressionTokenCount++;
-                hasEndOfFile |= tokens[index].Kind == AwkTokenKind.EndOfFile;
-            }
-
-            if (expressionTokenCount == 0)
-            {
-                result = null;
-                return false;
-            }
-
-            var lexerTokens = new LexerToken<AwkTokenKind>[
-                expressionTokenCount + (hasEndOfFile ? 0 : 1)];
-            var next = 0;
-            var end = 0;
-            var hasInvalidTokens = false;
-            for (var index = 0; index < tokens.Count; index++)
-            {
-                checkpoint?.Invoke();
-                var token = tokens[index];
-                if (!IsExpressionToken(token.Kind))
-                    continue;
-
-                lexerTokens[next++] = new LexerToken<AwkTokenKind>(
-                    ResolveExpressionTokenKind(tokens, index, checkpoint),
-                    token.Span.Start,
-                    token.Span.Length);
-                end = Math.Max(end, token.Span.End);
-                hasInvalidTokens |= token.Kind == AwkTokenKind.BadToken;
-            }
-
-            if (!hasEndOfFile)
-            {
-                lexerTokens[^1] = new LexerToken<AwkTokenKind>(
-                    AwkTokenKind.EndOfFile,
-                    end,
-                    0);
-            }
-
-            result = new LexerResult<AwkTokenKind>(
-                source.Text,
-                lexerTokens,
-                source.NewLines,
-                hasInvalidTokens);
-            return true;
-        }
-
-        if (!TryCreateLexerResult(source, tokens, out var lexerResult, checkpoint))
+        if (separator is { } unexpected)
+            return new RootParseResult.Expression(parser.CreateTokenNode(AwkExpressionKind.Unknown, unexpected));
+        if (count == 0)
             return null;
 
+        var lexerResult = CreateLexerResult(source, tokens, count, hasEndOfFile, checkpoint);
         parser.Tokens = lexerResult;
         try
         {
@@ -121,6 +47,38 @@ internal sealed class AwkExpressionSyntaxParser
         }
     }
 
+    private static LexerResult<AwkTokenKind> CreateLexerResult(
+        AwkParsingSource source,
+        IReadOnlyList<AwkToken> tokens,
+        int count,
+        bool hasEndOfFile,
+        Action? checkpoint)
+    {
+        var lexerTokens = new LexerToken<AwkTokenKind>[count + (hasEndOfFile ? 0 : 1)];
+        var next = 0;
+        var end = 0;
+        var hasInvalidTokens = false;
+        for (var index = 0; index < tokens.Count; index++)
+        {
+            checkpoint?.Invoke();
+            var token = tokens[index];
+            if (token.Kind is AwkTokenKind.Comment or AwkTokenKind.NewLine)
+                continue;
+
+            lexerTokens[next++] = new LexerToken<AwkTokenKind>(
+                ResolveExpressionTokenKind(tokens, index, token, checkpoint),
+                token.Span.Start,
+                token.Span.Length);
+            end = Math.Max(end, token.Span.End);
+            hasInvalidTokens |= token.Kind == AwkTokenKind.BadToken;
+        }
+
+        if (!hasEndOfFile)
+            lexerTokens[^1] = new LexerToken<AwkTokenKind>(AwkTokenKind.EndOfFile, end, 0);
+
+        return new LexerResult<AwkTokenKind>(source.Text, lexerTokens, source.NewLines, hasInvalidTokens);
+    }
+
     internal static bool TryGetSeparatorDiagnostic(
         IReadOnlyList<AwkToken> tokens,
         out AwkDiagnostic diagnostic,
@@ -128,6 +86,22 @@ internal sealed class AwkExpressionSyntaxParser
     {
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
+        CountExpressionTokens(tokens, out var separator, out _, checkpoint);
+        diagnostic = separator is { } token
+            ? CreateSyntaxDiagnostic(new AwkExpressionSyntax(AwkExpressionKind.Unknown, [token], [], token.Span))
+            : default;
+        return separator.HasValue;
+    }
+
+    private static int CountExpressionTokens(
+        IReadOnlyList<AwkToken> tokens,
+        out AwkToken? separator,
+        out bool hasEndOfFile,
+        Action? checkpoint)
+    {
+        separator = null;
+        hasEndOfFile = false;
+        var count = 0;
         var previous = AwkTokenKind.EndOfFile;
         for (var index = 0; index < tokens.Count; index++)
         {
@@ -140,15 +114,17 @@ internal sealed class AwkExpressionSyntaxParser
                     (AwkTokenKind.Comma or AwkTokenKind.AmpersandAmpersand or
                      AwkTokenKind.PipePipe or AwkTokenKind.Question or AwkTokenKind.Colon))
             {
-                diagnostic = CreateSyntaxDiagnostic(new AwkExpressionSyntax(
-                    AwkExpressionKind.Unknown, [token], [], token.Span));
-                return true;
+                separator = token;
+                break;
             }
-            if (token.Kind != AwkTokenKind.NewLine)
-                previous = token.Kind;
+
+            if (token.Kind == AwkTokenKind.NewLine)
+                continue;
+            previous = token.Kind;
+            hasEndOfFile |= token.Kind == AwkTokenKind.EndOfFile;
+            count++;
         }
-        diagnostic = default;
-        return false;
+        return count;
     }
 
     internal static AwkDiagnostic CreateSyntaxDiagnostic(AwkExpressionSyntax expression) =>
@@ -163,9 +139,9 @@ internal sealed class AwkExpressionSyntaxParser
             _ => "Invalid expression."
         });
 
-    private static AwkTokenKind ResolveExpressionTokenKind(IReadOnlyList<AwkToken> tokens, int index, Action? checkpoint = null)
+    private static AwkTokenKind ResolveExpressionTokenKind(
+        IReadOnlyList<AwkToken> tokens, int index, AwkToken token, Action? checkpoint)
     {
-        var token = tokens[index];
         if (token.Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus)
         {
             var previous = index - 1;
