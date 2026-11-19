@@ -200,6 +200,25 @@ public sealed class AwkSourceLoaderTests
     }
 
     [Fact]
+    public async Task ResolvedScriptCacheKeepsTheDisplayNameOfEachFileOperand()
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/lib/shared.awk", "{ print }");
+        var reads = 0;
+        host.AfterRead = () => reads++;
+        var command = AwkTestHarness.BuildInvocation("awk", ["-f", "/lib/shared.awk", "-f", "/lib/./shared.awk"]);
+
+        var source = LoadedSource(await LoadAsync(host, AwkCommandParser.Parse(command)));
+
+        Assert.Equal("{ print }\n{ print }", source.Text);
+        Assert.Equal(new[] { "/lib/shared.awk", "/lib/./shared.awk" },
+            source.Segments.Select(segment => segment.SourceName.Text));
+        Assert.Equal(2, host.ReadOpenCount);
+        Assert.Equal(1, reads);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Fact]
     public async Task AwkSourceLoader_ReusesOrdinaryNormalizedSourceText()
     {
         var fileSystem = new MockFileSystem();
@@ -294,18 +313,22 @@ public sealed class AwkSourceLoaderTests
     public async Task AwkSourceLoader_InvalidUtf8AwkPathIncludeReportsResolvedPath()
     {
         var fileSystem = new MockFileSystem();
-        fileSystem.AddFile("/lib/bad.awk", [0x42, 0x45, 0x47, 0x49, 0x4e, 0x80]);
+        fileSystem.AddFile("/lib/bad", [0x42, 0x45, 0x47, 0x49, 0x4e, 0x80]);
+        fileSystem.AddFile("/lib/bad.awk", "BEGIN{marker=1}");
+        fileSystem.AddFile("/fallback/bad", "BEGIN{marker=2}");
         var invocation = Parse(
-            "@include \"bad.awk\"\nBEGIN{print marker}",
-            [new AwkEnvironmentVariable("AWKPATH", "/lib")]);
+            "@include \"bad\"\nBEGIN{print marker}",
+            [new AwkEnvironmentVariable("AWKPATH", "/lib:/fallback")]);
 
         var result = await LoadAsync(fileSystem, invocation);
 
         var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
-        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
+        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Diagnostic.Id);
         Assert.Equal(
-            "awk: /lib/bad.awk: invalid UTF-8 source\n",
-            AwkUtf8Codec.Decode(failure.ErrorMessage));
+            "awk: /lib/bad: invalid UTF-8 source\n",
+            AwkUtf8Codec.Decode(failure.Diagnostic.Message));
+        Assert.Equal(1, fileSystem.ReadOpenCount);
+        Assert.Equal(0, fileSystem.OpenFileCount);
     }
 
     [Fact]
@@ -490,10 +513,10 @@ public sealed class AwkSourceLoaderTests
         var result = await LoadAsync(fileSystem, invocation);
 
         var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
-        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
+        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Diagnostic.Id);
         Assert.Equal(
             "awk: /missing.awk: No such file or directory\n",
-            AwkUtf8Codec.Decode(failure.ErrorMessage));
+            AwkUtf8Codec.Decode(failure.Diagnostic.Message));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
@@ -508,10 +531,10 @@ public sealed class AwkSourceLoaderTests
         var result = await LoadAsync(fileSystem, invocation);
 
         var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
-        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
+        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Diagnostic.Id);
         Assert.Equal(
             "awk: /script.awk: Permission denied\n",
-            AwkUtf8Codec.Decode(failure.ErrorMessage));
+            AwkUtf8Codec.Decode(failure.Diagnostic.Message));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
@@ -591,7 +614,7 @@ public sealed class AwkSourceLoaderTests
         var failure = Assert.IsType<AwkSourceLoadResult.Failed>(sourceLoad);
         Assert.Equal(
             "awk: /lib/bad.awk: invalid UTF-8 source\n",
-            AwkUtf8Codec.Decode(failure.ErrorMessage));
+            AwkUtf8Codec.Decode(failure.Diagnostic.Message));
 
         fileSystem = new MockFileSystem();
         fileSystem.AddFile("/lib/bad.awk", [0x42, 0x45, 0x47, 0x49, 0x4e, 0x80]);

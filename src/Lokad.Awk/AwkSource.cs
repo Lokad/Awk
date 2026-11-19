@@ -111,41 +111,11 @@ internal sealed class AwkExpandedSource
         new(text, segments);
 }
 
-internal sealed class AwkScriptFile
-{
-    public AwkScriptFile(string text, AwkSourceName displayName, AwkSourceIdentity identity)
-    {
-        Text = text;
-        SourceName = displayName;
-        SourceIdentity = identity;
-    }
-
-    public string Text { get; }
-
-    public AwkSourceName SourceName { get; }
-
-    public AwkSourceIdentity SourceIdentity { get; }
-}
-
 internal readonly record struct AwkSourceName
 {
     private readonly string? _text;
 
     public AwkSourceName(string text)
-    {
-        _text = text.Length == 0 ? null : text;
-    }
-
-    public string Text => _text ?? string.Empty;
-
-    public override string ToString() => Text;
-}
-
-internal readonly record struct AwkSourceIdentity
-{
-    private readonly string? _text;
-
-    public AwkSourceIdentity(string text)
     {
         _text = text.Length == 0 ? null : text;
     }
@@ -220,11 +190,9 @@ internal abstract record AwkSourceLoadResult
     }
 
     public static AwkSourceLoadResult Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
-        new Failed(errorMessage, id);
+        new Failed(AwkDiagnostics.SourceLoad(errorMessage, id));
 
     internal sealed record Loaded(AwkSourceUnit CompilationSource) : AwkSourceLoadResult;
 
-    internal sealed record Failed(
-        ReadOnlyMemory<byte> ErrorMessage,
-        AwkDiagnosticId Id) : AwkSourceLoadResult;
+    internal sealed record Failed(AwkFailureDiagnostic Diagnostic) : AwkSourceLoadResult;
 }

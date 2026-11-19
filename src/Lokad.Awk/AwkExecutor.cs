@@ -255,7 +255,7 @@ internal static class AwkExecutor
             .ConfigureAwait(false);
         if (sourceLoad is AwkSourceLoadResult.Failed failed)
         {
-            return AwkProgramResolution.Fail(AwkDiagnostics.SourceLoad(failed.ErrorMessage, failed.Id));
+            return AwkProgramResolution.Fail(failed.Diagnostic);
         }
 
         if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)

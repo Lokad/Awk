@@ -231,6 +231,9 @@ failures never replay payloads or diagnostics. Standard descriptors remain borro
 Source loading and runtime I/O take their observer and diagnostic policy from the
 invocation options. Descriptor readers observe received bytes before checking for
 cancellation. Cleanup observes close attempts and uses an independent token.
+Source lookup continues after a missing candidate. A hard read failure retains its
+diagnostic through include expansion and wins over a later close failure. Resolved
+script text can be shared while each request keeps the selected candidate's spelling.
 Main input and redirections share the host adapter for opening and closing files.
 An owned main-input close checks cancellation before starting and awaits
 retirement with an independent token.

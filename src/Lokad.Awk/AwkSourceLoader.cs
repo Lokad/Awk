@@ -30,7 +30,7 @@ internal static partial class AwkSourceLoader
                         cancellationToken)
                     .ConfigureAwait(false);
                 if (expanded is SourceExpansionResult.Failed inlineFailure)
-                    return AwkSourceLoadResult.Failure(inlineFailure.ErrorMessage, inlineFailure.Id);
+                    return new AwkSourceLoadResult.Failed(inlineFailure.Diagnostic);
 
                 if (expanded is not SourceExpansionResult.Loaded loaded)
                     throw new System.InvalidOperationException("Unexpected source expansion result.");
@@ -49,7 +49,7 @@ internal static partial class AwkSourceLoader
                         cancellationToken)
                     .ConfigureAwait(false);
                 if (include is SourceExpansionResult.Failed includeFailure)
-                    return AwkSourceLoadResult.Failure(includeFailure.ErrorMessage, includeFailure.Id);
+                    return new AwkSourceLoadResult.Failed(includeFailure.Diagnostic);
 
                 if (include is not SourceExpansionResult.Loaded loaded)
                     throw new System.InvalidOperationException("Unexpected source expansion result.");
@@ -67,38 +67,38 @@ internal static partial class AwkSourceLoader
                     fileSource.ScriptPath,
                     cancellationToken)
                 .ConfigureAwait(false);
-            if (script is AwkScriptFileReadResult.Failed scriptFailure)
+            if (script is AwkScriptReadResult.Failed scriptFailure)
             {
-                return AwkSourceLoadResult.Failure(scriptFailure.ErrorMessage, scriptFailure.Id);
+                return new AwkSourceLoadResult.Failed(scriptFailure.Diagnostic);
             }
 
-            if (script is not AwkScriptFileReadResult.Found found)
+            if (script is not AwkScriptReadResult.Found found)
             {
                 return AwkSourceLoadResult.Failure(
                     AwkMessages.FormatPathError(fileSource.ScriptPath.Display),
                     AwkDiagnosticId.SourceLoadFailure);
             }
 
-            if (plan.RegisterSource(found.Script, AwkSourceSegmentKind.File) == AwkSourceRegistration.Conflict)
+            if (plan.RegisterSource(found.ResolvedPath, AwkSourceSegmentKind.File) == AwkSourceRegistration.Conflict)
                 return AwkSourceLoadResult.Failure(
-                    AwkMessages.FormatSourceRoleConflict(found.Script.SourceName.Text), AwkDiagnosticId.SourceLoadFailure);
+                    AwkMessages.FormatSourceRoleConflict(found.SourceName.Text), AwkDiagnosticId.SourceLoadFailure);
 
             var expandedScript = await ExpandIncludesAsync(
                     host,
                     plan,
-                    found.Script.Text,
-                    found.Script.SourceName,
+                    found.Text,
+                    found.SourceName,
                     AwkSourceSegmentKind.File,
                     includeDepth: 0,
                     cancellationToken)
                 .ConfigureAwait(false);
             if (expandedScript is SourceExpansionResult.Failed expansionFailure)
-                return AwkSourceLoadResult.Failure(expansionFailure.ErrorMessage, expansionFailure.Id);
+                return new AwkSourceLoadResult.Failed(expansionFailure.Diagnostic);
 
             if (expandedScript is not SourceExpansionResult.Loaded expandedFile)
                 throw new System.InvalidOperationException("Unexpected source expansion result.");
             sources.Add(new AwkSourceUnit(
-                found.Script.SourceName,
+                found.SourceName,
                 expandedFile.Source.Text,
                 expandedFile.Source.Segments));
         }

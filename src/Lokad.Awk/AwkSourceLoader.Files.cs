@@ -38,7 +38,7 @@ internal static partial class AwkSourceLoader
                 resolved,
                 cancellationToken)
             .ConfigureAwait(false);
-        if (script is AwkScriptFileReadResult.Missing && !includePath.EndsWith(".awk", StringComparison.Ordinal))
+        if (script is AwkScriptReadResult.Missing && !includePath.EndsWith(".awk", StringComparison.Ordinal))
         {
             resolved = plan.PreparePath(includePath + ".awk");
             script = await AwkScriptFileReader.TryReadAsync(
@@ -49,26 +49,26 @@ internal static partial class AwkSourceLoader
                 .ConfigureAwait(false);
         }
 
-        if (script is AwkScriptFileReadResult.Failed failed)
+        if (script is AwkScriptReadResult.Failed failed)
         {
-            return SourceExpansionResult.Failure(failed.ErrorMessage, failed.Id);
+            return new SourceExpansionResult.Failed(failed.Diagnostic);
         }
 
-        if (script is not AwkScriptFileReadResult.Found found)
+        if (script is not AwkScriptReadResult.Found found)
         {
             return SourceExpansionResult.Failure(
                 AwkMessages.FormatPathError(resolved.Display),
                 AwkDiagnosticId.SourceLoadFailure);
         }
 
-        var registration = plan.RegisterSource(found.Script, AwkSourceSegmentKind.Include);
+        var registration = plan.RegisterSource(found.ResolvedPath, AwkSourceSegmentKind.Include);
         if (registration == AwkSourceRegistration.Conflict)
             return SourceExpansionResult.Failure(
-                AwkMessages.FormatSourceRoleConflict(found.Script.SourceName.Text), AwkDiagnosticId.SourceLoadFailure);
+                AwkMessages.FormatSourceRoleConflict(found.SourceName.Text), AwkDiagnosticId.SourceLoadFailure);
         if (registration == AwkSourceRegistration.Repeated)
             return SourceExpansionResult.FromSource(AwkExpandedSource.Empty);
 
-        return new SourceExpansionResult.Unexpanded(found.Script);
+        return new SourceExpansionResult.Unexpanded(found);
     }
 
     private abstract record SourceExpansionResult
@@ -77,14 +77,12 @@ internal static partial class AwkSourceLoader
             new Loaded(source);
 
         public static Failed Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
-            new Failed(errorMessage, id);
+            new Failed(AwkDiagnostics.SourceLoad(errorMessage, id));
 
-        internal sealed record Unexpanded(AwkScriptFile Script) : SourceExpansionResult;
+        internal sealed record Unexpanded(AwkScriptReadResult.Found Script) : SourceExpansionResult;
 
         internal sealed record Loaded(AwkExpandedSource Source) : SourceExpansionResult;
 
-        internal sealed record Failed(
-            ReadOnlyMemory<byte> ErrorMessage,
-            AwkDiagnosticId Id) : SourceExpansionResult;
+        internal sealed record Failed(AwkFailureDiagnostic Diagnostic) : SourceExpansionResult;
     }
 }

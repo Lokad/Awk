@@ -248,7 +248,7 @@ public sealed class AwkFrontendMemoryTests
         var retained = budget.Reserved;
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
-            plan.CacheResolvedText(path, AwkScriptTextReadResult.MissingText));
+            plan.CacheResolvedText(path, AwkScriptReadResult.NotFound));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.False(plan.TryGetResolvedText(path, out _));
         Assert.Equal(retained, budget.Reserved);

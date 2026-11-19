@@ -7,9 +7,9 @@ internal sealed class AwkSourceLoadPlan
     private readonly IReadOnlyList<AwkSourceReference> _sources;
     private readonly AwkPath _currentDirectory;
     private readonly AwkCompatibilityMode _compatibilityMode;
-    private readonly Dictionary<AwkSourceIdentity, AwkSourceSegmentKind> _sourceRoles = [];
-    private readonly Dictionary<AwkPath, AwkScriptTextReadResult> _scriptTextByIdentity = [];
-    private readonly Dictionary<AwkPathRequest, AwkScriptTextReadResult> _scriptTextByRequest = [];
+    private readonly Dictionary<AwkPath, AwkSourceSegmentKind> _sourceRoles = [];
+    private readonly Dictionary<AwkPath, AwkScriptReadResult> _scriptTextByIdentity = [];
+    private readonly Dictionary<AwkPathRequest, AwkScriptReadResult> _scriptTextByRequest = [];
 
     private AwkSourceLoadPlan(
         IReadOnlyList<AwkSourceReference> sources,
@@ -79,39 +79,39 @@ internal sealed class AwkSourceLoadPlan
             new(path.Display, new(path.Request.Path, path.Request.CurrentDirectory, Options.AccessiblePathRoot));
 
     public bool TryGetRequestText(AwkPathRequest request,
-        [NotNullWhen(true)] out AwkScriptTextReadResult? result) =>
+        [NotNullWhen(true)] out AwkScriptReadResult? result) =>
         _scriptTextByRequest.TryGetValue(request, out result);
 
-    public void CacheRequestText(AwkPathRequest request, AwkScriptTextReadResult result)
+    public void CacheRequestText(AwkPathRequest request, AwkScriptReadResult result)
     {
-        if (result is AwkScriptTextReadResult.Failed) return;
+        if (result is AwkScriptReadResult.Failed) return;
         if (!_scriptTextByRequest.ContainsKey(request))
         {
             Memory.AdmitSourceUnits(4);
             Memory.AdmitTextCopy(request.Path.Length);
         }
         _scriptTextByRequest[request] = result;
-        if (result is AwkScriptTextReadResult.Found found)
+        if (result is AwkScriptReadResult.Found found)
             CacheResolvedText(found.ResolvedPath, result);
     }
 
-    public AwkSourceRegistration RegisterSource(AwkScriptFile script, AwkSourceSegmentKind kind)
+    public AwkSourceRegistration RegisterSource(AwkPath identity, AwkSourceSegmentKind kind)
     {
-        if (_sourceRoles.TryGetValue(script.SourceIdentity, out var previous))
+        if (_sourceRoles.TryGetValue(identity, out var previous))
             return previous == kind ? AwkSourceRegistration.Repeated : AwkSourceRegistration.Conflict;
         Memory.AdmitSourceUnits(1);
-        _sourceRoles.Add(script.SourceIdentity, kind);
+        _sourceRoles.Add(identity, kind);
         return AwkSourceRegistration.Added;
     }
 
     public bool TryGetResolvedText(
         AwkPath path,
-        [NotNullWhen(true)] out AwkScriptTextReadResult? result) =>
+        [NotNullWhen(true)] out AwkScriptReadResult? result) =>
         _scriptTextByIdentity.TryGetValue(path, out result);
 
-    public void CacheResolvedText(AwkPath path, AwkScriptTextReadResult result)
+    public void CacheResolvedText(AwkPath path, AwkScriptReadResult result)
     {
-        if (result is not AwkScriptTextReadResult.Failed)
+        if (result is not AwkScriptReadResult.Failed)
         {
             if (!_scriptTextByIdentity.ContainsKey(path))
             {
