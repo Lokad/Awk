@@ -597,22 +597,30 @@ internal sealed partial class AwkFieldSplitter
             }
 
             var fieldStart = _position;
-            // Skipping the preceding separator already proved a nonempty field.
-            // The bounded search decides whether it ends here or in the next region.
-            do
+            // The first byte is known to be part of the field. A short suffix
+            // inside the current cancellation interval needs no window setup.
+            if (_content.Length - fieldStart <= 16 && _content.Length <= _nextCheckpoint)
             {
-                CheckProgress();
-                // Never search beyond the next existing cancellation boundary.
-                var end = (int)Math.Min(_content.Length, _nextCheckpoint);
-                var length = _content[_position..end].IndexOfAny((byte)' ', (byte)'\t', (byte)'\n');
-
-                if (length >= 0)
+                do _position++;
+                while (_position < _content.Length && !IsDefaultFieldWhitespace(_content[_position]));
+            }
+            else
+            {
+                do
                 {
-                    _position += length;
-                    break;
-                }
-                _position = end;
-            } while (_position < _content.Length);
+                    CheckProgress();
+                    // Bound the vector search by the next cancellation check.
+                    var end = (int)Math.Min(_content.Length, _nextCheckpoint);
+                    var length = _content[_position..end].IndexOfAny((byte)' ', (byte)'\t', (byte)'\n');
+
+                    if (length >= 0)
+                    {
+                        _position += length;
+                        break;
+                    }
+                    _position = end;
+                } while (_position < _content.Length);
+            }
 
             field = new AwkFieldRange(fieldStart, _position - fieldStart);
             return true;
