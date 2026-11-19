@@ -94,6 +94,60 @@ public sealed class AwkRegexCompilationTests
         Assert.Equal(0, budget.ReservedBytes);
     }
 
+    [Theory]
+    [InlineData(false, "a")]
+    [InlineData(false, "[[:alpha:][:digit:]]")]
+    [InlineData(true, "a")]
+    [InlineData(true, ".")]
+    public void CancellationAfterProviderCompileDisposesTheHandleAndAllowsRetry(bool literal, string pattern)
+    {
+        using var memory = new CooperativeTestMemory(1 << 24);
+        using var cancellation = new CancellationTokenSource();
+        var checkpointToken = cancellation.Token;
+        var cancelOnReturn = false;
+        long reservedAtReturn = 0;
+        var engine = new OutcomeEngine(AwkRegexCompilationStatus.Compiled)
+        {
+            AfterCompile = () =>
+            {
+                if (!cancelOnReturn) return;
+                reservedAtReturn = memory.Budget.Reserved;
+                cancellation.Cancel();
+            }
+        };
+        using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+            AwkStringUnitMode.Utf8Rune, () => checkpointToken.ThrowIfCancellationRequested(),
+            memory.Configure(AwkTestHarness.CreateRuntimeOptions() with { RegexEngine = engine }), memory.Accounting);
+        var warm = runtime.Create(new AwkRegexPattern("x"));
+        var committed = memory.Budget.Reserved;
+        cancelOnReturn = true;
+
+        var failure = Assert.Throws<OperationCanceledException>(() => Prepare());
+
+        Assert.Equal(cancellation.Token, failure.CancellationToken);
+        Assert.True(reservedAtReturn > committed);
+        Assert.Equal(committed, memory.Budget.Reserved);
+        Assert.Collection(engine.Handles, old => Assert.False(old.Disposed), canceled => Assert.True(canceled.Disposed));
+
+        cancelOnReturn = false;
+        checkpointToken = CancellationToken.None;
+        var retry = Prepare();
+        Assert.Equal(3, engine.Handles.Count);
+        Assert.False(engine.Handles[2].Disposed);
+        Assert.Same(retry, Prepare());
+        Assert.Same(warm, runtime.Create(new AwkRegexPattern("x")));
+        Assert.Equal(3, engine.Handles.Count);
+
+        runtime.Dispose();
+        Assert.All(engine.Handles, handle => Assert.True(handle.Disposed));
+        Assert.Equal(0, memory.Accounting.LiveBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+
+        AwkRegex Prepare() => literal
+            ? runtime.CreateLiteral(new AwkRegexLiteralText(pattern))
+            : runtime.Create(new AwkRegexPattern(pattern));
+    }
+
     [Fact]
     public async Task InvalidCoreClassDoesNotCallTheProviderOrNotifyTheObserver()
     {

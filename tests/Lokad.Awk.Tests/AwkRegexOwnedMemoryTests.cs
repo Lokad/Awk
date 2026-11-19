@@ -63,40 +63,6 @@ public sealed class AwkRegexOwnedMemoryTests
         }
     }
 
-    [Fact]
-    public void FinalCacheCancellationReleasesChainedTextAndDoesNotPublish()
-    {
-        const string pattern = "[[:alpha:][:digit:]]";
-        using var memoryForProbeGovernor = Governor(1 << 24);
-        var probeGovernor = memoryForProbeGovernor.Accounting;
-        var totalChecks = 0;
-        using var probe = Runtime(probeGovernor, () => totalChecks++);
-        _ = probe.Create(new AwkRegexPattern(pattern));
-        using var memoryForGovernor = Governor(1 << 24);
-        var governor = memoryForGovernor.Accounting;
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var cancellation = new CancellationTokenSource();
-        var checks = 0;
-        var armed = true;
-        using var runtime = Runtime(governor, () =>
-        {
-            if (armed && ++checks == totalChecks) cancellation.Cancel();
-            if (armed) cancellation.Token.ThrowIfCancellationRequested();
-        }, counters);
-        var error = Assert.Throws<OperationCanceledException>(() => runtime.Create(new AwkRegexPattern(pattern)));
-        Assert.Equal(cancellation.Token, error.CancellationToken);
-
-        armed = false;
-        var retry = runtime.Create(new AwkRegexPattern(pattern));
-
-        var retained = governor.LiveBytes;
-        Assert.Same(retry, runtime.Create(new AwkRegexPattern(pattern)));
-        Assert.Equal(retained, governor.LiveBytes);
-
-        runtime.Dispose();
-        Assert.Equal(0, governor.LiveBytes);
-    }
-
     private static CooperativeTestMemory Governor(long bytes) =>
         new CooperativeTestMemory(bytes);
 

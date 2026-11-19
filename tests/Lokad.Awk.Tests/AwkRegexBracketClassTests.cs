@@ -90,28 +90,27 @@ public sealed class AwkRegexBracketClassTests
         Assert.Equal(11, governor.LiveBytes);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CancellationAfterScopeAdmissionReleasesOnlyScopeStorage(bool afterAllocation)
+    [Fact]
+    public void CancellationDuringBracketScopeAdmissionPreservesThePriorLease()
     {
-        using var memoryForGovernor = Governor(4096);
-        var governor = memoryForGovernor.Accounting;
-        using var retained = governor.ReserveTransient(11);
+        using var memory = Governor(4096);
+        using var retained = memory.Accounting.ReserveTransient(11);
         using var cancellation = new CancellationTokenSource();
-        var checks = 0;
-        void Check()
-        {
-            if (governor.LiveBytes > 11 && ++checks == (afterAllocation ? 2 : 1))
-                cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        var failure = Assert.Throws<OperationCanceledException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(
-            "(?x)(a)[[:digit:]]"), Check, retained));
+        var pattern = AwkText.FromString("(?x)(a)[[:digit:]]");
+        var committed = memory.Budget.Reserved;
+        memory.Budget.OnGrowth = _ => cancellation.Cancel();
+
+        var failure = Assert.Throws<OperationCanceledException>(() => AwkRegexBracketClasses.Validate(
+            pattern, cancellation.Token.ThrowIfCancellationRequested, retained));
+
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal(11, governor.LiveBytes);
-        AwkRegexBracketClasses.Validate(AwkText.FromString("(?x)(a)[[:digit:]]"), lease: retained);
-        Assert.Equal(11, governor.LiveBytes);
+        Assert.Equal(committed, memory.Budget.Reserved);
+        memory.Budget.OnGrowth = null;
+        AwkRegexBracketClasses.Validate(pattern, lease: retained);
+        Assert.Equal(committed, memory.Budget.Reserved);
+
+        retained.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]

@@ -50,32 +50,28 @@ public sealed class AwkRegexScratchMemoryTests
     }
 
     [Theory]
-    [InlineData("literal", false)]
-    [InlineData("literal", true)]
-    [InlineData("pairs", false)]
-    [InlineData("pairs", true)]
-    public void GensubCancellationReleasesCountAndConstructionResources(string shape, bool constructing)
+    [InlineData("literal")]
+    [InlineData("pairs")]
+    public void GensubCancellationDuringAdmissionReleasesPlanStorageAndAllowsRetry(string shape)
     {
         var (text, parts) = Replacement(shape);
         var expected = AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(parts);
-        using var memoryForGovernor = Governor(expected);
-        var governor = memoryForGovernor.Accounting;
+        using var memory = Governor(expected);
         using var cancellation = new CancellationTokenSource();
-        var checks = 0;
-        Assert.Throws<OperationCanceledException>(() =>
+        memory.Budget.OnGrowth = _ => cancellation.Cancel();
+
+        var failure = Assert.Throws<OperationCanceledException>(() =>
         {
-            using var plan = AwkGensubReplacementPlan.Rent(text, () =>
-            {
-                if ((governor.LiveBytes > 0) == constructing &&
-                    ++checks == (constructing ? 4 : 3)) cancellation.Cancel();
-                cancellation.Token.ThrowIfCancellationRequested();
-            }, governor);
+            using var plan = AwkGensubReplacementPlan.Rent(text, cancellation.Token.ThrowIfCancellationRequested,
+                memory.Accounting);
         });
-        Assert.Equal(0, governor.LiveBytes);
-        using var retry = new CancellationTokenSource();
-        using (var plan = AwkGensubReplacementPlan.Rent(text, retry.Token.ThrowIfCancellationRequested, governor))
-            Assert.Equal(expected, governor.LiveBytes);
-        Assert.Equal(0, governor.LiveBytes);
+
+        Assert.Equal(cancellation.Token, failure.CancellationToken);
+        Assert.Equal(0, memory.Budget.Reserved);
+        memory.Budget.OnGrowth = null;
+        using (var plan = AwkGensubReplacementPlan.Rent(text, accounting: memory.Accounting))
+            Assert.True(memory.Budget.Reserved > 0);
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]
@@ -84,34 +80,30 @@ public sealed class AwkRegexScratchMemoryTests
     public void FailedGensubAppendKeepsOnlyThePlanLeaseUntilItIsDisposed(bool canceled)
     {
         var text = AwkText.FromString(new string('a', 16_384));
-        using var memoryForGovernor = Governor(1 << 20);
-        var governor = memoryForGovernor.Accounting;
-        var plan = AwkGensubReplacementPlan.Rent(text, accounting: governor);
-        using var builder = new AwkUtf8Builder(governor, 0);
+        using var memory = Governor(1 << 20);
+        using var builder = new AwkUtf8Builder(memory.Accounting, 0);
         using var cancellation = new CancellationTokenSource();
-        var checks = 0;
-        try
+        using (var plan = AwkGensubReplacementPlan.Rent(text, accounting: memory.Accounting))
         {
-            if (!canceled) memoryForGovernor.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+            var committed = memory.Budget.Reserved;
             if (canceled)
-                Assert.Throws<OperationCanceledException>(() => plan.Append(Match(), builder, () =>
-                {
-                    if (++checks == 5) cancellation.Cancel();
-                    cancellation.Token.ThrowIfCancellationRequested();
-                }));
+            {
+                memory.Budget.OnGrowth = _ => cancellation.Cancel();
+                var failure = Assert.Throws<OperationCanceledException>(() =>
+                    plan.Append(Match(), builder, cancellation.Token.ThrowIfCancellationRequested));
+                Assert.Equal(cancellation.Token, failure.CancellationToken);
+            }
             else
+            {
+                memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
                 Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(
                     Assert.Throws<AwkRuntimeException>(() => plan.Append(Match(), builder)).MessageBytes));
+            }
             Assert.Equal(0, builder.Length);
             builder.Dispose();
-            Assert.Equal(AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(1), governor.LiveBytes);
+            Assert.Equal(committed, memory.Budget.Reserved);
         }
-        finally
-        {
-            plan.Dispose();
-        }
-        plan.Dispose();
-        Assert.Equal(0, governor.LiveBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]

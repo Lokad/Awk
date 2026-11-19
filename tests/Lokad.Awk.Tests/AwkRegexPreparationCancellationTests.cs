@@ -14,7 +14,7 @@ public sealed class AwkRegexPreparationCancellationTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var checks = 0;
         var armed = true;
-        var runtime = Runtime(counters, () =>
+        using var runtime = Runtime(counters, () =>
         {
             if (armed && ++checks == 3) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
@@ -29,36 +29,6 @@ public sealed class AwkRegexPreparationCancellationTests
         armed = false;
         var retried = Create();
         Assert.Same(retried, Create());
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CancellationAtFinalPublicationDoesNotCacheTheConstruction(bool literal)
-    {
-        var total = 0;
-        var probe = Runtime(AwkRuntimeCounters.Disabled, () => total++);
-        _ = Create(probe);
-        using var cancellation = new CancellationTokenSource();
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var checks = 0;
-        var armed = true;
-        var runtime = Runtime(counters, () =>
-        {
-            if (armed && ++checks == total) cancellation.Cancel();
-            if (armed) cancellation.Token.ThrowIfCancellationRequested();
-        });
-        var error = Assert.Throws<OperationCanceledException>(() => Create(runtime));
-        Assert.Equal(cancellation.Token, error.CancellationToken);
-
-        armed = false;
-        var retried = Create(runtime);
-
-        Assert.Same(retried, Create(runtime));
-
-        AwkRegex Create(AwkRegexRuntime target) => literal
-            ? target.CreateLiteral(new AwkRegexLiteralText("a"))
-            : target.Create(new AwkRegexPattern("a"));
     }
 
     [Theory]
@@ -119,28 +89,27 @@ public sealed class AwkRegexPreparationCancellationTests
     }
 
     [Fact]
-    public void CancelingLeasedDecodingReleasesScratchBeforeRetry()
+    public void CancelingDuringDecodeAdmissionReleasesScratchAndAllowsRetry()
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
-        var governor = memoryForGovernor.Accounting;
+        using var memory = new CooperativeTestMemory(1 << 20);
+        using var result = memory.Accounting.CreateTransientLease();
         using var cancellation = new CancellationTokenSource();
-        var checks = 0;
-        var armed = true;
-        using var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, () =>
-            {
-                if (armed && governor.LiveBytes > 0 && ++checks == 6) cancellation.Cancel();
-                if (armed) cancellation.Token.ThrowIfCancellationRequested();
-            }, AwkTestHarness.CreateRuntimeOptions(counters), governor);
-        var pattern = new AwkRegexPattern(string.Concat(Enumerable.Repeat(@"\x61", 4096)));
-        var error = Assert.Throws<OperationCanceledException>(() => runtime.Create(pattern));
+        var pattern = AwkText.FromString(string.Concat(Enumerable.Repeat(@"\x61", 4096)));
+        memory.Budget.OnGrowth = _ => cancellation.Cancel();
+
+        var error = Assert.Throws<OperationCanceledException>(() => AwkRegexEscapes.Decode(
+            pattern, AwkCompatibilityMode.GnuDefault, cancellation.Token.ThrowIfCancellationRequested,
+            memory.Accounting, result));
+
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        armed = false;
-        var retried = runtime.Create(pattern);
-        Assert.Same(retried, runtime.Create(pattern));
-        runtime.Dispose();
-        Assert.Equal(0, governor.LiveBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+        memory.Budget.OnGrowth = null;
+        var retry = AwkRegexEscapes.Decode(pattern, AwkCompatibilityMode.GnuDefault, null, memory.Accounting, result);
+        Assert.Equal(new string('a', 4096), retry.AsString());
+        Assert.True(memory.Budget.Reserved > 0);
+
+        result.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Fact]

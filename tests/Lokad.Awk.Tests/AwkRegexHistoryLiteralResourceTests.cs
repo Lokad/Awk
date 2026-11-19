@@ -122,38 +122,6 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         Assert.Equal(0, shortGovernor.LiveBytes);
     }
 
-    [Fact]
-    public void LiteralCacheCancellationReleasesAdmissionWithoutPublishing()
-    {
-        var bytes = AwkRuntimeMemory.EstimateTextBytes(AwkText.FromString(@"\."));
-        using var memoryForProbeGovernor = Governor(1 << 20);
-        var probeGovernor = memoryForProbeGovernor.Accounting;
-        var heldChecks = 0;
-        using var probe = Runtime(probeGovernor, AwkRuntimeCounters.Disabled, () => heldChecks++);
-        _ = probe.CreateLiteral(new AwkRegexLiteralText("."));
-        Assert.True(heldChecks > 0);
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(1 << 20);
-        var governor = memoryForGovernor.Accounting;
-        using var cancellation = new CancellationTokenSource();
-        var armed = true;
-        var checks = 0;
-        using var runtime = Runtime(governor, counters, () =>
-        {
-            if (armed && ++checks == heldChecks) cancellation.Cancel();
-            if (armed) cancellation.Token.ThrowIfCancellationRequested();
-        });
-        var error = Assert.Throws<OperationCanceledException>(() => runtime.CreateLiteral(new AwkRegexLiteralText(".")));
-        Assert.Equal(cancellation.Token, error.CancellationToken);
-
-        armed = false;
-        var retry = runtime.CreateLiteral(new AwkRegexLiteralText("."));
-        Assert.Same(retry, runtime.CreateLiteral(new AwkRegexLiteralText(".")));
-
-        runtime.Dispose();
-        Assert.Equal(0, governor.LiveBytes);
-    }
-
     [Theory]
     [InlineData("measure")]
     [InlineData("construct")]
@@ -252,8 +220,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     private static CooperativeTestMemory Governor(long bytes) =>
         new CooperativeTestMemory(bytes);
 
-    private static AwkRegexRuntime Runtime(AwkMemoryAccounting governor, AwkRuntimeCounters counters, Action? checkpoint = null) =>
+    private static AwkRegexRuntime Runtime(AwkMemoryAccounting governor, AwkRuntimeCounters counters) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            checkpoint ?? (() => { }), AwkTestHarness.CreateRuntimeOptions(counters),
+            static () => { }, AwkTestHarness.CreateRuntimeOptions(counters),
             governor);
 }
