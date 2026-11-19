@@ -107,12 +107,11 @@ public sealed class AwkRecordScanCancellationTests
         using var memoryForState = State(observed);
         var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
-        var checks = 0;
         var armed = false;
         void Check()
         {
-            if (!armed) return;
-            if (++checks == 8) cancellation.Cancel();
+            if (!armed || host.ReadByteCounts.Count < 2) return;
+            cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
 
@@ -125,10 +124,11 @@ public sealed class AwkRecordScanCancellationTests
         Assign(state, "RT", "kept");
         armed = true;
 
-        await Assert.ThrowsAsync<OperationCanceledException>(async () => await cursor.ReadRecordAsync());
+        var error = await Assert.ThrowsAsync<OperationCanceledException>(async () => await cursor.ReadRecordAsync());
 
         armed = false;
-        Assert.Equal(8, checks);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(2, host.ReadByteCounts.Count);
         Assert.Equal("seed fields", state.CurrentRecordByteText.AsString());
         Assert.Equal("kept", state.ResolveVariableValue(AwkVariableName.FromText("RT")).ByteText.AsString());
         var retry = await cursor.ReadRecordAsync();

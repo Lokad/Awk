@@ -8,30 +8,19 @@ public sealed class AwkInventoryOutputBoundaryTests
 
     public static IEnumerable<object[]> OutputCopies()
     {
-        foreach (var observed in new[] { false, true })
-            foreach (var kind in new[] { "text", "parts", "bytes" })
-                foreach (var rope in new[] { false, true })
-                    yield return [observed, kind, rope];
+        foreach (var kind in new[] { "text", "parts", "bytes" })
+            foreach (var rope in new[] { false, true })
+                yield return [kind, rope];
     }
 
     [Theory]
     [MemberData(nameof(OutputCopies))]
-    public void InterruptedOutputAppendPreservesEarlierBytesAndAllowsRetry(bool observed, string kind, bool rope)
+    public void CancellationDuringOutputAdmissionPreservesEarlierBytesAndAllowsRetry(string kind, bool rope)
     {
-        var counters = Counters(observed);
-        var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(8 << 20);
-        var governor = memoryForGovernor.Accounting;
+        using var memory = new CooperativeTestMemory(8 << 20);
         using var cancellation = new CancellationTokenSource();
-        var armed = false;
-        var checks = 0;
-        void Check()
-        {
-            if (!armed) return;
-            if (++checks == 6) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        using var output = new AwkOutputSink(governor, Check);
+        var token = cancellation.Token;
+        using var output = new AwkOutputSink(memory.Accounting, () => token.ThrowIfCancellationRequested());
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         using var state = AwkTestHarness.CreateRuntimeStateWithCounters(AwkRuntimeCounters.Disabled);
         var text = rope
@@ -39,32 +28,28 @@ public sealed class AwkInventoryOutputBoundaryTests
             : AwkText.FromString(new string('a', Large));
         var expected = rope ? new string('a', Large / 2) + new string('b', Large / 2) : new string('a', Large);
         var bytes = Encoding.UTF8.GetBytes(expected);
-        armed = true;
+        memory.Budget.OnGrowth = _ => cancellation.Cancel();
 
         var error = Assert.Throws<OperationCanceledException>(() => Append(output, kind, text, bytes));
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(6, checks);
         Assert.Equal("kept:", output.ToString());
-        armed = false;
+        memory.Budget.OnGrowth = null;
+        token = CancellationToken.None;
         Append(output, kind, text, bytes);
         Assert.Equal("kept:" + expected + (kind == "parts" ? "!" : ""), output.ToString());
 
         output.Dispose();
-        Assert.Equal(0, governor.LiveBytes);
+        Assert.Equal(0, memory.Accounting.LiveBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]
-    [InlineData(false, "text")]
-    [InlineData(true, "text")]
-    [InlineData(false, "parts")]
-    [InlineData(true, "parts")]
-    [InlineData(false, "bytes")]
-    [InlineData(true, "bytes")]
-    public void OutputMemoryFailurePreservesEarlierBytes(bool observed, string kind)
+    [InlineData("text")]
+    [InlineData("parts")]
+    [InlineData("bytes")]
+    public void OutputMemoryFailurePreservesEarlierBytes(string kind)
     {
-        var counters = Counters(observed);
-        var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(1_024);
         var governor = memoryForGovernor.Accounting;
         using var output = new AwkOutputSink(governor, static () => { });
