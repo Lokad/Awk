@@ -143,9 +143,13 @@ internal partial struct AwkRegionMachine
                 numbers[instruction.Target] = state.CountFieldStringUnits(FieldIndex(in lengthOperand));
                 return;
             }
-            if (TryText(lengthOperand, out var text))
+            if (TryReadOwnedText(in lengthOperand, out var owned))
             {
-
+                numbers[instruction.Target] = state.CountStringUnits(owned);
+                return;
+            }
+            if (TryReadLocalText(in lengthOperand, out var text))
+            {
                 var bytes = text.ReadyText;
                 numbers[instruction.Target] = state.CountStringUnits(in bytes);
                 return;
@@ -739,39 +743,31 @@ internal partial struct AwkRegionMachine
             return new(Value(index));
         }
 
-        private bool TryText(scoped in AwkRegionOperand operand, out AwkTextInput text)
+        private bool TryReadOwnedText(scoped in AwkRegionOperand operand, out AwkText text)
         {
             switch (operand.Kind)
             {
                 case AwkRegionOperandKind.Literal:
-                    text = new(region.Literals[operand.Index].Text);
+                    text = region.Literals[operand.Index].Text;
                     return true;
                 case AwkRegionOperandKind.TextTemporary:
-                    text = new(storage.Texts[operand.Index]);
+                    text = storage.Texts[operand.Index];
                     return true;
                 case AwkRegionOperandKind.ValueTemporary:
-                    if (storage.Values[operand.Index].TryGetStoredScalarText(out var valueText))
-                    {
-                        text = new(valueText);
-                        return true;
-                    }
-                    break;
+                    return storage.Values[operand.Index].TryGetStoredScalarText(out text);
                 case AwkRegionOperandKind.GlobalVariable:
-                    if (state.TryResolvePreparedGlobalText(operand.Index, out var globalText))
-                    {
-                        text = new(globalText);
-                        return true;
-                    }
-                    break;
-                case AwkRegionOperandKind.LocalVariable:
-                    if (frame is not null && (uint)operand.Index < (uint)frame.Layout.SlotCount &&
-                        frame.GetSlot(operand.Index).TryGetTextInput(out text, state.CancellationCheckpoint))
-                    {
-
-                        return true;
-                    }
-                    break;
+                    return state.TryResolvePreparedGlobalText(operand.Index, out text);
+                default:
+                    text = default;
+                    return false;
             }
+        }
+
+        private bool TryReadLocalText(scoped in AwkRegionOperand operand, out AwkTextInput text)
+        {
+            if (operand.Kind == AwkRegionOperandKind.LocalVariable && frame is not null &&
+                (uint)operand.Index < (uint)frame.Layout.SlotCount)
+                return frame.GetSlot(operand.Index).TryGetTextInput(out text, state.CancellationCheckpoint);
             text = default;
             return false;
         }
@@ -780,7 +776,8 @@ internal partial struct AwkRegionMachine
         {
             ref readonly var operand = ref operands[index];
             if (IsField(operand)) return state.ResolveFieldByteOperand(FieldIndex(in operand));
-            if (TryText(operand, out var text)) return text.ReadyText;
+            if (TryReadOwnedText(in operand, out var owned)) return new(owned);
+            if (TryReadLocalText(in operand, out var local)) return local.ReadyText;
             return new(state.FormatStringByteText(Value(index)));
         }
 
@@ -788,7 +785,8 @@ internal partial struct AwkRegionMachine
         {
             ref readonly var operand = ref operands[index];
             if (IsField(operand)) state.CaptureFieldTextInput(FieldIndex(in operand), out result);
-            else if (!TryText(operand, out result)) result = new(Value(index));
+            else if (TryReadOwnedText(in operand, out var owned)) result = new(owned);
+            else if (!TryReadLocalText(in operand, out result)) result = new(Value(index));
         }
 
         internal static bool IsField(AwkRegionOperand operand) => operand.Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField;

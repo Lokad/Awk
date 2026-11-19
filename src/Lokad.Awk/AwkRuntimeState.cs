@@ -691,9 +691,9 @@ internal sealed class AwkRuntimeState : IDisposable
         ThrowIfCancellationRequested();
     }
 
-    internal int CompareByteText(AwkByteTextOperand left, AwkByteTextOperand right, bool sorting = false)
+    internal int CompareByteText(in AwkByteTextOperand left, in AwkByteTextOperand right, bool sorting = false)
     {
-        ResolveTextPair(left, right, out var first, out var second);
+        ResolveTextPair(in left, in right, out var first, out var second);
         return _stringRuntime.Compare(first, second, IsCaseInsensitive, sorting);
     }
 
@@ -701,11 +701,11 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         var left = source.Prepare(this, forceScalar: true).ReadyText;
         var right = value.Prepare(this).ReadyText;
-        ResolveTextPair(left, right, out var bytes, out var needle);
+        ResolveTextPair(in left, in right, out var bytes, out var needle);
         return _stringRuntime.IndexOfUnits(bytes, needle, IsCaseInsensitive);
     }
 
-    private void ResolveTextPair(AwkByteTextOperand left, AwkByteTextOperand right,
+    private void ResolveTextPair(in AwkByteTextOperand left, in AwkByteTextOperand right,
         out ReadOnlySpan<byte> first, out ReadOnlySpan<byte> second)
     {
         first = left.AsSpan(CancellationCheckpoint);
