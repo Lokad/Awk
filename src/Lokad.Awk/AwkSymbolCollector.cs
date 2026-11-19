@@ -1,14 +1,20 @@
 namespace Lokad.Awk;
 
 internal sealed class AwkCollectedSymbols(
-    IReadOnlyList<AwkSymbolReference> references,
+    IReadOnlyList<AwkIdentifierSyntax> functionConflicts,
+    IReadOnlyList<AwkIdentifierSyntax> undefinedCalls,
     IReadOnlySet<AwkVariableName> globals,
     IReadOnlySet<AwkIdentifier> functionNames,
-    IReadOnlyList<AwkFunctionLocalLayout> functionLayouts)
+    IReadOnlyList<AwkFunctionLocalLayout> functionLayouts,
+    bool hasDynamicVariables,
+    AwkUnobservedRecordHeaders unobservedRecordHeaders)
 {
-    public IReadOnlyList<AwkSymbolReference> References { get; } = references;
+    public IReadOnlyList<AwkIdentifierSyntax> FunctionConflicts { get; } = functionConflicts;
+    public IReadOnlyList<AwkIdentifierSyntax> UndefinedCalls { get; } = undefinedCalls;
     public IReadOnlySet<AwkVariableName> Globals { get; } = globals;
     public IReadOnlySet<AwkIdentifier> FunctionNames { get; } = functionNames;
+    public bool HasDynamicVariables { get; } = hasDynamicVariables;
+    public AwkUnobservedRecordHeaders UnobservedRecordHeaders { get; } = unobservedRecordHeaders;
 
     // Indexed in syntax order, including declarations that validation rejects.
     public IReadOnlyList<AwkFunctionLocalLayout> FunctionLayouts { get; } = functionLayouts;
@@ -24,7 +30,7 @@ internal static class AwkSymbolCollector
         checkpoint?.Invoke();
         var collector = new Collector(syntax, mode, checkpoint);
         collector.CollectProgram(syntax);
-        return new(collector.Symbols, collector.Globals, collector.FunctionNames, collector.FunctionLayouts);
+        return collector.Complete();
     }
 
     private sealed class Collector
@@ -32,6 +38,10 @@ internal static class AwkSymbolCollector
         private readonly AwkCompatibilityMode _mode;
         private readonly Action? _checkpoint;
         private AwkLoweringScope _scope;
+        private List<AwkIdentifierSyntax>? _functionConflicts;
+        private List<AwkIdentifierSyntax>? _undefinedCalls;
+        private bool _hasDynamicVariables;
+        private AwkUnobservedRecordHeaders _unobservedRecordHeaders = AwkUnobservedRecordHeaders.All;
 
         public Collector(AwkSyntaxProgram syntax, AwkCompatibilityMode mode, Action? checkpoint)
         {
@@ -48,11 +58,13 @@ internal static class AwkSymbolCollector
             }
         }
 
-        public List<AwkSymbolReference> Symbols { get; } = [];
-
         public HashSet<AwkVariableName> Globals { get; } = [];
         public HashSet<AwkIdentifier> FunctionNames { get; }
         public AwkFunctionLocalLayout[] FunctionLayouts { get; }
+
+        public AwkCollectedSymbols Complete() =>
+            new(_functionConflicts is { } conflicts ? conflicts : [], _undefinedCalls is { } calls ? calls : [],
+                Globals, FunctionNames, FunctionLayouts, _hasDynamicVariables, _unobservedRecordHeaders);
 
         public void CollectProgram(AwkSyntaxProgram syntax)
         {
@@ -61,16 +73,13 @@ internal static class AwkSymbolCollector
                 _checkpoint?.Invoke();
                 var function = syntax.Functions[index];
                 if (function.Identifier.HasValue)
-                    Symbols.Add(new AwkSymbolReference(function.Identifier.Value,
-                        AwkSymbolReferenceKind.FunctionDefinition, function.Span));
+                    ObserveName(function.Name);
 
                 foreach (var token in function.ParameterTokens)
                 {
                     _checkpoint?.Invoke();
-                    if (token.Kind == AwkTokenKind.Identifier &&
-                        AwkIdentifier.TryParse(token.Text, out var identifier))
-                        Symbols.Add(new AwkSymbolReference(identifier,
-                            AwkSymbolReferenceKind.FunctionParameter, token.Span, isFunctionLocal: true));
+                    if (token.TryGetIdentifier(out var identifier))
+                        ObserveName(identifier.Text);
                 }
 
                 var layout = new AwkFunctionLocalLayout(function.ParameterBinding.Parameters, _checkpoint);
@@ -114,12 +123,12 @@ internal static class AwkSymbolCollector
             {
                 case AwkExpressionKind.Variable:
                     if (AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier))
-                        AddVariableReference(identifier, AwkSymbolReferenceKind.Variable);
+                        AddVariable(identifier);
                     return -1;
                 case AwkExpressionKind.ArrayElement:
                     if (AwkExpressionSyntaxFacts.TryGetArrayElementTarget(expression, out var target))
                     {
-                        AddVariableReference(target, AwkSymbolReferenceKind.Array);
+                        AddVariable(target);
                         firstChild = 1;
                     }
                     break;
@@ -128,14 +137,14 @@ internal static class AwkSymbolCollector
                     {
                         if (!callable.IsSpecialSyntax)
                         {
-                            var local = _scope.TryGetFunctionLocalSlot(new(callable.Identifier), out _);
-                            var kind = !local && AwkBuiltins.TryGetCallable(callable.Name, out var builtin) &&
-                                AwkCompatibilityNames.EnablesBuiltin(builtin, _mode)
-                                ? AwkSymbolReferenceKind.BuiltinFunction
-                                : !local && FunctionNames.Contains(callable.Identifier)
-                                    ? AwkSymbolReferenceKind.UserFunction
-                                    : AwkSymbolReferenceKind.UnknownFunction;
-                            Symbols.Add(new AwkSymbolReference(callable.Identifier, kind, callable.Span, local));
+                            ObserveName(callable.Name);
+                            if (!_scope.TryGetFunctionLocalSlot(new(callable.Identifier), out _) &&
+                                !(AwkBuiltins.TryGetCallable(callable.Name, out var builtin) &&
+                                  AwkCompatibilityNames.EnablesBuiltin(builtin, _mode)) &&
+                                !FunctionNames.Contains(callable.Identifier))
+                            {
+                                (_undefinedCalls ??= []).Add(callable.IdentifierSyntax);
+                            }
                         }
                         firstChild = 1;
                     }
@@ -144,50 +153,41 @@ internal static class AwkSymbolCollector
             return firstChild;
         }
 
-        private void AddVariableReference(AwkIdentifierSyntax identifier, AwkSymbolReferenceKind ordinaryKind)
+        private void AddVariable(AwkIdentifierSyntax identifier)
         {
             var name = new AwkVariableName(identifier.Identifier);
-            var local = _scope.TryGetFunctionLocalSlot(name, out _);
-            var kind = ordinaryKind;
-            if (!local && AwkSpecialVariables.TryGet(identifier.Name, out var special) &&
-                AwkCompatibilityNames.EnablesSpecial(special.Id, _mode))
-                kind = special is AwkSpecialArrayVariableDefinition
-                    ? AwkSymbolReferenceKind.SpecialArray
-                    : AwkSymbolReferenceKind.SpecialVariable;
+            ObserveName(identifier.Name);
+            if (_scope.TryGetFunctionLocalSlot(name, out _))
+                return;
 
-            Symbols.Add(new AwkSymbolReference(identifier.Identifier, kind, identifier.Span, local));
-            if (!local && !(AwkSymbolTableArray.IsName(identifier.Name) &&
-                AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.SymbolTable, _mode)))
+            if (FunctionNames.Count != 0 && FunctionNames.Contains(identifier.Identifier) &&
+                !(AwkSpecialVariables.TryGet(identifier.Name, out var special) &&
+                  AwkCompatibilityNames.EnablesSpecial(special.Id, _mode)))
+                (_functionConflicts ??= []).Add(identifier);
+
+            if (!(AwkSymbolTableArray.IsName(identifier.Name) &&
+                  AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.SymbolTable, _mode)))
                 Globals.Add(name);
         }
+
+        private void ObserveName(string name)
+        {
+            switch (name)
+            {
+                case "ARGV" or "SYMTAB":
+                    _hasDynamicVariables = true;
+                    _unobservedRecordHeaders = AwkUnobservedRecordHeaders.None;
+                    break;
+                case "NR":
+                    _unobservedRecordHeaders &= ~AwkUnobservedRecordHeaders.NR;
+                    break;
+                case "FNR":
+                    _unobservedRecordHeaders &= ~AwkUnobservedRecordHeaders.FNR;
+                    break;
+                case "RT":
+                    _unobservedRecordHeaders &= ~AwkUnobservedRecordHeaders.RT;
+                    break;
+            }
+        }
     }
-}
-
-internal sealed class AwkSymbolReference(
-    AwkIdentifier identifier,
-    AwkSymbolReferenceKind kind,
-    AwkTextSpan span,
-    bool isFunctionLocal = false)
-{
-    public AwkSymbolReferenceKind Kind { get; } = kind;
-
-    public AwkTextSpan Span { get; } = span;
-    public AwkIdentifier Identifier { get; } = identifier;
-
-    public string Name => Identifier.Text;
-
-    public bool IsFunctionLocal { get; } = isFunctionLocal;
-}
-
-internal enum AwkSymbolReferenceKind
-{
-    Variable,
-    SpecialVariable,
-    Array,
-    SpecialArray,
-    BuiltinFunction,
-    UserFunction,
-    UnknownFunction,
-    FunctionDefinition,
-    FunctionParameter
 }

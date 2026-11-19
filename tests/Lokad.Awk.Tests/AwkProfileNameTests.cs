@@ -27,21 +27,23 @@ public sealed class AwkProfileNameTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    public void SymbolCollectorDistinguishesLocalNamesFromGlobalSpecialArrays(int modeValue)
+    public async Task LocalNamesRemainIndependentOfGlobalSpecialArrays(int modeValue)
     {
-        var mode = (AwkCompatibilityMode)modeValue;
-        const string source = "function f(and,SYMTAB){and++;SYMTAB[1]=and;return and}BEGIN{SYMTAB[\"x\"]=3;print f(2,a)}";
-        var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None, mode);
-        var binding = AwkBinder.Bind(parse, AwkCompatibilityProfile.Default.WithMode(mode));
-        Assert.True(binding.Success);
-        var symbols = AwkSymbolCollector.Collect(parse.Syntax, mode).References;
-        Assert.Contains(symbols, symbol =>
-            symbol.Name == "and" && symbol.Kind == AwkSymbolReferenceKind.Variable && symbol.IsFunctionLocal);
-        Assert.Contains(symbols, symbol =>
-            symbol.Name == "SYMTAB" && symbol.Kind == AwkSymbolReferenceKind.Array && symbol.IsFunctionLocal);
-        Assert.Contains(symbols, symbol => symbol.Name == "SYMTAB" && !symbol.IsFunctionLocal &&
-            symbol.Kind == (mode == AwkCompatibilityMode.GnuDefault
-                ? AwkSymbolReferenceKind.SpecialArray : AwkSymbolReferenceKind.Array));
+        const string source = """
+            function f(and,SYMTAB){and++;SYMTAB[1]=and;return and}
+            BEGIN{SYMTAB["x"]=3;print f(2,a),a[1],SYMTAB["x"],(x==3)}
+            """;
+        var arguments = (AwkCompatibilityMode)modeValue switch
+        {
+            AwkCompatibilityMode.Posix => new[] { "--posix", source },
+            AwkCompatibilityMode.Traditional => new[] { "--traditional", source },
+            _ => new[] { source }
+        };
+        var host = new MockFileSystem();
+        var command = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments));
+        Assert.Equal(AwkExitCode.Success, await command.ExecuteAsync(host, CancellationToken.None));
+        Assert.Equal(modeValue == 0 ? "3 3 3 1\n" : "3 3 3 0\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Theory]

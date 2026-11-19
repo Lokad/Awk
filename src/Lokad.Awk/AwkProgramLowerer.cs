@@ -2,24 +2,6 @@ namespace Lokad.Awk;
 
 internal static class AwkProgramLowerer
 {
-    private static AwkUnobservedRecordHeaders PrepareUnobservedRecordHeaders(
-        IReadOnlyList<AwkSymbolReference> symbols, AwkRuntimeArgumentPlan? arguments, Action? checkpoint)
-    {
-        // Standalone preparation can have observers outside the source program.
-        if (arguments is null) return AwkUnobservedRecordHeaders.None;
-        var unobserved = AwkUnobservedRecordHeaders.All;
-        foreach (var symbol in symbols)
-        {
-            checkpoint?.Invoke();
-            if (symbol.Name is "SYMTAB" or "ARGV") return AwkUnobservedRecordHeaders.None;
-            if (symbol.Name == "NR") unobserved &= ~AwkUnobservedRecordHeaders.NR;
-            if (symbol.Name == "FNR") unobserved &= ~AwkUnobservedRecordHeaders.FNR;
-            if (symbol.Name == "RT") unobserved &= ~AwkUnobservedRecordHeaders.RT;
-            if (unobserved == AwkUnobservedRecordHeaders.None) return unobserved;
-        }
-        return unobserved;
-    }
-
     public static AwkBindingResult LowerValidated(AwkSyntaxProgram syntax, AwkCollectedSymbols symbols,
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
@@ -52,7 +34,7 @@ internal static class AwkProgramLowerer
         }
 
         AwkValueConsumption.Prepare(syntax, functions, mode, checkpoint, globalReads,
-            externalArguments is null ? null : symbols.References);
+            closedGlobals: externalArguments is not null && !symbols.HasDynamicVariables);
 
         // All named targets have one identity, including forward and recursive calls.
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
@@ -104,7 +86,7 @@ internal static class AwkProgramLowerer
         checkpoint?.Invoke();
         var program = new AwkProgram(beginActions, main.BuildMain(), endActions, beginFileActions, endFileActions, functions,
             symbols.Globals, globalReads.Count, rangeCount, main.HasMainRules,
-            PrepareUnobservedRecordHeaders(symbols.References, externalArguments, checkpoint));
+            externalArguments is null ? AwkUnobservedRecordHeaders.None : symbols.UnobservedRecordHeaders);
         checkpoint?.Invoke();
         return AwkBindingResult.FromProgram(program);
     }

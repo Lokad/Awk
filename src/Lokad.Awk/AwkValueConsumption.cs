@@ -16,17 +16,10 @@ internal static class AwkValueConsumption
 
     public static void Prepare(AwkSyntaxProgram syntax,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions, AwkCompatibilityMode mode, Action? checkpoint,
-        AwkGlobalReadLayout globals, IReadOnlyList<AwkSymbolReference>? symbols)
+        AwkGlobalReadLayout globals, bool closedGlobals)
     {
-        // Standalone preparation and dynamic symbol/argument access retain full
-        // globals. Parameter consumption remains available in those contexts.
-        var closedGlobals = symbols is not null;
-        if (symbols is not null)
-            foreach (var symbol in symbols)
-            {
-                checkpoint?.Invoke();
-                if (symbol.Name is "ARGV" or "SYMTAB") { closedGlobals = false; break; }
-            }
+        // Standalone preparation and dynamic access retain full globals while
+        // still allowing parameter consumption analysis.
         var ranges = new Dictionary<AwkFunctionName, LocalRange>(functions.Count);
         var count = 0;
         foreach (var (name, function) in functions)

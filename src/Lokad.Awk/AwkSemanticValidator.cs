@@ -89,16 +89,11 @@ internal static class AwkSemanticValidator
                     _ => AwkMessages.FormatUndefinedFunctionText(name)
                 };
 
-            HashSet<AwkIdentifier>? reported = null;
-            var references = symbols.References;
-            for (var index = 0; index < references.Count; index++)
+            if (symbols.UndefinedCalls.Count == 0) return;
+            var reported = new HashSet<AwkIdentifier>();
+            foreach (var symbol in symbols.UndefinedCalls)
             {
                 checkpoint?.Invoke();
-                var symbol = references[index];
-                if (symbol.Kind != AwkSymbolReferenceKind.UnknownFunction || symbol.IsFunctionLocal)
-                    continue;
-
-                reported ??= [];
                 if (!reported.Add(symbol.Identifier))
                     continue;
 
@@ -109,54 +104,13 @@ internal static class AwkSemanticValidator
             }
         }
 
-        void ValidateFunctionVariableConflicts(
-            List<AwkDiagnostic> diagnostics)
+        void ValidateFunctionVariableConflicts(List<AwkDiagnostic> diagnostics)
         {
-            var functions = symbols.FunctionNames;
-            if (functions.Count == 0) return;
-            var references = symbols.References;
-            for (var index = 0; index < references.Count; index++)
+            foreach (var usage in symbols.FunctionConflicts)
             {
                 checkpoint?.Invoke();
-                var usage = references[index];
-                if (!usage.IsFunctionLocal &&
-                    usage.Kind is AwkSymbolReferenceKind.Variable or AwkSymbolReferenceKind.Array &&
-                    functions.Contains(usage.Identifier))
-                {
-                    diagnostics.Add(new AwkDiagnostic(usage.Span,
-                        "Function name `" + usage.Name + "' used as a variable.",
-                        AwkDiagnosticId.BindInvalidProgram));
-                }
-            }
-        }
-
-        void ValidateCompatibilityGatedCallables(
-            AwkCompatibilityMode compatibilityMode,
-            List<AwkDiagnostic> diagnostics)
-        {
-            if (compatibilityMode == AwkCompatibilityMode.GnuDefault)
-                return;
-
-            HashSet<AwkIdentifier>? reported = null;
-            var references = symbols.References;
-            for (var index = 0; index < references.Count; index++)
-            {
-                checkpoint?.Invoke();
-                var symbol = references[index];
-                if (symbol.Kind != AwkSymbolReferenceKind.BuiltinFunction ||
-                    !AwkBuiltins.TryGetCallable(symbol.Name, out var definition) ||
-                    definition.Compatibility != AwkBuiltinCompatibility.Gnu)
-                {
-                    continue;
-                }
-
-                reported ??= [];
-                if (!reported.Add(symbol.Identifier))
-                    continue;
-
-                diagnostics.Add(new AwkDiagnostic(
-                    symbol.Span,
-                    AwkMessages.FormatUndefinedFunctionText(symbol.Name),
+                diagnostics.Add(new AwkDiagnostic(usage.Span,
+                    "Function name `" + usage.Name + "' used as a variable.",
                     AwkDiagnosticId.BindInvalidProgram));
             }
         }
@@ -250,7 +204,6 @@ internal static class AwkSemanticValidator
         ValidateFunctionDeclarations(syntax, compatibilityProfile.Mode, diagnostics);
         ValidateFunctionVariableConflicts(diagnostics);
         ValidateUndefinedFunctions(compatibilityProfile.LintMode, diagnostics);
-        ValidateCompatibilityGatedCallables(compatibilityProfile.Mode, diagnostics);
         ValidatePosixPowerOperators(syntax, compatibilityProfile.Mode, diagnostics);
         ValidatePosixTernaryContinuations(syntax, compatibilityProfile.Mode, diagnostics);
         ValidateStatementSemantics(syntax, compatibilityProfile.Mode, diagnostics);

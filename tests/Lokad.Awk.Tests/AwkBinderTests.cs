@@ -7,25 +7,28 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBinderTests
 {
     [Fact]
-    public void AwkBinder_PreservesOrderedSymbolsAndLocalScopeAcrossBranchesAndArms()
+    public void AwkBinder_PreservesReferenceDiagnosticOrderAcrossBranchesAndArms()
     {
         const string source = """
-            function f(local){
-                if(local){left[a]=x}else{right[b]=y}
-                switch(local){case 1:c=d;break;default:e=g}
-                return local
+            function left(){return 1}
+            function right(){return 2}
+            function f(local,left){
+                if(local){left=0;right=1;missing(1)}else{right=2;missing(2)}
+                switch(local){case 1:right=3;break;default:right=4;missingAgain()}
+                return left
             }
-            BEGIN{out=f(input)}
+            BEGIN{right=5;print f(1)}
             """;
-        var parsed = AwkTestHarness.ParseSource(source);
-        var binding = AwkTestHarness.BindDefaultProfile(parsed);
-        Assert.True(binding.Success);
-        var symbols = AwkSymbolCollector.Collect(parsed.Syntax).References;
-        Assert.Equal(new[] { "f", "local", "local", "left", "a", "x", "right", "b", "y",
-            "local", "c", "d", "e", "g", "local", "out", "f", "input" },
-            symbols.Select(symbol => symbol.Name));
-        Assert.All(symbols.Where(symbol => symbol.Name == "local"), symbol => Assert.True(symbol.IsFunctionLocal));
-        Assert.All(symbols.Where(symbol => symbol.Name != "local"), symbol => Assert.False(symbol.IsFunctionLocal));
+        var binding = AwkTestHarness.BindDefaultProfile(AwkTestHarness.ParseSource(source));
+        Assert.False(binding.Success);
+        const string conflict = "Function name `right' used as a variable.";
+        Assert.Equal(Enumerable.Repeat(conflict, 5)
+                .Concat(new[] { "undefined function: missing",
+                    "undefined function: missingAgain" }),
+            binding.Diagnostics.Select(diagnostic => diagnostic.Message));
+        Assert.Equal(new[] { "right=1", "right=2", "right=3", "right=4", "right=5", "missing(1)", "missingAgain()" }
+                .Select(occurrence => source.IndexOf(occurrence, StringComparison.Ordinal)),
+            binding.Diagnostics.Select(diagnostic => diagnostic.Span.Start));
     }
 
     [Fact]
@@ -64,29 +67,21 @@ public sealed class AwkBinderTests
     }
 
     [Fact]
-    public void AwkBinder_CollectsSymbolReferencesFromSyntax()
+    public void AwkBinder_PreparesGlobalsAndFunctionsFromSyntax()
     {
         var parsed = AwkParser.Parse("function helper(value, extra){ return value + extra }\n" +
             "BEGIN{print NF, length($1); a[$1]++; helper(a[$2])}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         Assert.True(parsed.Success);
-        var symbols = AwkSymbolCollector.Collect(parsed.Syntax).References;
-
-        Assert.Contains(symbols, symbol =>
-            symbol is { Name: "helper", Kind: AwkSymbolReferenceKind.FunctionDefinition });
-        Assert.Contains(symbols, symbol =>
-            symbol is { Name: "value", Kind: AwkSymbolReferenceKind.FunctionParameter });
-        Assert.Contains(symbols, symbol =>
-            symbol is { Name: "NF", Kind: AwkSymbolReferenceKind.SpecialVariable });
-        Assert.Contains(symbols, symbol =>
-            symbol is { Name: "length", Kind: AwkSymbolReferenceKind.BuiltinFunction });
-        Assert.Contains(symbols, symbol =>
-            symbol is { Name: "a", Kind: AwkSymbolReferenceKind.Array });
-        Assert.Contains(symbols, symbol =>
-            symbol is { Name: "helper", Kind: AwkSymbolReferenceKind.UserFunction });
+        var binding = AwkTestHarness.BindDefaultProfile(parsed);
+        Assert.True(binding.Success);
+        Assert.Contains(AwkVariableName.FromText("NF"), binding.Program.GlobalNames);
+        Assert.Contains(AwkVariableName.FromText("a"), binding.Program.GlobalNames);
+        Assert.DoesNotContain(AwkVariableName.FromText("value"), binding.Program.GlobalNames);
+        Assert.Contains(AwkFunctionName.FromText("helper"), binding.Program.Functions.Keys);
     }
 
     [Fact]
-    public void AwkBinder_ClassifiesImplementedSpecialFormsAsBuiltins()
+    public void AwkBinder_BindsImplementedSpecialForms()
     {
         var parsed = AwkParser.Parse("BEGIN{" +
             "sub(/a/, \"b\", $0);" +
@@ -99,14 +94,6 @@ public sealed class AwkBinderTests
             "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.True(AwkTestHarness.BindDefaultProfile(parsed).Success);
-        var symbols = AwkSymbolCollector.Collect(parsed.Syntax).References;
-        foreach (var name in new[] { "sub", "gsub", "split", "patsplit", "asort", "asorti", "match", "typeof", "isarray" })
-        {
-            Assert.Contains(symbols, symbol =>
-                symbol.Kind == AwkSymbolReferenceKind.BuiltinFunction && symbol.Name == name);
-            Assert.DoesNotContain(symbols, symbol =>
-                symbol.Kind == AwkSymbolReferenceKind.UnknownFunction && symbol.Name == name);
-        }
     }
 
     [Theory]
