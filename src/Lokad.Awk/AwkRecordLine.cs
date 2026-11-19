@@ -34,6 +34,21 @@ internal static class AwkRecordLine
         destination.Append(content[start..], checkpoint);
     }
 
+    internal static int IndexOfByte(ReadOnlySpan<byte> content, byte value, Action checkpoint)
+    {
+        var offset = 0;
+        while (offset < content.Length)
+        {
+            checkpoint();
+            var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, content.Length - offset);
+            var found = content.Slice(offset, length).IndexOf(value);
+            if (found >= 0)
+                return offset + found;
+            offset += length;
+        }
+        return -1;
+    }
+
     internal static int IndexOfLiteral(ReadOnlySpan<byte> content, ReadOnlySpan<byte> value, Action checkpoint)
     {
         if (value.Length > AwkRuntimeLimits.CancellationCheckBytes)

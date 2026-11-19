@@ -93,13 +93,30 @@ internal sealed partial class AwkFieldSplitter
             field = default;
             if (_finished) return false;
             var start = _next;
-            var position = start;
+            int position;
+            if (start < _bytes.Length && _bytes[start] == (byte)'"')
+                field = ReadQuoted(start + 1, out position);
+            else
+            {
+                var comma = AwkRecordLine.IndexOfByte(_bytes[start..], (byte)',', _checkpoint);
+                position = comma < 0 ? _bytes.Length : start + comma;
+                var length = position - start;
+                field = new(start, length, length, false);
+            }
+            if (position < _bytes.Length)
+                _next = position + 1;
+            else
+                _finished = true;
+            return true;
+        }
+
+        private CsvField ReadQuoted(int start, out int position)
+        {
+            position = start;
+            var end = start;
             var decodedLength = 0;
             var escaped = false;
-            var quoted = position < _bytes.Length && _bytes[position] == (byte)'"';
-            if (quoted) start = ++position;
-            var end = start;
-            long nextCheckpoint = position;
+            long nextCheckpoint = start;
             while (position < _bytes.Length)
             {
                 if (position >= nextCheckpoint)
@@ -107,9 +124,7 @@ internal sealed partial class AwkFieldSplitter
                     _checkpoint();
                     nextCheckpoint = (long)position + AwkRuntimeLimits.CancellationCheckBytes;
                 }
-                var value = _bytes[position];
-                if (!quoted && value == (byte)',') break;
-                if (quoted && value == (byte)'"')
+                if (_bytes[position] == (byte)'"')
                 {
                     if (position + 1 < _bytes.Length && _bytes[position + 1] == (byte)'"')
                     {
@@ -129,12 +144,7 @@ internal sealed partial class AwkFieldSplitter
                 decodedLength++;
                 end = position;
             }
-            field = new(start, end - start, decodedLength, escaped);
-            if (position < _bytes.Length)
-                _next = position + 1;
-            else
-                _finished = true;
-            return true;
+            return new(start, end - start, decodedLength, escaped);
         }
     }
 }

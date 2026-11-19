@@ -620,7 +620,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
             int termLength;
             if (separatorText[termStart] == '[')
             {
-                var relativeClosingBracket = IndexOfByte(separatorText[(termStart + 1)..end], (byte)']', checkpoint);
+                var relativeClosingBracket = AwkRecordLine.IndexOfByte(separatorText[(termStart + 1)..end], (byte)']', checkpoint);
                 if (relativeClosingBracket < 0)
                     return false;
 
@@ -672,21 +672,6 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                 ? (Low & 1UL << value) != 0
                 : value <= 0x7F && (High & 1UL << (value - 64)) != 0;
 
-    }
-
-    private static int IndexOfByte(ReadOnlySpan<byte> content, byte value, Action checkpoint)
-    {
-        var offset = 0;
-        while (offset < content.Length)
-        {
-            checkpoint();
-            var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, content.Length - offset);
-            var found = content.Slice(offset, length).IndexOf(value);
-            if (found >= 0)
-                return offset + found;
-            offset += length;
-        }
-        return -1;
     }
 
     private static bool TryReadNewline(ReadOnlySpan<byte> content, int position, out int length)

@@ -64,7 +64,7 @@ internal sealed partial class AwkRecordCursor
         AwkRecordTerminator terminator, bool trimCarriageReturn = false, AwkRecordStorage? storage = null)
     {
         var scanStart = GetRelativeScanStart(content);
-        var relativeIndex = IndexOfByte(content[scanStart..], separator, _scanCheckpoint);
+        var relativeIndex = AwkRecordLine.IndexOfByte(content[scanStart..], separator, _scanCheckpoint);
         _state.ThrowIfCancellationRequested();
         if (relativeIndex < 0)
         {
