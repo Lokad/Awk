@@ -28,6 +28,7 @@ internal sealed class AwkTopLevelSyntaxParser
         Action? checkpoint = null)
     {
         checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         var parser = new AwkTopLevelSyntaxParser(source, tokens, checkpoint);
         parser.Tokens = AwkParsingSupport.ToLexerResult(source, tokens, checkpoint);
         try
@@ -49,7 +50,7 @@ internal sealed class AwkTopLevelSyntaxParser
     [Rule]
     public ParseResult Program(
         [AwkL(Min = 0)] TopLevelPart[] parts,
-        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> _)
+        [AwkT(AwkTokenKind.EndOfFile)] AwkTokenKind _)
     {
         _checkpoint?.Invoke();
         var items = new List<TopLevelItem>(parts.Length);
@@ -71,7 +72,7 @@ internal sealed class AwkTopLevelSyntaxParser
     }
 
     [Rule]
-    public TopLevelPart Separator([AwkT(AwkTokenKind.NewLine, AwkTokenKind.Semicolon, AwkTokenKind.Comment)] Pos<string> _)
+    public TopLevelPart Separator([AwkT(AwkTokenKind.NewLine, AwkTokenKind.Semicolon, AwkTokenKind.Comment)] AwkTokenKind _)
     {
         _checkpoint?.Invoke();
         return new(null);
@@ -79,39 +80,36 @@ internal sealed class AwkTopLevelSyntaxParser
 
     [Rule]
     public TopLevelItem Directive(
-        [AwkT(AwkTokenKind.At)] Pos<string> at,
-        [AwkT(AwkTokenKind.Identifier)] Pos<string> name,
+        [AwkT(AwkTokenKind.At)] AwkTokenKind _,
+        [AwkT(AwkTokenKind.Identifier)] string name,
         [AwkL(Min = 0)] DirectiveArgument[] arguments)
     {
         _checkpoint?.Invoke();
-        var atToken = ToToken(AwkTokenKind.At, at);
-        var nameToken = ToToken(AwkTokenKind.Identifier, name);
         return TopLevelItem.Directive(
-            name.Value,
+            name,
             DirectiveTokens(arguments),
-            SpanFrom(atToken, arguments.Length == 0 ? nameToken : arguments[^1].Token));
+            SpanFrom(_originalTokens[StartToken], _originalTokens[EndToken]));
     }
 
     [Rule]
     public TopLevelItem Function(
-        [AwkT(AwkTokenKind.Function)] Pos<string> functionKeyword,
-        [AwkT(AwkTokenKind.Identifier)] Pos<string> name,
+        [AwkT(AwkTokenKind.Function)] AwkTokenKind _,
+        [AwkT(AwkTokenKind.Identifier)] string name,
         [NT] BalancedParenthesized parameterList,
-        [AwkL(Min = 0)] FunctionBodyGap[] _,
+        [AwkL(Min = 0)] FunctionBodyGap[] __,
         [NT] BalancedBlock body)
     {
         _checkpoint?.Invoke();
-        var start = ToToken(AwkTokenKind.Function, functionKeyword);
         return TopLevelItem.Function(
-            name.Value,
-            GroupTokens(parameterList.OpenToken, parameterList.CloseToken).InnerTokens,
-            GroupTokens(body.OpenToken, body.CloseToken).InnerTokens,
-            SpanFrom(start, body.CloseToken));
+            name,
+            InnerTokens(parameterList.OpenIndex, parameterList.CloseIndex),
+            InnerTokens(body.OpenIndex, body.CloseIndex),
+            SpanFrom(_originalTokens[StartToken], _originalTokens[body.CloseIndex]));
     }
 
     [Rule]
     public FunctionBodyGap FunctionBodyGapRule(
-        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> _)
+        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] AwkTokenKind _)
     {
         _checkpoint?.Invoke();
         return new();
@@ -119,17 +117,16 @@ internal sealed class AwkTopLevelSyntaxParser
 
     [Rule]
     public TopLevelItem SpecialRule(
-        [AwkT(AwkTokenKind.Begin, AwkTokenKind.End, AwkTokenKind.BeginFile, AwkTokenKind.EndFile)] Pos<string> keyword,
+        [AwkT(AwkTokenKind.Begin, AwkTokenKind.End, AwkTokenKind.BeginFile, AwkTokenKind.EndFile)] AwkTokenKind keyword,
         [NT] BalancedBlock action)
     {
         _checkpoint?.Invoke();
-        var keywordToken = ToToken(AwkParsingSupport.ResolveTextKind(keyword.Value), keyword);
         return TopLevelItem.Rule(
-            ToRuleKind(keywordToken.Kind),
+            ToRuleKind(keyword),
             AwkPatternSyntax.Empty,
-            GroupTokens(action.OpenToken, action.CloseToken).InnerTokens,
+            InnerTokens(action.OpenIndex, action.CloseIndex),
             hasExplicitAction: true,
-            SpanFrom(keywordToken, action.CloseToken));
+            SpanFrom(_originalTokens[StartToken], _originalTokens[action.CloseIndex]));
 
         static AwkRuleKind ToRuleKind(AwkTokenKind kind) =>
             kind switch
@@ -149,9 +146,9 @@ internal sealed class AwkTopLevelSyntaxParser
         return TopLevelItem.Rule(
             AwkRuleKind.Main,
             AwkPatternSyntax.Empty,
-            GroupTokens(action.OpenToken, action.CloseToken).InnerTokens,
+            InnerTokens(action.OpenIndex, action.CloseIndex),
             hasExplicitAction: true,
-            SpanFrom(action.OpenToken, action.CloseToken));
+            SpanFrom(_originalTokens[action.OpenIndex], _originalTokens[action.CloseIndex]));
     }
 
     [Rule]
@@ -163,9 +160,9 @@ internal sealed class AwkTopLevelSyntaxParser
         return TopLevelItem.Rule(
             AwkRuleKind.Main,
             pattern,
-            GroupTokens(action.OpenToken, action.CloseToken).InnerTokens,
+            InnerTokens(action.OpenIndex, action.CloseIndex),
             hasExplicitAction: true,
-            SpanFrom(pattern.Tokens[0], action.CloseToken));
+            SpanFrom(pattern.Tokens[0], _originalTokens[action.CloseIndex]));
     }
 
     [Rule]
@@ -181,20 +178,20 @@ internal sealed class AwkTopLevelSyntaxParser
     }
 
     [Rule]
-    public DirectiveArgument DirectiveArgumentRule([AwkTopLevelDirectiveArgumentLeaf] Pos<string> token)
+    public DirectiveArgument DirectiveArgumentRule([AwkTopLevelDirectiveArgumentLeaf] AwkTokenKind _)
     {
         _checkpoint?.Invoke();
-        return new(AwkParsingSupport.RestoreToken(_originalTokens, token, _checkpoint));
+        return new(_originalTokens[StartToken]);
     }
 
     [Rule]
     public BalancedBlock Block(
-        [AwkT(AwkTokenKind.LeftBrace)] Pos<string> open,
-        [AwkL(Min = 0)] BlockPart[] _,
-        [AwkT(AwkTokenKind.RightBrace)] Pos<string> close)
+        [AwkT(AwkTokenKind.LeftBrace)] AwkTokenKind _,
+        [AwkL(Min = 0)] BlockPart[] __,
+        [AwkT(AwkTokenKind.RightBrace)] AwkTokenKind ___)
     {
         _checkpoint?.Invoke();
-        return new(ToToken(AwkTokenKind.LeftBrace, open), ToToken(AwkTokenKind.RightBrace, close));
+        return new(StartToken, EndToken);
     }
 
     [Rule]
@@ -205,23 +202,23 @@ internal sealed class AwkTopLevelSyntaxParser
     }
 
     [Rule]
-    public BlockPart BlockLeaf([AwkTopLevelBlockLeaf] Pos<string> _)
+    public BlockPart BlockLeaf([AwkTopLevelBlockLeaf] AwkTokenKind _)
     {
         _checkpoint?.Invoke();
         return default;
     }
 
-    private AwkParsingSupport.TokenGroup GroupTokens(AwkToken open, AwkToken close) =>
-        AwkParsingSupport.ResolveTokenGroup(_originalTokens, open.Span, close.Span, _checkpoint);
+    private IReadOnlyList<AwkToken> InnerTokens(int open, int close) =>
+        AwkTokenNavigation.SliceIndexed(_originalTokens, open + 1, close - open - 1);
 
     [Rule]
     public BalancedParenthesized Parenthesized(
-        [AwkT(AwkTokenKind.LeftParen)] Pos<string> open,
-        [AwkL(Min = 0)] ParenthesizedPart[] _,
-        [AwkT(AwkTokenKind.RightParen)] Pos<string> close)
+        [AwkT(AwkTokenKind.LeftParen)] AwkTokenKind _,
+        [AwkL(Min = 0)] ParenthesizedPart[] __,
+        [AwkT(AwkTokenKind.RightParen)] AwkTokenKind ___)
     {
         _checkpoint?.Invoke();
-        return new(ToToken(AwkTokenKind.LeftParen, open), ToToken(AwkTokenKind.RightParen, close));
+        return new(StartToken, EndToken);
     }
 
     [Rule]
@@ -239,7 +236,7 @@ internal sealed class AwkTopLevelSyntaxParser
     }
 
     [Rule]
-    public ParenthesizedPart ParenthesizedLeaf([AwkTopLevelParenthesizedLeaf] Pos<string> _)
+    public ParenthesizedPart ParenthesizedLeaf([AwkTopLevelParenthesizedLeaf] AwkTokenKind _)
     {
         _checkpoint?.Invoke();
         return default;
@@ -247,12 +244,12 @@ internal sealed class AwkTopLevelSyntaxParser
 
     [Rule]
     public BalancedBracketed Bracketed(
-        [AwkT(AwkTokenKind.LeftBracket)] Pos<string> open,
-        [AwkL(Min = 0)] BracketedPart[] _,
-        [AwkT(AwkTokenKind.RightBracket)] Pos<string> close)
+        [AwkT(AwkTokenKind.LeftBracket)] AwkTokenKind _,
+        [AwkL(Min = 0)] BracketedPart[] __,
+        [AwkT(AwkTokenKind.RightBracket)] AwkTokenKind ___)
     {
         _checkpoint?.Invoke();
-        return new(ToToken(AwkTokenKind.LeftBracket, open), ToToken(AwkTokenKind.RightBracket, close));
+        return new(StartToken, EndToken);
     }
 
     [Rule]
@@ -270,7 +267,7 @@ internal sealed class AwkTopLevelSyntaxParser
     }
 
     [Rule]
-    public BracketedPart BracketedLeaf([AwkTopLevelBracketedLeaf] Pos<string> _)
+    public BracketedPart BracketedLeaf([AwkTopLevelBracketedLeaf] AwkTokenKind _)
     {
         _checkpoint?.Invoke();
         return default;
@@ -279,7 +276,7 @@ internal sealed class AwkTopLevelSyntaxParser
     [Rule]
     public AwkPatternSyntax RangePattern(
         [AwkL(Min = 1)] PatternPart[] start,
-        [AwkT(AwkTokenKind.Comma)] Pos<string> _,
+        [AwkT(AwkTokenKind.Comma)] AwkTokenKind _,
         [AwkL(Min = 0)] HeaderPatternGap[] __,
         [AwkL(Min = 1)] PatternPart[] end)
     {
@@ -314,37 +311,36 @@ internal sealed class AwkTopLevelSyntaxParser
     public PatternPart PatternParenthesized([NT] BalancedParenthesized parenthesized)
     {
         _checkpoint?.Invoke();
-        return new(parenthesized.OpenToken.Span, parenthesized.CloseToken.Span);
+        return new(parenthesized.OpenIndex, parenthesized.CloseIndex);
     }
 
     [Rule]
     public PatternPart PatternBracketed([NT] BalancedBracketed bracketed)
     {
         _checkpoint?.Invoke();
-        return new(bracketed.OpenToken.Span, bracketed.CloseToken.Span);
+        return new(bracketed.OpenIndex, bracketed.CloseIndex);
     }
 
     [Rule]
-    public PatternPart PatternLeaf([AwkTopLevelPatternLeaf] Pos<string> token)
+    public PatternPart PatternLeaf([AwkTopLevelPatternLeaf] AwkTokenKind _)
     {
         _checkpoint?.Invoke();
-        var span = AwkParsingSupport.SourceSpan(token);
-        return new(span, span);
+        return new(StartToken, StartToken);
     }
 
     [Rule]
     public PatternPart PatternContinuation(
-        [AwkT(AwkTokenKind.AmpersandAmpersand, AwkTokenKind.PipePipe, AwkTokenKind.Question, AwkTokenKind.Colon)] Pos<string> op,
-        [AwkL(Min = 1)] HeaderPatternGap[] _,
+        [AwkT(AwkTokenKind.AmpersandAmpersand, AwkTokenKind.PipePipe, AwkTokenKind.Question, AwkTokenKind.Colon)] AwkTokenKind _,
+        [AwkL(Min = 1)] HeaderPatternGap[] __,
         [NT] PatternPart next)
     {
         _checkpoint?.Invoke();
-        return new(AwkParsingSupport.SourceSpan(op), next.Last);
+        return new(StartToken, next.Last);
     }
 
     [Rule]
     public HeaderPatternGap HeaderPatternGapRule(
-        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> _)
+        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] AwkTokenKind _)
     {
         _checkpoint?.Invoke();
         return default;
@@ -355,8 +351,8 @@ internal sealed class AwkTopLevelSyntaxParser
     private IReadOnlyList<AwkToken> PatternTokens(PatternPart[] parts) =>
         PatternTokens(parts[0].First, parts[^1].Last);
 
-    private IReadOnlyList<AwkToken> PatternTokens(AwkTextSpan first, AwkTextSpan last) =>
-        AwkParsingSupport.ResolveTokenGroup(_originalTokens, first, last, _checkpoint).FullTokens;
+    private IReadOnlyList<AwkToken> PatternTokens(int first, int last) =>
+        AwkTokenNavigation.SliceIndexed(_originalTokens, first, last - first + 1);
 
     private AwkToken[] DirectiveTokens(IReadOnlyList<DirectiveArgument> arguments)
     {
@@ -368,9 +364,6 @@ internal sealed class AwkTopLevelSyntaxParser
         }
         return tokens;
     }
-
-    private AwkToken ToToken(AwkTokenKind kind, Pos<string> value) =>
-        AwkParsingSupport.ToToken(kind, value, _checkpoint);
 
     private static AwkTextSpan SpanFrom(AwkToken start, AwkToken end) =>
         new(start.Span.Start, end.Span.End - start.Span.Start);
@@ -467,15 +460,15 @@ internal sealed class AwkTopLevelSyntaxParser
         public AwkToken Token { get; } = token;
     }
 
-    public readonly record struct BalancedBlock(AwkToken OpenToken, AwkToken CloseToken);
+    public readonly record struct BalancedBlock(int OpenIndex, int CloseIndex);
 
-    public readonly record struct BalancedParenthesized(AwkToken OpenToken, AwkToken CloseToken);
+    public readonly record struct BalancedParenthesized(int OpenIndex, int CloseIndex);
 
-    public readonly record struct BalancedBracketed(AwkToken OpenToken, AwkToken CloseToken);
+    public readonly record struct BalancedBracketed(int OpenIndex, int CloseIndex);
 
     public readonly struct BlockPart;
     public readonly struct ParenthesizedPart;
     public readonly struct BracketedPart;
 
-    public readonly record struct PatternPart(AwkTextSpan First, AwkTextSpan Last);
+    public readonly record struct PatternPart(int First, int Last);
 }
