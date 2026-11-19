@@ -131,30 +131,26 @@ public sealed class AwkGrammarCancellationTests
     [InlineData("split")]
     public void TokenNavigationObservesCancellationWithinOwnedLoops(string operation)
     {
-        var tokens = Tokens(256, AwkTokenKind.Comment);
         using var cancellation = new CancellationTokenSource();
-        var calls = 0;
-        void Checkpoint()
-        {
-            if (++calls == 8)
-                cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
+        var comments = Tokens(8192, AwkTokenKind.Comment);
+        var tokens = new CancelDuringTokenRead(comments, comments.Length / 2,
+            operation == "last" ? 0 : comments.Length - 1, cancellation);
+        var checkpoint = cancellation.Token.ThrowIfCancellationRequested;
         void Run()
         {
             switch (operation)
             {
-                case "skip": AwkTokenNavigation.SkipNonSignificant(tokens, 0, tokens.Length, Checkpoint); break;
-                case "first": AwkTokenNavigation.FindFirstSignificant(tokens, Checkpoint); break;
-                case "last": AwkTokenNavigation.FindLastSignificant(tokens, Checkpoint); break;
-                case "next": AwkTokenNavigation.FindNextSignificant(tokens, 0, Checkpoint); break;
-                case "top-level": AwkTokenNavigation.FindTopLevel(tokens, AwkTokenKind.Comma, 0, tokens.Length, Checkpoint); break;
-                case "split": AwkTokenNavigation.SplitTopLevel(tokens, AwkTokenKind.Comma, Checkpoint); break;
+                case "skip": AwkTokenNavigation.SkipNonSignificant(tokens, 0, tokens.Count, checkpoint); break;
+                case "first": AwkTokenNavigation.FindFirstSignificant(tokens, checkpoint); break;
+                case "last": AwkTokenNavigation.FindLastSignificant(tokens, checkpoint); break;
+                case "next": AwkTokenNavigation.FindNextSignificant(tokens, 0, checkpoint); break;
+                case "top-level": AwkTokenNavigation.FindTopLevel(tokens, AwkTokenKind.Comma, 0, tokens.Count, checkpoint); break;
+                case "split": AwkTokenNavigation.SplitTopLevel(tokens, AwkTokenKind.Comma, checkpoint); break;
             }
         }
         var failure = Assert.Throws<OperationCanceledException>(Run);
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal(8, calls);
+        Assert.False(tokens.ReachedLastToken);
     }
 
     [Fact]
@@ -253,22 +249,24 @@ public sealed class AwkGrammarCancellationTests
     [Fact]
     public void DirectiveArgumentTraversalObservesCancellation()
     {
-        var source = "@include " + string.Join(' ', Enumerable.Repeat("\"x\"", 256));
+        const int argumentCount = 8192;
+        var source = "@include " + string.Join(' ', Enumerable.Repeat("\"x\"", argumentCount));
         var tokens = AwkTestHarness.TokenizeSource(source);
-        using var cancellation = new CancellationTokenSource();
-        var calls = 0;
-        void Checkpoint()
-        {
-            if (++calls == 8)
-                cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        var failure = Assert.Throws<OperationCanceledException>(() =>
-            AwkDirectiveParser.TryParseAt(tokens, 0, out _, Checkpoint));
-        Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.True(AwkDirectiveParser.TryParseAt(tokens, 0, out var directive));
-        Assert.Equal(256, directive.ArgumentTokens.Count);
+        Assert.Equal(argumentCount, directive.ArgumentTokens.Count);
         Assert.Equal(AwkDirectiveKind.Include, directive.Kind);
+        var lastArgument = directive.ArgumentTokens[^1];
+        var lastArgumentIndex = tokens.Count - 1;
+        while (tokens[lastArgumentIndex].Span.Start > lastArgument.Span.Start)
+            lastArgumentIndex--;
+        Assert.Equal(lastArgument, tokens[lastArgumentIndex]);
+
+        using var cancellation = new CancellationTokenSource();
+        var observed = new CancelDuringTokenRead(tokens, lastArgumentIndex / 2, lastArgumentIndex, cancellation);
+        var failure = Assert.Throws<OperationCanceledException>(() =>
+            AwkDirectiveParser.TryParseAt(observed, 0, out _, cancellation.Token.ThrowIfCancellationRequested));
+        Assert.Equal(cancellation.Token, failure.CancellationToken);
+        Assert.False(observed.ReachedLastToken);
     }
 
     [Theory]
@@ -372,4 +370,29 @@ public sealed class AwkGrammarCancellationTests
 
     private static AwkToken[] Tokens(int count, AwkTokenKind kind = AwkTokenKind.Identifier) =>
         Enumerable.Range(0, count).Select(index => new AwkToken(kind, "x", new AwkTextSpan(index * 2, 1))).ToArray();
+
+    private sealed class CancelDuringTokenRead(IReadOnlyList<AwkToken> tokens, int cancelAt, int last,
+        CancellationTokenSource cancellation) : IReadOnlyList<AwkToken>
+    {
+        public int Count => tokens.Count;
+        internal bool ReachedLastToken { get; private set; }
+
+        public AwkToken this[int index]
+        {
+            get
+            {
+                if (index == cancelAt) cancellation.Cancel();
+                if (index == last) ReachedLastToken = true;
+                return tokens[index];
+            }
+        }
+
+        public IEnumerator<AwkToken> GetEnumerator()
+        {
+            for (var index = 0; index < Count; index++)
+                yield return this[index];
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
 }
