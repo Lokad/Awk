@@ -54,19 +54,29 @@ internal sealed partial class AwkFieldSplitter
     {
         if (!field.HasEscapes)
             return state.CopyText(text.Slice(field.Start, field.Length));
-        using var builder = new AwkUtf8Builder(state.MemoryAccounting, field.DecodedLength);
+        // Both callers have admitted the decoded text using the scanner's exact length.
+        var decoded = new byte[field.DecodedLength];
         var bytes = text.Slice(field.Start, field.Length);
         var start = 0;
+        var written = 0;
+        var bytesUntilCheck = AwkRuntimeLimits.CancellationCheckBytes;
+        long nextCheckpoint = 0;
+        var checkpoint = state.CancellationCheckpoint;
         for (var i = 0; i < bytes.Length; i++)
         {
-            if ((i & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0) state.CancellationCheckpoint();
+            if (i >= nextCheckpoint)
+            {
+                checkpoint();
+                nextCheckpoint = (long)i + AwkRuntimeLimits.CancellationCheckBytes;
+            }
             if (bytes[i] != (byte)'"' || i + 1 == bytes.Length || bytes[i + 1] != (byte)'"') continue;
-            builder.Append(bytes[start..(i + 1)], state.CancellationCheckpoint);
+            AwkText.CopyFragment(bytes[start..(i + 1)], decoded, ref written, ref bytesUntilCheck, checkpoint);
             start = i + 2;
             i++;
         }
-        builder.Append(bytes[start..], state.CancellationCheckpoint);
-        return state.AdoptText(builder.CopyToOwnedBytes(state.CancellationCheckpoint));
+        AwkText.CopyFragment(bytes[start..], decoded, ref written, ref bytesUntilCheck, checkpoint);
+        state.ThrowIfCancellationRequested();
+        return state.AdoptText(decoded);
     }
 
     private readonly record struct CsvField(int Start, int Length, int DecodedLength, bool HasEscapes);
