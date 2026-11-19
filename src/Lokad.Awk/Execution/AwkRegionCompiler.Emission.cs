@@ -38,12 +38,6 @@ internal sealed partial class AwkRegionCompiler
             return position;
         }
 
-        internal void BeginMainInput()
-        {
-            System.Diagnostics.Debug.Assert(Count == 0);
-            _instructions.Add(new(AwkRegionInstructionKind.MainRead));
-        }
-
         internal void ReplaceTail(int first, AwkRegionInstruction replacement)
         {
             var count = Count - first;

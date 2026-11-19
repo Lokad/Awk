@@ -4,6 +4,7 @@ namespace Lokad.Awk;
 // actual pending host operations allocate an asynchronous continuation.
 internal partial struct AwkRegionMachine
 {
+    private const int NextRecordPosition = -1;
     private readonly AwkRuntimeState _state;
     private readonly AwkOutputSink _output;
     private readonly AwkIo _io;
@@ -38,6 +39,7 @@ internal partial struct AwkRegionMachine
         _mainInput = input;
         _region = region;
         _storage = storage;
+        _position = input is null ? 0 : NextRecordPosition;
         _hostCompletion = Task.CompletedTask;
     }
 

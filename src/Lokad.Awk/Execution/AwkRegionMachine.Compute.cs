@@ -17,19 +17,22 @@ internal partial struct AwkRegionMachine
         computationView = new(_state, _region, _storage, _frame);
         position = _position;
     Execute:
+        if (position == NextRecordPosition)
+        {
+            if (!ReadMainRecord())
+            {
+                // Resumption starts at the first rule after the record arrives.
+                _position = 0;
+                goto Resume;
+            }
+            if (_finished) return true;
+            position = 0;
+        }
         for (; position < computationView.Instructions.Length; position++)
         {
             ref readonly var instruction = ref computationView.Instructions[position];
             switch (instruction.Kind)
             {
-                case AwkRegionInstructionKind.MainRead:
-                    if (!ReadMainRecord())
-                    {
-                        _position = position + 1;
-                        goto Resume;
-                    }
-                    if (_finished) return true;
-                    break;
                 case AwkRegionInstructionKind.RuleEnd:
                     computationView.Storage.ClearRuleValues(computationView.Region.RuleScopes[instruction.Left]);
                     break;
@@ -611,11 +614,10 @@ internal partial struct AwkRegionMachine
                     throw new InvalidOperationException("Unknown bound region operation.");
             }
         }
-        // The root's first instruction acquires the next record. A completed
-        // record keeps the same region, storage and read continuation.
+        // A completed record keeps the same region and funded storage.
         if (_mainInput is not null && _frame is null)
         {
-            position = 0;
+            position = NextRecordPosition;
             goto Execute;
         }
         if (Finish(AwkStatementFlow.Continue)) goto ContinueRoot;

@@ -62,8 +62,7 @@ internal sealed partial class AwkRegionCompiler
     {
         var compiler = new AwkRegionCompiler(scope, AwkRegionKind.Record);
         // Publication owns computational entry; later labels retain their polls.
-        compiler._code.BeginMainInput();
-        compiler._mainBodyStart = compiler._code.Count;
+        compiler._mainBodyStart = 0;
         return compiler;
     }
 

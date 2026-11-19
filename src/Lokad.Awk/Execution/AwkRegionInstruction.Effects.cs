@@ -58,7 +58,7 @@ internal readonly partial record struct AwkRegionInstruction
 
         // Builtins and regex/provider operations can publish diagnostics. File
         // flow and iteration can reach host work through cleanup or comparators.
-        AwkRegionInstructionKind.MainRead or AwkRegionInstructionKind.RuleEnd or AwkRegionInstructionKind.Split or
+        AwkRegionInstructionKind.RuleEnd or AwkRegionInstructionKind.Split or
         AwkRegionInstructionKind.Match or AwkRegionInstructionKind.SortBegin or AwkRegionInstructionKind.SortAdvance or
         AwkRegionInstructionKind.Call or AwkRegionInstructionKind.BuiltinBoundary or AwkRegionInstructionKind.Builtin or
         AwkRegionInstructionKind.Substitute or AwkRegionInstructionKind.Gensub or AwkRegionInstructionKind.PrintField or

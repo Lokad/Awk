@@ -128,7 +128,7 @@ internal enum AwkRegionPathOwnerRole : byte { None, Initialize, Read, Take }
 internal readonly record struct AwkRegionPathOwner(int Value, AwkRegionPathOwnerRole Role);
 internal enum AwkRegionInstructionKind : byte
 {
-    MainRead, RuleEnd,
+    RuleEnd,
     Poll, StatementBoundary, MoveNumber, FieldIndex, FieldNumber, DynamicFieldNumber, LiteralNumber, ValueNumber, TextNumber, ArrayNumber, LocalNumber, GlobalNumber, VariableNumber,
     Value, Length, InspectVariable, InspectArray, InspectValue, Index, Substring, Case, Add, Subtract, Multiply, Divide, Modulo, Power, Compound, Compare, CompareText, Negate, Not, Truth, Discard, Assign,
     AssignNumber, AssignConsumedScalar, ScalarUpdate, AssignField, CopyField,

@@ -3,9 +3,9 @@ namespace Lokad.Awk;
 internal partial struct AwkRegionMachine
 {
     private AwkInputScheduler MainInput => _mainInput ??
-        throw new InvalidOperationException("A main-input instruction requires the input scheduler.");
+        throw new InvalidOperationException("Main record acquisition requires the input scheduler.");
 
-    // Ordinary completed reads stay inside the prepared instruction loop.
+    // Available records stay in the interpreter driver.
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private bool ReadMainRecord()
     {
@@ -68,7 +68,7 @@ internal partial struct AwkRegionMachine
         _rootStorage.ClearValues();
         _region = _rootRegion;
         _storage = _rootStorage;
-        _position = 0;
+        _position = NextRecordPosition;
         _frame = null;
         _pending = Pending.None;
         _hostCompletion = Task.CompletedTask;
