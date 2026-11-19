@@ -153,6 +153,10 @@ internal static class AwkLexer
                     _position++;
                 }
 
+                // At LF/CRLF the next raw newline supersedes the covered tokens.
+                // A lone trailing CR still depends on the last ordinary descriptor.
+                if (_position == _source.Length || Current == '\n' || Current == '\r' && Peek(1) == '\n')
+                    _lexemes.AdvancePastContext(_position);
                 AddToken(AwkTokenKind.Comment, start, _position - start);
             }
 
@@ -222,6 +226,7 @@ internal static class AwkLexer
 
                 if (current == '"')
                 {
+                    _lexemes.AdvancePastContext(_position);
                     AddToken(kind, start, _position - start);
                     return;
                 }
@@ -242,6 +247,9 @@ internal static class AwkLexer
             if (scan.Termination == AwkRegexLiteralTermination.Delimiter)
             {
                 _position = scan.EndIndex + 1;
+                // A final slash can be the first half of the raw /= descriptor.
+                if (Current != '=')
+                    _lexemes.AdvancePastContext(_position);
                 AddToken(kind, start, _position - start);
                 return;
             }

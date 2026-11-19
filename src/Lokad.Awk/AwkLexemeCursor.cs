@@ -2,8 +2,7 @@ using Lokad.Parsing.Lexer;
 
 namespace Lokad.Awk;
 
-// The contextual lexer consumes descriptors in source order, including those
-// covered by a quoted literal, regexp or comment. Keep only the next descriptor.
+// Supplies the next ordinary descriptor to the contextual lexer.
 internal struct AwkLexemeCursor(string source, Action? checkpoint)
 {
     private static readonly IReadOnlyList<LexerRule<AwkTokenKind>> Rules =
@@ -15,6 +14,14 @@ internal struct AwkLexemeCursor(string source, Action? checkpoint)
     private int _lastLexemeEnd;
     private bool _sawToken;
     private bool _lastWasNewLine;
+
+    // Context may consume a complete span ending at a descriptor boundary.
+    internal void AdvancePastContext(int end)
+    {
+        _position = end;
+        _lastLexemeEnd = end;
+        _lastWasNewLine = false;
+    }
 
     internal bool TryRead(out LexerToken<AwkTokenKind> lexeme)
     {
