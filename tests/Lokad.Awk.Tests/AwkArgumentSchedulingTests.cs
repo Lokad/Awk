@@ -7,7 +7,7 @@ public sealed class AwkArgumentSchedulingTests
 {
     public static IEnumerable<object[]> EmptyOperandBoundaryCases()
     {
-        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("empty-input-operand-", StringComparison.Ordinal)))
+        foreach (var test in AwkGoldenCorpus.EmptyInputOperands)
             foreach (var restricted in new[] { false, true })
                 foreach (var governed in new[] { false, true })
                     yield return [test, restricted, governed];

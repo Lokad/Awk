@@ -7,7 +7,7 @@ public sealed class AwkOperandPathBoundaryTests
         string[] names = ["lazy-exit", "lazy-argv-data", "lazy-delete", "lazy-argc", "lazy-reclassify",
             "lazy-later-exit", "path-main-colon", "path-main-star", "path-main-backslash",
             "path-source-colon", "path-source-star", "path-source-backslash", "cwd-relative-control", "cwd-absolute"];
-        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test =>
+        foreach (var test in AwkGoldenCorpus.OperandPaths.Where(test =>
                      names.Any(name => test.Name == "operand-path-" + name)))
         foreach (var governed in new[] { false, true })
             yield return [test, governed];

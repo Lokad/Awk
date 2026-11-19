@@ -96,10 +96,7 @@ public sealed class AwkIoCloseDirectionTests
 
     public static IEnumerable<object[]> CloseCases()
     {
-        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test =>
-            test.Name.StartsWith("close-mode-", StringComparison.Ordinal) ||
-            test.Name.StartsWith("file-open-visible-", StringComparison.Ordinal))
-            .Concat(AwkGoldenCorpus.CloseModePipeCases()))
+        foreach (var test in AwkGoldenCorpus.CloseModes.Concat(AwkGoldenCorpus.CloseModePipeCases()))
             foreach (var governed in new[] { false, true })
                 yield return [test, governed];
     }

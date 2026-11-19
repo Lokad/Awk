@@ -7,9 +7,28 @@ namespace Lokad.Awk.Tests;
 internal static partial class AwkGoldenCorpus
 {
     public static IReadOnlyList<AwkGoldenCase> DirectCases { get; }
+    public static IReadOnlyList<AwkGoldenCase> CloseModes { get; }
+    public static IReadOnlyList<AwkGoldenCase> ComputedFields { get; }
+    public static IReadOnlyList<AwkGoldenCase> ComputedFieldValidation { get; }
+    public static IReadOnlyList<AwkGoldenCase> Directives { get; }
+    public static IReadOnlyList<AwkGoldenCase> EmptyInputOperands { get; }
+    public static IReadOnlyList<AwkGoldenCase> OperandPaths { get; }
+    public static IReadOnlyList<AwkGoldenCase> RecordCursorReaders { get; }
+    public static IReadOnlyList<AwkGoldenCase> StreamIdentities { get; }
+    public static IReadOnlyList<AwkGoldenCase> TriviaPrograms { get; }
 
     static AwkGoldenCorpus()
     {
+        CloseModes = [.. Tagged(CloseModeCases(), AwkGoldenTag.Io)];
+        ComputedFields = [.. Tagged(ComputedFieldCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression)];
+        ComputedFieldValidation = [.. Tagged(ComputedFieldValidationCases(), AwkGoldenTag.Array, AwkGoldenTag.Expression, AwkGoldenTag.Regex)];
+        Directives = [.. Tagged(DirectiveCases(), AwkGoldenTag.SourceLoading)];
+        EmptyInputOperands = [.. Tagged(EmptyInputOperandCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io)];
+        OperandPaths = [.. Tagged(OperandPathCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine)];
+        RecordCursorReaders = [.. Tagged(RecordCursorReaderCases(), AwkGoldenTag.Record, AwkGoldenTag.Regex, AwkGoldenTag.Io)];
+        StreamIdentities = [.. Tagged(StreamIdentityCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine)];
+        TriviaPrograms = [.. Tagged(TriviaProgramCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.SourceLoading)];
+
         DirectCases =
         [
         .. Tagged(VariableCases(), AwkGoldenTag.Variable),
@@ -22,7 +41,8 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(FieldCases(), AwkGoldenTag.Field),
         .. Tagged(CsvCases(), AwkGoldenTag.Field, AwkGoldenTag.Record, AwkGoldenTag.CommandLine),
-        .. Tagged(ComputedFieldCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression),
+        .. ComputedFields,
+        .. Tagged(RegexPatternEffectCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression),
         .. Tagged(BoundConditionCases(), AwkGoldenTag.Expression),
         .. Tagged(RedirectedOutputCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Function),
         .. Tagged(FieldLengthCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression),
@@ -35,7 +55,8 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(FieldCompatibilityRepairs(), AwkGoldenTag.Field),
         .. Tagged(RecordOwnershipCases(), AwkGoldenTag.Field, AwkGoldenTag.Record),
         .. Tagged(RecordValueCases(), AwkGoldenTag.Field, AwkGoldenTag.Record, AwkGoldenTag.Function),
-        .. Tagged(RecordCursorContextCases(), AwkGoldenTag.Record, AwkGoldenTag.Regex, AwkGoldenTag.Io),
+        .. RecordCursorReaders,
+        .. Tagged(RecordCursorMainInputCases(), AwkGoldenTag.Record, AwkGoldenTag.Regex, AwkGoldenTag.Io),
 
         .. Tagged(FieldCountValueCompatibilityRepairs(), AwkGoldenTag.Field, AwkGoldenTag.Variable),
 
@@ -56,12 +77,13 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(OptionCompatibilityCases(), AwkGoldenTag.CommandLine),
         .. Tagged(OptionValueBoundaryCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io),
         .. Tagged(OptionPreparationCases(), AwkGoldenTag.CommandLine),
-        .. Tagged(EmptyInputOperandCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io),
-        .. Tagged(TriviaProgramCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.SourceLoading),
+        .. EmptyInputOperands,
+        .. TriviaPrograms,
         .. Tagged(SourceSearchCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io),
-        .. Tagged(DirectiveCases(), AwkGoldenTag.SourceLoading),
+        .. Directives,
         .. Tagged(SourceCompositionCases(), AwkGoldenTag.SourceLoading, AwkGoldenTag.CommandLine),
-        .. Tagged(StreamIdentityCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
+        .. StreamIdentities,
+        .. Tagged(StandardInputAliasCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
 
         .. Tagged(ControlHeaderRegexCases(), AwkGoldenTag.Statement, AwkGoldenTag.Regex),
         .. Tagged(CommonParsingIdiomCases(), AwkGoldenTag.Statement, AwkGoldenTag.Regex, AwkGoldenTag.Array),
@@ -86,11 +108,12 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(RegexLiteralBoundaryCases(), AwkGoldenTag.Expression, AwkGoldenTag.Regex),
         .. Tagged(GetlinePrecedenceCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Field),
         .. Tagged(ValueValidationRepairCases(), AwkGoldenTag.Array, AwkGoldenTag.Expression, AwkGoldenTag.Regex),
+        .. ComputedFieldValidation,
         .. Tagged(CompoundBuiltinStatementCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Array),
         .. Tagged(ForSimpleStatementCases(), AwkGoldenTag.Statement, AwkGoldenTag.Io, AwkGoldenTag.Array),
         .. Tagged(NumericFormatRepairCases(), AwkGoldenTag.Expression, AwkGoldenTag.Output),
 
-        .. Tagged(OperandPathCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
+        .. OperandPaths,
 
         .. Tagged(ArgumentSchedulingCompatibilityRepairs(), AwkGoldenTag.CommandLine, AwkGoldenTag.Record),
 
@@ -139,7 +162,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(ResultDemandCases(), AwkGoldenTag.Function, AwkGoldenTag.Expression),
 
         .. Tagged(IoCases(), AwkGoldenTag.Io),
-        .. Tagged(CloseModeCases(), AwkGoldenTag.Io),
+        .. CloseModes,
 
         .. Tagged(FlushCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Function),
 

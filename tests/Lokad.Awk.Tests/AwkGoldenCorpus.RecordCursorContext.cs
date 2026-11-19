@@ -2,7 +2,7 @@ namespace Lokad.Awk.Tests;
 
 internal static partial class AwkGoldenCorpus
 {
-    private static IEnumerable<AwkGoldenCase> RecordCursorContextCases()
+    private static IEnumerable<AwkGoldenCase> RecordCursorReaderCases()
     {
         yield return Passing("cursor-reader-changed-anchor",
             ["BEGIN{while((getline)>0){n++;print n,\"[\"$0\"]\",\"[\"RT\"]\";if(n==1)RS=\"^b\"}}"], [], "1 [a] [\n]\n2 [b:c\n] []\n", "a\nb:c\n");
@@ -44,6 +44,10 @@ internal static partial class AwkGoldenCorpus
             ["BEGIN{RS=\"\\\\^|\\\\<b\";while((getline)>0){n++;print n,\"[\"$0\"]\",\"[\"RT\"]\";}}"], [], "1 [a] [^]\n2 [] [b]\n3 [q\n] []\n", "a^bq\n");
         yield return Passing("cursor-reader-escaped-input-anchor",
             ["BEGIN{RS=\"\\\\`a|x|\\\\<b\";while((getline)>0){n++;print n,\"[\"$0\"]\",\"[\"RT\"]\";}}"], [], "1 [] [a]\n2 [] [x]\n3 [] [x]\n4 [ ] [b]\n5 [q\n] []\n", "axx bq\n");
+    }
+
+    private static IEnumerable<AwkGoldenCase> RecordCursorMainInputCases()
+    {
         yield return Passing("cursor-main-changed-anchor",
             ["{print NR,\"[\"$0\"]\",\"[\"RT\"]\";if(NR==1)RS=\"^b\"}"], [], "1 [a] [\n]\n2 [b:c\n] []\n", "a\nb:c\n");
         yield return Passing("cursor-main-word-start",

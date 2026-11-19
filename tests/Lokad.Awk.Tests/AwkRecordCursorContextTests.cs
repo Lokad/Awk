@@ -204,7 +204,7 @@ public sealed class AwkRecordCursorContextTests
 
     public static IEnumerable<object[]> Configurations()
     {
-        foreach (var golden in AwkGoldenCorpus.DirectCases.Where(c => c.Name.StartsWith("cursor-reader-", StringComparison.Ordinal)))
+        foreach (var golden in AwkGoldenCorpus.RecordCursorReaders)
             foreach (var source in new[] { "stdin", "file", "pipe" })
                 foreach (var chunkBytes in new[] { 1, 128 })
                     foreach (var governed in new[] { false, true })

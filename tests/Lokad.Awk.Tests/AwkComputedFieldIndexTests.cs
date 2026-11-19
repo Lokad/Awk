@@ -88,7 +88,7 @@ public sealed class AwkComputedFieldIndexTests
 
     public static IEnumerable<object[]> PublicCases()
     {
-        foreach (var test in AwkGoldenCorpus.DirectCases.Where(c => c.Name.StartsWith("computed-field-", StringComparison.Ordinal)))
+        foreach (var test in AwkGoldenCorpus.ComputedFields.Concat(AwkGoldenCorpus.ComputedFieldValidation))
         foreach (var governed in new[] { false, true })
             yield return [test, governed];
     }

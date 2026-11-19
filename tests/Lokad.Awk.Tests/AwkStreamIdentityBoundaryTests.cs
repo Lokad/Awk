@@ -6,7 +6,7 @@ public sealed class AwkStreamIdentityBoundaryTests
 {
     public static IEnumerable<object[]> FileCases()
     {
-        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("stream-identity-", StringComparison.Ordinal)))
+        foreach (var test in AwkGoldenCorpus.StreamIdentities)
         foreach (var governed in new[] { false, true })
             yield return [test, governed];
     }
@@ -35,7 +35,7 @@ public sealed class AwkStreamIdentityBoundaryTests
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("tr-TR");
-            var test = AwkGoldenCorpus.DirectCases.Single(test => test.Name == "stream-identity-ordinal-default");
+            var test = AwkGoldenCorpus.StreamIdentities.Single(test => test.Name == "stream-identity-ordinal-default");
             await ExactNamesKeepTheirOwnStreams(test, true);
         }
         finally { CultureInfo.CurrentCulture = previous; }

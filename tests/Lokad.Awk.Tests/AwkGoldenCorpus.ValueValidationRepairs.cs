@@ -10,6 +10,10 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("match-capture-arrays-keep-input-number-origins",
             ["BEGIN{match(\"0007 -0.25 7tail\",/^([^ ]+) ([^ ]+) ([^ ]+)$/,a);print typeof(a[0]),typeof(a[1]),a[1],(a[1]==7);print typeof(a[2]),a[2],(a[2]==-0.25);print typeof(a[3]),a[3],(a[3]==7)}"], [],
             "string strnum 0007 1\nstrnum -0.25 1\nstring 7tail 0\n");
+    }
+
+    private static IEnumerable<AwkGoldenCase> ComputedFieldValidationCases()
+    {
         yield return CompilerDiagnostic(Failing("computed-field-rejects-posix-match-captures-before-effects",
             ["--posix", "BEGIN{print \"before\";print $(match(\"ab\",/a/,a))}"], [], 2, "",
             "awk: third argument of match is a GNU extension\n"));

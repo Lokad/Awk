@@ -11,7 +11,7 @@ public sealed class AwkPublicBoundaryTests
 {
     public static IEnumerable<object[]> DirectiveBoundaryCases()
     {
-        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("directive-", StringComparison.Ordinal)))
+        foreach (var test in AwkGoldenCorpus.Directives)
         foreach (var restricted in new[] { false, true })
         foreach (var governed in new[] { false, true })
             yield return [test, restricted, governed];
@@ -41,7 +41,7 @@ public sealed class AwkPublicBoundaryTests
 
     public static IEnumerable<object[]> TriviaProgramBoundaryCases()
     {
-        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("trivia-program-", StringComparison.Ordinal)))
+        foreach (var test in AwkGoldenCorpus.TriviaPrograms)
         foreach (var restricted in new[] { false, true })
         foreach (var governed in new[] { false, true })
             yield return [test, restricted, governed];

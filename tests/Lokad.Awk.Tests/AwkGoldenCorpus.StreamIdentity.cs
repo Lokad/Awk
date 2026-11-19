@@ -32,6 +32,10 @@ internal static partial class AwkGoldenCorpus
             if (test.File is { } content) builder.WithExpectedFiles([File("/out", content)]);
             yield return builder.Build();
         }
+    }
+
+    private static IEnumerable<AwkGoldenCase> StandardInputAliasCases()
+    {
         foreach (var profile in new[] { "", "--posix", "--traditional" })
         {
             var prefix = profile.Length == 0 ? Array.Empty<string>() : new[] { profile };
