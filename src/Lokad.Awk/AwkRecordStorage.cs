@@ -28,10 +28,13 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
     internal ReadOnlySpan<byte> BytesAt(int slot)
     {
         ref var buffer = ref BufferAt(slot);
-        var borrower = buffer.Borrower;
-        var bytes = buffer.Content.Span;
-        // A custom memory accessor can retire its own borrow while obtaining the span.
-        return borrower is not null && buffer.Borrower is null ? buffer.Content.Span : bytes;
+        if (buffer.Borrower is not null)
+        {
+            var bytes = buffer.BorrowedBytes.Span;
+            // A custom accessor can retire its borrow while obtaining the span.
+            if (buffer.Borrower is not null) return bytes;
+        }
+        return buffer.Buffer is { } owned ? owned.AsSpan() : default;
     }
 
     internal int LengthAt(int slot) => BufferAt(slot).Length;
