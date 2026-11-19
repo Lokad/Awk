@@ -31,7 +31,9 @@ internal enum AwkValueKind
     // Variable owners resolve external input in their reading mode before use.
     StoredInputText,
     // Missing fields are empty strings with an unassigned origin, not numeric zero.
-    UnassignedText
+    UnassignedText,
+    // Only a retired array cell stores this tag.
+    DetachedArrayCell
 }
 
 internal readonly struct AwkValue

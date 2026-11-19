@@ -375,7 +375,7 @@ internal partial struct AwkRegionMachine
             var key = ResolvePath(update.Path, out var owner);
             if (!owner.IsDetached && !owner.IsIndexed && key.RequiresTextMaterialization &&
                 owner.TryGetDictionaryCell(key, out var cell) &&
-                cell.Slot.TryGetNumberValue(out var prior))
+                cell.BorrowedSlot.TryGetNumberValue(out var prior))
             {
                 if (TryReadPureUpdateNumber(update.Right, out var right))
                 {
@@ -383,7 +383,7 @@ internal partial struct AwkRegionMachine
                         (AwkCompoundAssignmentOperation)instruction.Detail);
                     // The known command poll invokes no admission or host callbacks.
                     state.ThrowIfCancellationRequested();
-                    cell.SetSlot(AwkValue.FromNumber(complete));
+                    cell.ReplaceNumber(complete);
 
                     if (instruction.Right >= 0) numbers[instruction.Right] = prior;
                     numbers[instruction.Target] = complete;

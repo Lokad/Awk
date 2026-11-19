@@ -25,6 +25,8 @@ public sealed class AwkArrayCellTests
         {
             Assert.False(cell.IsAttached);
             Assert.Equal(0, cell.Slot.RetainedTextMemoryBytes);
+            cell.SetSlot(AwkValue.FromNumber(7));
+            Assert.False(target.TryGetCurrentCell(array, key, out _));
         }
         Assert.Equal(key, target.Key);
         Assert.False(array.ContainsKey(key));

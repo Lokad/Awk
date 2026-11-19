@@ -10,7 +10,7 @@ internal static class AwkRuntimeMemory
     private const int StringObjectBytes = 24;
     private const int ScalarValueBytes = 24;
     private const int ArrayEntryBytes = 48;
-    internal const int ArrayCellBytes = 48;
+    internal const int ArrayCellBytes = 40;
     internal const int Utf8BuilderObjectBytes = 48;
     private const int ArrayObjectBytes = 24;
     // Fund the identity, a possible dictionary and small backing-header slack.
