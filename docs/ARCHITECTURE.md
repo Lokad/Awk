@@ -40,12 +40,10 @@ The contextual lexer consumes ordinary descriptors as it advances through the
 source and resolves quoted, slash and comment forms in context. Admission funds
 the token buffer before scanning. The grammar wrappers preserve absolute source
 offsets. The diagnostic mapper computes file, line and column when reporting.
-The top-level grammar recognizes balanced action and function bodies, parameter
-lists and pattern boundaries. Their consumers read ranges of the original tokens.
-Pattern expressions filter comments while retaining continuation newlines.
-The statement grammar uses the same ranges for balanced headers, expression
-groups, braced bodies, switch blocks and simple statements. Expression and
-redirection consumers still interpret separators.
+The top-level and statement grammars carry token indices through balanced groups,
+pattern boundaries and simple statements. Their consumers read slices of the
+original tokens. Pattern expressions filter comments while retaining continuation
+newlines. Expression and redirection consumers interpret separators.
 Builtin calls use expression preparation in every position. A direct
 one-argument `close` statement flushes before evaluating its argument.
 Indexed subranges address the same token owner, including when sliced again.

@@ -71,54 +71,6 @@ internal static class AwkParsingSupport
         return new(position, Math.Clamp(error.Location.Length, 0, source.Length - position));
     }
 
-    // Generic grammar leaves must retain the lexical classification selected by the
-    // compatibility profile and function scope. Reclassifying their text loses it.
-    public static AwkToken RestoreToken(IReadOnlyList<AwkToken> tokens, Pos<string> value, Action? checkpoint = null)
-    {
-        checkpoint?.Invoke();
-        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
-        return tokens[FindOriginalTokenIndex(tokens, SourceSpan(value), checkpoint)];
-    }
-
-    internal static TokenGroup ResolveTokenGroup(IReadOnlyList<AwkToken> tokens,
-        AwkTextSpan open, AwkTextSpan close, Action? checkpoint)
-    {
-        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
-        return new(tokens, FindOriginalTokenIndex(tokens, open, checkpoint),
-            FindOriginalTokenIndex(tokens, close, checkpoint));
-    }
-
-    internal readonly struct TokenGroup(IReadOnlyList<AwkToken>? tokens, int open, int close)
-    {
-        internal IReadOnlyList<AwkToken> InnerTokens => Slice(open + 1, close - open - 1);
-
-        internal IReadOnlyList<AwkToken> FullTokens => Slice(open, close - open + 1);
-
-        private IReadOnlyList<AwkToken> Slice(int start, int count) =>
-            tokens is null ? [] : AwkTokenNavigation.SliceIndexed(tokens, start, count);
-    }
-
-    private static int FindOriginalTokenIndex(IReadOnlyList<AwkToken> tokens, AwkTextSpan span, Action? checkpoint)
-    {
-        var low = 0;
-        var high = tokens.Count - 1;
-        while (low <= high)
-        {
-            checkpoint?.Invoke();
-            var middle = low + ((high - low) / 2);
-            var token = tokens[middle];
-            if (token.Span.Start < span.Start)
-                low = middle + 1;
-            else if (token.Span.Start > span.Start)
-                high = middle - 1;
-            else if (token.Span.Length == span.Length)
-                return middle;
-            else
-                break;
-        }
-        throw new InvalidOperationException("A grammar leaf must reference its original lexical token.");
-    }
-
     public static AwkTokenKind ResolveTextKind(string text, Action? checkpoint = null)
     {
         return ResolveTextKind(text.AsSpan(), checkpoint);
