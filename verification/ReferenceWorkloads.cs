@@ -63,7 +63,7 @@ internal static class ReferenceWorkloads
             throw new ArgumentException("This workload does not have a steady scale.");
         if (name == "unicode-prefix")
         {
-            var count = scale switch { "small" => 1, "medium" => 64, "large" => 1024, _ => throw new ArgumentException("Unknown scale.") };
+            var count = ScaledRows(scale, 1, 64, 1_024);
             var line = "key " + new string('é', 4096) + "\n";
             return new(name, scale, count, 2,
                 "{total+=length(substr($2,1,2))}END{print total}",
@@ -74,7 +74,7 @@ internal static class ReferenceWorkloads
         {
             var keys = name == "nested-array-calls-16" ? 16 : 1024;
             // Bound the largest total within ordinary integral print formatting.
-            var count = scale switch { "small" => 16, "medium" => 4096, "large" => 16384, _ => throw new ArgumentException("Unknown scale.") };
+            var count = ScaledRows(scale, large: 16_384);
             var nestedInput = new StringBuilder();
             var sums = new long[keys];
             long total = 0;
@@ -95,11 +95,7 @@ internal static class ReferenceWorkloads
         if (name is "scalar-sum" or "scalar-sum-decimal" or "field-call-loop" or "field-number-loop")
         {
             var decimalValues = name == "scalar-sum-decimal";
-            var scalarRows = scale switch
-            {
-                "small" => 16, "medium" => 4_096, "large" => 65_536, SteadyScale => SteadyRecords,
-                _ => throw new ArgumentException("Unknown scale.")
-            };
+            var scalarRows = scale == SteadyScale ? SteadyRecords : ScaledRows(scale);
             var scalarInput = new StringBuilder();
             long scalarTotal = 0;
             for (var scalarRow = 0; scalarRow < scalarRows; scalarRow++)
@@ -133,13 +129,7 @@ internal static class ReferenceWorkloads
         if (name == "wide-numeric-mutation")
         {
             const int width = 192;
-            var mutationRows = scale switch
-            {
-                "small" => 16,
-                "medium" => 1024,
-                "large" => 8192,
-                _ => throw new ArgumentException("Unknown scale.")
-            };
+            var mutationRows = ScaledRows(scale, medium: 1_024, large: 8_192);
             var cells = Enumerable.Repeat("x", width).ToArray();
             cells[88] = "2.75";
             var inputLine = string.Join(' ', cells) + "\n";
@@ -153,7 +143,7 @@ internal static class ReferenceWorkloads
         if (name is "numeric-wide" or "fixed-field-loop" or "prefix-nf-loop")
         {
             const int numericFields = 128;
-            var numericRows = scale switch { "small" => 16, "medium" => 256, "large" => 4096, _ => throw new ArgumentException("Unknown scale.") };
+            var numericRows = ScaledRows(scale, medium: 256, large: 4_096);
             var numericRow = string.Join(' ', Enumerable.Range(1, numericFields)) + "\n";
             var numericTotal = (long)numericRows * numericFields * (numericFields + 1) / 2;
             return new(name, scale, numericRows, numericFields,
@@ -168,7 +158,7 @@ internal static class ReferenceWorkloads
         }
         if (name == "function-control-flow")
         {
-            var count = scale switch { "small" => 16, "medium" => 4096, "large" => 65536, _ => throw new ArgumentException("Unknown scale.") };
+            var count = ScaledRows(scale);
             var functionInput = new StringBuilder();
             long total = 0;
             for (var row = 0; row < count; row++)
@@ -199,7 +189,7 @@ internal static class ReferenceWorkloads
         }
         if (name == "local-conditional-text")
         {
-            var textRows = scale switch { "small" => 16, "medium" => 4096, "large" => 65536, _ => throw new ArgumentException("Unknown scale.") };
+            var textRows = ScaledRows(scale);
             var normalizedInput = new StringBuilder();
             for (var i=0;i<textRows;i++) normalizedInput.Append("ID:beta:tail\t").Append(i%2==0?4:32).Append('\n');
             return new(name,scale,textRows,2,"function clip(s,n,t){t=tolower(s);if(length(t)>n)return substr(t,1,n);return t} {v=clip($1,$2);total+=length(v)} END{print total}",
@@ -272,7 +262,7 @@ internal static class ReferenceWorkloads
                 // Long tokens isolate delimiter traversal from field count and output volume.
                 program = "$2==\"keep\"{n++} END{print n+0}";
                 fields = 2;
-                rows = scale switch { "small" => 16, "medium" => 256, _ => 4_096 };
+                rows = ScaledRows(scale, medium: 256, large: 4_096);
                 var longToken = new string('x', 4_096);
                 for (var i = 0; i < rows; i++)
                     input.Append(longToken).Append(i % 2 == 0 ? "\tkeep\n" : "\tskip\n");
@@ -350,7 +340,7 @@ internal static class ReferenceWorkloads
             case "profile-wide":
                 fields = name == "profile-wide" ? 64 : 3;
                 if (name == "profile-wide")
-                    rows = scale switch { "small" => 16, "medium" => 256, _ => 4_096 };
+                    rows = ScaledRows(scale, medium: 256, large: 4_096);
                 program = "{for(i=1;i<=NF;i++){nonempty+=($i!=\"\");chars+=length($i)}} END{print nonempty,chars}";
                 var row = string.Join('\t', Enumerable.Repeat("text", fields)) + "\n";
                 for (var i = 0; i < rows; i++)
@@ -545,6 +535,14 @@ internal static class ReferenceWorkloads
             }
         }
     }
+
+    private static int ScaledRows(string scale, int small = 16, int medium = 4_096, int large = 65_536) => scale switch
+    {
+        "small" => small,
+        "medium" => medium,
+        "large" => large,
+        _ => throw new ArgumentException("Unknown scale.")
+    };
 
     private static byte[] Bytes(string value) => new UTF8Encoding(false, true).GetBytes(value);
 }
