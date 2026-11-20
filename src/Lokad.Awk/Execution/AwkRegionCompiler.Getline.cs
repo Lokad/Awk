@@ -23,7 +23,7 @@ internal sealed partial class AwkRegionCompiler
                         var number = compiler._numbers++;
                         _result = compiler.Operand(AwkRegionOperandKind.NumberTemporary, number);
                         _source = parts.HasRedirection ? compiler._values++ : -1;
-                        compiler._getlines.Add(new(_site, _source, parts.SourceKind, number));
+                        compiler._getlines.Add(new(_source, parts.SourceKind, number));
                         if (!parts.HasRedirection || isExpression)
                             compiler.Emit(AwkRegionInstruction.GetlineBoundary(_site));
                         _stage = 2;

@@ -544,7 +544,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.Getline:
                     _position = position + 1;
-                    BeginRead(computationView.Region.Getlines[instruction.GetlineSite]);
+                    BeginRead(instruction.GetlineSite);
                     goto Resume;
                 case AwkRegionInstructionKind.Return:
                     AwkValue returnedValue;

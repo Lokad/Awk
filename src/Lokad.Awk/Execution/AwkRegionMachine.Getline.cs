@@ -2,8 +2,9 @@ namespace Lokad.Awk;
 
 internal partial struct AwkRegionMachine
 {
-    private void BeginRead(AwkRegionGetline read)
+    private void BeginRead(int site)
     {
+        var read = _region.Getlines[site];
         var storage = _storage;
         _state.ThrowIfCancellationRequested();
         var completion = read.Kind switch
@@ -16,7 +17,7 @@ internal partial struct AwkRegionMachine
 
         if (completion.IsCompletedSuccessfully)
         {
-            ApplyRead(read, completion.Result);
+            ApplyRead(site, read, completion.Result);
             return;
         }
 
@@ -28,17 +29,17 @@ internal partial struct AwkRegionMachine
     {
         // The execution location cannot move during a pending read. Its preceding instruction
         // identifies the funded source/destination without another pending object.
-        var instruction = _region.Instructions[_position - 1];
-        ApplyRead(_region.Getlines[instruction.GetlineSite], ((Task<AwkGetlineCompletion>)_hostCompletion).Result);
+        var site = _region.Instructions[_position - 1].GetlineSite;
+        ApplyRead(site, _region.Getlines[site], ((Task<AwkGetlineCompletion>)_hostCompletion).Result);
     }
 
-    private void ApplyRead(AwkRegionGetline read, AwkGetlineCompletion completion)
+    private void ApplyRead(int site, AwkRegionGetline read, AwkGetlineCompletion completion)
     {
         var storage = _storage;
-        storage.Numbers[read.Result] = AwkGetlineRuntime.ApplyResult(_state, storage.GetlineTarget(read.Slot),
+        storage.Numbers[read.Result] = AwkGetlineRuntime.ApplyResult(_state, storage.GetlineTarget(site),
             read.Kind == AwkGetlineSourceKind.MainInput, completion);
         _hostCompletion = Task.CompletedTask;
-        storage.ReleaseGetlineTarget(read.Slot);
+        storage.ReleaseGetlineTarget(site);
         if (read.Source >= 0) storage.ReleaseValue(read.Source);
         _pending = Pending.None;
     }
