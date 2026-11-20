@@ -56,19 +56,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         return text;
     }
 
-    private AwkText MaterializeField(AwkRecordField field)
-    {
-        if (field.CacheSlot > 0 && !_fieldValueCache[field.CacheSlot - 1].IsScalar)
-            return _fieldValueCache[field.CacheSlot - 1].Spelling;
-        if (field.Kind != AwkFieldTextKind.RecordSlice)
-            return field.Kind == AwkFieldTextKind.Owned
-                ? _fieldValueCache[field.CacheSlot - 1].Spelling : AwkText.Empty;
-        if (_bufferedStorage is not { } storage)
-            return state.CopyByteSlice(_recordText, field.RecordStart, field.ByteLength());
-        return _recordTextIsCurrent && field.IsWholeRecord(RecordByteLength) ? OwnedRecordText() :
-            state.CopyText(new AwkCopySource(storage, _bufferedSlot, field.RecordStart, field.ByteLength()));
-    }
-
     internal void SetBufferedRecord(AwkRecordStorage storage, int slot, AwkRecordSplitPlan splitPlan, long retainedBytes)
     {
         ReplaceRetainedMemory(retainedBytes);
@@ -251,7 +238,23 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         AwkValue? classification = field.HasInputClassification ? field.InputClassification :
             field.CacheSlot > 0 && _fieldValueCache[field.CacheSlot - 1].HasInputClassification
                 ? _fieldValueCache[field.CacheSlot - 1].Value : null;
-        var text = MaterializeField(field);
+        if (field.CacheSlot > 0)
+            return CacheMaterializedField(fieldIndex, _fieldValueCache[field.CacheSlot - 1].Spelling, classification);
+        if (field.Kind != AwkFieldTextKind.RecordSlice)
+            return CacheMaterializedField(fieldIndex, AwkText.Empty, classification);
+        if (_bufferedStorage is not { } storage)
+            return CacheMaterializedField(fieldIndex,
+                state.CopyByteSlice(_recordText, field.RecordStart, field.ByteLength()), classification);
+        if (_recordTextIsCurrent && field.IsWholeRecord(RecordByteLength))
+            return CacheMaterializedField(fieldIndex, OwnedRecordText(), classification);
+
+        var source = new AwkCopySource(storage, _bufferedSlot, field.RecordStart, field.ByteLength());
+        using var admission = AdmitFieldCacheCopy(source.Length);
+        return CacheMaterializedField(fieldIndex, state.CopyText(source), classification);
+    }
+
+    private AwkValue CacheMaterializedField(int fieldIndex, AwkText text, AwkValue? classification)
+    {
         // Capture facts before admission can replace owner storage. Reusing them
         // avoids a scan, but long owning reads retain their cancellation boundary.
         if (classification.HasValue && text.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes)
@@ -357,17 +360,26 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private AwkText CaptureFieldTextSnapshot(int index, AwkRecordField field)
     {
-        var capacity = PlanFieldCacheCapacity(_fieldValueCache.Count + 1);
-        var admitted = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateTextBytes(field.ByteLength()),
-            capacity != _fieldValueCache.Capacity ? EstimateFieldCacheBufferBytes(capacity) : 0);
-        using var admission = state.MemoryAccounting.AdmitMutation(admitted);
-        var text = state.CopyText(CaptureCopySource().Slice(field.RecordStart, field.ByteLength()));
+        var source = CaptureCopySource().Slice(field.RecordStart, field.ByteLength());
+        using var admission = AdmitFieldCacheCopy(source.Length);
+        var text = state.CopyText(source);
         var classified = field.HasInputClassification;
         var facts = classified ? field.InputClassification :
             field.TryGetNumericValue(out var number) ? AwkValue.FromNumber(number) : default;
         CacheFieldEntry(index, new(index,
             classified ? AwkFieldCacheKind.ClassifiedText : AwkFieldCacheKind.TextOnly, facts, text));
         return text;
+    }
+
+    private AwkMemoryMutationAdmission AdmitFieldCacheCopy(int length)
+    {
+        if (!state.MemoryAccounting.IsEnabled) return default;
+
+        state.CancellationCheckpoint?.Invoke();
+        var capacity = PlanFieldCacheCapacity(_fieldValueCache.Count + 1);
+        var growth = capacity != _fieldValueCache.Capacity ? EstimateFieldCacheBufferBytes(capacity) : 0;
+        return state.MemoryAccounting.AdmitMutation(
+            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateTextBytes(length), growth));
     }
 
     public double GetFieldNumber(

@@ -5,6 +5,55 @@ public sealed class AwkFieldMemoryModeTests
     private static readonly AwkText Separator = AwkText.FromSourceLiteralString("|");
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InterruptedBufferedFieldCopyPreservesRecordAndCache(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var memory = new CooperativeTestMemory(8 << 20).InitializeRuntime(counters, cancellation.Token);
+        using (memory)
+        using (var context = new AwkFieldTestContext(memory))
+        {
+            AwkTestHarness.PublishBufferedRecord(context.State, "0007 tail"u8);
+            var frame = context.Frame;
+            Assert.Equal(2, frame.GetFieldCount());
+            Assert.Equal(7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
+            var live = memory.Accounting.LiveBytes;
+            var reserved = memory.Budget.Reserved;
+            var allocations = counters[AwkCounter.TextAllocations];
+
+            if (cancel)
+            {
+                memory.Budget.OnGrowth = _ => cancellation.Cancel();
+                var error = Assert.Throws<OperationCanceledException>(() => frame.GetFieldValue(new(1)));
+                Assert.Equal(cancellation.Token, error.CancellationToken);
+            }
+            else
+            {
+                // The text fits on its own. There is insufficient space for its cache entry.
+                memory.Budget.SetAvailableBytes(AwkRuntimeMemory.EstimateTextBytes(4));
+                var error = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldValue(new(1)));
+                Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            }
+
+            Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
+            Assert.Equal(live, memory.Accounting.LiveBytes);
+            Assert.Equal(reserved, memory.Budget.Reserved);
+            Assert.True(frame.TryGetPrintableBufferedRecord(out var source));
+            Assert.True(source.AsSpan().SequenceEqual("0007 tail"u8));
+            if (!cancel)
+            {
+                memory.Budget.SetAvailableBytes(8 << 20);
+                var value = frame.GetFieldValue(new(1));
+                Assert.True(value.IsNumericStringValue);
+                Assert.Equal("0007", value.AsString());
+            }
+        }
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
