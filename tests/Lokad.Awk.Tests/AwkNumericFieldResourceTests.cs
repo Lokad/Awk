@@ -25,7 +25,9 @@ public sealed class AwkNumericFieldResourceTests
         SetFormat(state, "%.4f");
         Assert.True(state.CurrentRecordByteText.AsSpan().SequenceEqual("1.2500 b"u8));
 
-        Assert.Equal(allocations + 2, counters[AwkCounter.TextAllocations]);
+        var rebuiltAllocations = counters[AwkCounter.TextAllocations];
+        Assert.True(state.CurrentRecordByteText.AsSpan().SequenceEqual("1.2500 b"u8));
+        Assert.Equal(rebuiltAllocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(1, counters[AwkCounter.FieldSplits]);
         Assert.Equal(1.25, state.RecordFields.GetFieldValue(new(1)).AsNumber());
 
@@ -177,7 +179,7 @@ public sealed class AwkNumericFieldResourceTests
     public void FieldBufferEstimateIncludesValueTypeEntriesAndArrayHeaders()
     {
         Assert.Equal(AwkRuntimeMemory.FieldTextBytes, Unsafe.SizeOf<AwkFieldText>());
-        Assert.Equal(24 + 4 * Unsafe.SizeOf<(int, AwkText)>(), AwkRuntimeMemory.EstimateNumericFieldSpellingArrayBytes(4));
+        Assert.Equal(24 + 4 * Unsafe.SizeOf<(int, int, int)>(), AwkRuntimeMemory.EstimateNumericFieldSpellingArrayBytes(4));
         Assert.Equal(0, AwkRuntimeMemory.EstimateNumericFieldSpellingArrayBytes(0));
         Assert.Equal(32 + 24 + 4 * Unsafe.SizeOf<AwkRecordField>(), AwkRuntimeMemory.EstimateRecordFieldListBytes(4));
         Assert.Equal(0, AwkRuntimeMemory.EstimateRecordFieldListBytes(0));
