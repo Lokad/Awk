@@ -135,8 +135,8 @@ Copies into already funded destinations use the caller's admission.
 Text backing resolves rune ranges. The runtime funds and copies partial slices and
 reuses the backing for whole slices. Byte slices must end up as valid UTF-8.
 When the record slot holds validated ASCII, substring can use byte coordinates.
-The ASCII fact follows the bytes during promotion. Escaping slices admit and copy
-their result bytes.
+The ASCII fact follows the bytes when a complete line is staged or a borrow is
+promoted. Escaping slices admit and copy their result bytes.
 Adjacent text assignments transfer the producer's existing charge when the scalar
 destination publishes. A bound destination admits any remaining growth. A discarded
 field assignment can store a strictly classified number when all of the destination's

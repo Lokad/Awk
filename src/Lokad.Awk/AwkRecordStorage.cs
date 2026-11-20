@@ -62,7 +62,7 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
     }
 
     // The cursor proves UTF-8 validity before staging unchanged input.
-    internal void StageValidated(ReadOnlySpan<byte> bytes)
+    internal void StageValidated(ReadOnlySpan<byte> bytes, bool knownAscii = false)
     {
         var nextSlot = _currentSlot ^ 1;
         ref var next = ref BufferAt(nextSlot);
@@ -70,7 +70,7 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
         buffer.Clear();
         buffer.Append(bytes, state.CancellationCheckpoint);
         state.ThrowIfCancellationRequested();
-        PublishOwned(nextSlot, ref next, buffer.Length);
+        PublishOwned(nextSlot, ref next, buffer.Length, knownAscii);
     }
 
     internal void StageNormalizedCsv(ReadOnlySpan<byte> bytes, int firstCrLf, Action checkpoint)
@@ -82,13 +82,13 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
         buffer.Clear();
         AwkRecordLine.AppendNormalizedCsv(buffer, bytes, firstCrLf, checkpoint);
         AwkText.ThrowIfInvalidUtf8(buffer.AsSpan(), state.CancellationCheckpoint);
-        PublishOwned(nextSlot, ref next, buffer.Length);
+        PublishOwned(nextSlot, ref next, buffer.Length, knownAscii: false);
     }
 
-    private void PublishOwned(int nextSlot, ref RecordBuffer next, int length)
+    private void PublishOwned(int nextSlot, ref RecordBuffer next, int length, bool knownAscii)
     {
         next.SetOwned();
-        next.IsKnownAscii = false;
+        next.IsKnownAscii = knownAscii;
         _currentSlot = nextSlot;
 
         state.Counters.Add(AwkCounter.InputRecordBytesCopied, length);

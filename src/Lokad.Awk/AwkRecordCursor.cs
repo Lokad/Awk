@@ -152,11 +152,12 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
                 AwkInputRecordResult record;
                 if (storage is not null && AwkRecordStorage.CanStage(line.RecordBytes.Length))
                 {
-                    if (!_reader.ContentIsAscii)
+                    var knownAscii = _reader.ContentIsAscii;
+                    if (!knownAscii)
                         AwkText.ThrowIfInvalidUtf8(line.RecordBytes.Span, _state.CancellationCheckpoint);
                     if (AwkRecordStorage.CanBorrow(line.RecordBytes.Length))
                         storage.StageBorrowed(_reader, line.RecordBytes);
-                    else storage.StageValidated(line.RecordBytes.Span);
+                    else storage.StageValidated(line.RecordBytes.Span, knownAscii);
                     record = AwkInputRecordResult.Buffered(storage, line.Terminator);
                 }
                 else
