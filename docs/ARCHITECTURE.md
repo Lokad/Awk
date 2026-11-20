@@ -97,7 +97,9 @@ array, capture array or output payload. Temporary construction peaks
 and retained scratch use the same resizable lease. Compound mutations set an admitted
 floor that their component charges can consume. Buffered field copies use the same
 floor through cache publication. Capture source values before admission callbacks
-and re-locate mutable destinations afterward. Retire all funding
+and re-locate mutable destinations afterward. Capture-array replacements fund the
+new slots and metadata keys during construction while the previous array stays live.
+Retire all funding
 and descriptors on success, failure and cancellation; cleanup must not abandon owners
 because the execution token is canceled.
 

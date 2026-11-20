@@ -534,18 +534,27 @@ internal sealed partial class AwkArrayRuntime
     public void ReplaceMatchCaptures(AwkArrayTarget target, AwkLeasedRegexMatch leasedMatch)
     {
         var groups = leasedMatch.Match.Groups;
-        var entryCount = 0;
+        var successfulGroups = 0;
+        var lastGroup = 0;
         for (var index = 0; index < groups.Count; index++)
         {
-            entryCount = AwkRuntimeMemory.CheckedAdd(entryCount, groups[index].Success ? 3 : 0);
+            if ((index & 63) == 63) _state.ThrowIfCancellationRequested();
+            if (!groups[index].Success) continue;
+            successfulGroups++;
+            lastGroup = index;
         }
+        var entryCount = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedMultiply(successfulGroups, 3));
+        var separator = entryCount == 0 ? AwkText.Empty : _state.ResolveSubscriptSeparatorText();
+        var capacity = entryCount == 0 ? 0 : AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.CheckedAdd(AwkArrayKey.FromOrdinal(lastGroup).ByteLength, separator.ByteLength),
+            MatchLengthCaptureKeyPart.ByteLength);
+        using var construction = entryCount != 0 && _state.MemoryAccounting.IsEnabled
+            ? _state.MemoryAccounting.AdmitMutation(EstimateCaptureConstruction(entryCount, capacity))
+            : default;
+        if (construction.IsActive) _state.ThrowIfCancellationRequested();
         var slots = _variables.CreateMutableArraySlots(entryCount);
         if (entryCount != 0)
         {
-            var separator = _state.ResolveSubscriptSeparatorText();
-            var capacity = AwkRuntimeMemory.CheckedAdd(
-                AwkRuntimeMemory.CheckedAdd(AwkArrayKey.FromOrdinal(groups.Count - 1).ByteLength, separator.ByteLength),
-                MatchLengthCaptureKeyPart.ByteLength);
             using var builder = new AwkUtf8Builder(_state.MemoryAccounting, capacity);
 
             AwkArrayKey MetadataKey(AwkArrayKey ordinal, AwkText part)
@@ -560,6 +569,7 @@ internal sealed partial class AwkArrayRuntime
 
             for (var index = 0; index < groups.Count; index++)
             {
+                if ((index & 63) == 63) _state.ThrowIfCancellationRequested();
                 var group = groups[index];
                 if (!group.Success)
                     continue;
@@ -584,6 +594,18 @@ internal sealed partial class AwkArrayRuntime
             slots,
             leasedMatch.MemoryLease,
             leasedMatch.RetainedTextMemoryBytes);
+    }
+
+    private static long EstimateCaptureConstruction(int entries, int builderCapacity)
+    {
+        // The prior array remains live during construction. Capture values are already
+        // funded by the match lease. Only the new backing, cells and keys need coverage.
+        var backing = AwkRuntimeMemory.EstimateArrayConstructionBytes(AwkRuntimeMemory.BoundArrayCapacity(entries), entries);
+        var startLength = builderCapacity - MatchLengthCaptureKeyPart.ByteLength + MatchStartCaptureKeyPart.ByteLength;
+        var keysPerGroup = AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.EstimateTextBytes(startLength), AwkRuntimeMemory.EstimateTextBytes(builderCapacity));
+        var staged = AwkRuntimeMemory.CheckedAdd(backing, AwkRuntimeMemory.CheckedMultiply(keysPerGroup, entries / 3));
+        return AwkRuntimeMemory.CheckedAdd(staged, (long)AwkRuntimeMemory.ArrayIdentityBytes + builderCapacity);
     }
 
     private AwkLeasedReadOnlyList<AwkArrayKey> SnapshotUnsortedKeyValues(AwkArrayTarget arrayName)
