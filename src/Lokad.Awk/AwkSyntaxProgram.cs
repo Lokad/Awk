@@ -73,10 +73,7 @@ internal abstract class AwkPatternSyntax(IReadOnlyList<AwkToken> tokens)
 
 internal sealed class AwkEmptyPatternSyntax() : AwkPatternSyntax([])
 {
-    public override IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions()
-    {
-        yield break;
-    }
+    public override IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions() => [];
 }
 
 internal sealed class AwkSinglePatternSyntax(

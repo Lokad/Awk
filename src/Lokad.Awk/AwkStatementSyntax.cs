@@ -154,11 +154,7 @@ internal abstract class AwkStatementSyntaxPayload
     public virtual IReadOnlyList<AwkSwitchCaseSyntax> SwitchCases => [];
 
     /// <summary>Enumerates every direct child expression exactly once in source order.</summary>
-    public virtual IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions()
-    {
-        for (var index = 0; index < Expressions.Count; index++)
-            yield return Expressions[index];
-    }
+    public virtual IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions() => Expressions;
 }
 
 internal sealed class AwkBlockStatementSyntaxPayload(
