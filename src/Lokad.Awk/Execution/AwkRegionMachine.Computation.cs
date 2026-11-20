@@ -480,9 +480,9 @@ internal partial struct AwkRegionMachine
                             incoming.StageNumber(index, fieldNumber);
                         else
                         {
-                            // Deferred errors and owned spellings retain ordinary value capture.
+                            // The record frame classifies input in this invocation's mode.
                             var value = state.RecordFields.GetFieldValue(fieldIndex);
-                            state.FunctionCalls.StageValue(incoming, index, in value);
+                            state.FunctionCalls.StageValue(incoming, index, in value, preserveInputClassification: true);
                         }
                         break;
                     }

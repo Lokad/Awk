@@ -144,8 +144,8 @@ Activation reconciles aliases before publishing the callee's bindings.
 Known bindings may bypass name lookup only while visibility is valid.
 Forwarding a local scalar reuses the caller's classified value in the same
 invocation. The incoming frame admits the spelling it retains before publication.
-Bound global arguments can reuse the input classification produced by the
-scalar's read in that mode.
+Field arguments and bound global input arguments reuse the input classification
+produced by their storage read in that mode.
 Text-only arguments can retain a record slot and range while call preparation and the
 callee cannot advance input. The slot holds funded fallback bytes when admission retires
 the host borrow. Text operations resolve the range after admission before copying.

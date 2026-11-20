@@ -101,30 +101,23 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
 
     // Borrow immutable argument transport only during this synchronous staging.
     // Pure numbers publish into funded cells without an intermediate local slot.
-    internal void StageValue(AwkFunctionFrame frame, int index, in AwkValue value)
+    internal void StageValue(AwkFunctionFrame frame, int index, in AwkValue value,
+        bool preserveInputClassification = false)
     {
         if (value.IsNumberValue) frame.StageNumber(index, value.AsNumber());
         else if (value.IsArrayValue || value.IsUntypedValue)
             StageArgument(frame, index, AwkFunctionLocalSlot.FromArgumentValue(value));
         else
         {
-            StageScalarArgument(frame, index, in value);
+            StageScalarArgument(frame, index, in value, preserveInputClassification);
         }
     }
 
-    internal void StageScalarArgument(AwkFunctionFrame frame, int index, in AwkValue value)
+    internal void StageScalarArgument(AwkFunctionFrame frame, int index, in AwkValue value,
+        bool preserveInputClassification = false)
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return;
-        var captured = value.ForFunctionStorage(state.NumberParsingMode, state.CancellationCheckpoint);
-        PublishScalarArgument(frame, index, in captured);
-    }
-
-    internal void StageStoredScalarArgument(AwkFunctionFrame frame, int index, in AwkValue slot)
-    {
-        var value = slot.ReadVariableStorage(state.NumberParsingMode, state.CancellationCheckpoint);
-        if ((uint)index >= (uint)frame.Layout.SlotCount) return;
-        // The storage read already classified input spelling in this invocation's mode.
-        var captured = slot.StoredKind == AwkValueKind.StoredInputText && value.RetainsInputClassification
+        var captured = preserveInputClassification && value.RetainsInputClassification
             ? value : value.ForFunctionStorage(state.NumberParsingMode, state.CancellationCheckpoint);
         PublishScalarArgument(frame, index, in captured);
     }
