@@ -532,9 +532,7 @@ internal partial struct AwkRegionMachine
                 case AwkRegionInstructionKind.RegexMatch:
                 {
                     var match = computationView.Region.RegexMatches[instruction.Left];
-                    var regex = match.Literal ?? computationView.State.CreateRegex(new AwkRegexPattern(
-                        computationView.Storage.Values[match.Pattern].ByteText, warningSite: match));
-                    var matched = computationView.State.IsRegexMatch(regex, computationView.TextOperand(match.Input));
+                    var matched = computationView.ExecuteRegexMatch(match);
                     computationView.Numbers[instruction.Target] = matched != (instruction.Detail != 0) ? 1 : 0;
                     break;
                 }

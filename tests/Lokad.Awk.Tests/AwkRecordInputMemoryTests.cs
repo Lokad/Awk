@@ -358,6 +358,7 @@ public sealed class AwkRecordInputMemoryTests
     [InlineData("upper", false)]
     [InlineData("lower", false)]
     [InlineData("lower-unicode", false)]
+    [InlineData("dynamic-regex", false)]
     public async Task TextSourcesSurviveBorrowPromotionDuringGrowth(string form, bool redirected)
     {
         var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
@@ -398,6 +399,7 @@ public sealed class AwkRecordInputMemoryTests
                 "upper" => ("saved=toupper($3);print saved", "SKU-" + new string('X', 1500) + "\n"),
                 "lower" => ("saved=tolower($3);print saved", "sku-" + new string('x', 1500) + "\n"),
                 "lower-unicode" => ("saved=tolower($3);print saved", payload.ToLowerInvariant() + "\n"),
+                "dynamic-regex" => ("p=\"^0007 café \";print ($0~p)", "1\n"),
                 _ => throw new ArgumentOutOfRangeException(nameof(form)),
             };
             var target = redirected ? " > \"/out\"" : "";

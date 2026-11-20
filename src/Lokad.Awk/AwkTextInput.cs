@@ -66,12 +66,14 @@ internal readonly ref struct AwkTextInput
     internal AwkTextInput Prepare(AwkRuntimeState state, bool forceScalar = false) =>
         _kind < 0 ? this : new(FormatScalar(state, forceScalar));
 
-    internal AwkByteTextOperand Text(AwkRuntimeState state) =>
-        _kind < 0 ? ReadyText : new(FormatScalar(state, forceScalar: false));
+    internal bool IsNumber => _kind == (int)AwkValueKind.Number;
 
-    private AwkText FormatScalar(AwkRuntimeState state, bool forceScalar)
+    internal AwkByteTextOperand Text(AwkRuntimeState state, AwkMemoryLease? formatting = null) =>
+        _kind < 0 ? ReadyText : new(FormatScalar(state, forceScalar: false, formatting));
+
+    private AwkText FormatScalar(AwkRuntimeState state, bool forceScalar, AwkMemoryLease? formatting = null)
     {
         var value = AwkValue.FromStorage(_reference, BitConverter.Int64BitsToDouble(_word), (AwkValueKind)_kind);
-        return state.FormatStringByteText(forceScalar ? value.ForceScalar() : value);
+        return state.FormatStringByteText(forceScalar ? value.ForceScalar() : value, formatting);
     }
 }

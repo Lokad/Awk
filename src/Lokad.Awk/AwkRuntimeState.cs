@@ -1511,10 +1511,7 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkText FormatPrintByteText(AwkValue value, AwkMemoryLease retainedTextLease) =>
         _formattingRuntime.FormatPrintByteText(value, retainedTextLease);
 
-    public AwkText FormatStringByteText(AwkValue value) =>
-        _formattingRuntime.FormatStringByteText(value);
-
-    public AwkText FormatStringByteText(AwkValue value, AwkMemoryLease retainedTextLease) =>
+    public AwkText FormatStringByteText(AwkValue value, AwkMemoryLease? retainedTextLease = null) =>
         _formattingRuntime.FormatStringByteText(value, retainedTextLease);
 
     public bool IsRegexMatch(AwkRegex regex, AwkText input) =>

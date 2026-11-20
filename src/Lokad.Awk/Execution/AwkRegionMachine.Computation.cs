@@ -759,6 +759,23 @@ internal partial struct AwkRegionMachine
             return false;
         }
 
+        internal bool ExecuteRegexMatch(AwkRegionRegexMatch match)
+        {
+            if (match.Literal is { } literal)
+                return state.IsRegexMatch(literal, TextOperand(match.Input));
+
+            // Preserve subject evaluation before the pattern and conversion after it.
+            // Borrowed coordinates resolve against the record owner after regex preparation.
+            CaptureTextArgument(match.Input, out var input);
+            var patternValue = Value(match.Pattern);
+            using var formatting = patternValue.IsNumberValue || input.IsNumber
+                ? state.MemoryAccounting.CreateTransientLease() : AwkMemoryLease.Disabled;
+            var pattern = state.FormatStringByteText(patternValue, formatting);
+            var subject = input.Text(state, formatting);
+            var regex = state.CreateRegex(new AwkRegexPattern(pattern, warningSite: match));
+            return state.IsRegexMatch(regex, subject);
+        }
+
         internal AwkByteTextOperand TextOperand(int index)
         {
             ref readonly var operand = ref operands[index];

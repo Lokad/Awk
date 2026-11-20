@@ -61,6 +61,7 @@ internal sealed partial class AwkRegionCompiler
     {
         private byte _stage;
         private int _input;
+        private bool _immediatePattern;
         internal override bool TryAdvance(AwkRegionCompiler compiler, PreparationWork completed,
             [NotNullWhen(true)] out PreparationWork? next)
         {
@@ -78,16 +79,23 @@ internal sealed partial class AwkRegionCompiler
                 if (AwkSourceLiterals.TryLowerRegexLiteralPattern(syntax.Children[1], out var literal,
                     compiler._scope.CompatibilityMode, compiler._scope.Checkpoint))
                     return Complete(compiler.EmitRegexMatch(new(_input, literal), negated));
-                // Preserve the input value now, but format it after RHS effects.
-                _input = compiler.CaptureValue(_input);
+                // Immediate operands can be read in order within one synchronous
+                // match. A program that evaluates an effectful pattern owns its subject.
+                _immediatePattern = compiler.IsImmediateRead(syntax.Children[1]);
+                if (!_immediatePattern) _input = compiler.CaptureValue(_input);
                 _stage = 2;
                 next = compiler.CreateOperandWork(syntax.Children[1]);
                 return true;
             }
-            var pattern = compiler.CaptureByteText(CompletedResult<int>(completed));
-            _input = compiler.CaptureByteText(_input);
-            var result = compiler.EmitRegexMatch(new(_input, null, compiler._operands[pattern].Index), negated);
-            compiler.Emit(new(AwkRegionInstructionKind.ReleaseValue, compiler._operands[pattern].Index));
+            var pattern = CompletedResult<int>(completed);
+            if (!_immediatePattern)
+            {
+                pattern = compiler.CaptureByteText(pattern);
+                _input = compiler.CaptureByteText(_input);
+            }
+            var result = compiler.EmitRegexMatch(new(_input, null, pattern), negated);
+            if (compiler._operands[pattern].Kind == AwkRegionOperandKind.ValueTemporary)
+                compiler.Emit(new(AwkRegionInstructionKind.ReleaseValue, compiler._operands[pattern].Index));
             return Complete(result);
         }
     }

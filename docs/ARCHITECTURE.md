@@ -305,7 +305,11 @@ The regex runtime funds and observes owned capture copies through the same invoc
 ledger used for the search. Captures keep their own lease through publication.
 Active calls/searches pin compiled handles through cache eviction. Unsupported patterns
 fail clearly without a fallback engine; provider deferrals do not qualify missing semantics.
-Provider entry checks the invocation token after subject materialization and capture
+A dynamic match with an immediate pattern read can capture record coordinates
+before reading the pattern. Effectful pattern expressions keep an owned subject
+snapshot while evaluating the pattern. Numeric spelling uses the format at
+conversion and stays funded through the synchronous match.
+Provider entry checks the invocation token after subject preparation and capture
 storage admission.
 
 Enforced by [host traversal](../tests/Lokad.Awk.Tests/AwkHostContractTests.cs),

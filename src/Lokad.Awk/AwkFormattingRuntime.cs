@@ -33,9 +33,7 @@ internal sealed class AwkFormattingRuntime(
         return FormatNumberByteText(number, AwkFormattingVariable.OutputFormat, retainedTextLease);
     }
 
-    public AwkText FormatStringByteText(AwkValue value) => FormatStringByteText(value, null);
-
-    public AwkText FormatStringByteText(AwkValue value, AwkMemoryLease? retainedTextLease)
+    public AwkText FormatStringByteText(AwkValue value, AwkMemoryLease? retainedTextLease = null)
     {
         if (!value.IsNumberValue || !value.TryGetNumber(out var number))
             return value.ByteText;
