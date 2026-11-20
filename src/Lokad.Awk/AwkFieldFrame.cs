@@ -71,6 +71,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
     private AwkValue _fieldCountValue = AwkValue.FromNumber(0);
     private AwkRecordFieldBuffer _fieldTexts = new();
     private AwkRecordFieldBuffer? _rebuildFields;
+    private AwkUtf8Builder? _rebuildNumberText;
     internal readonly struct CachedFieldValue
     {
         private readonly AwkText _spelling;
@@ -129,6 +130,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         _recordValueIsCurrent = true;
         _recordTextIsCurrent = true;
         ClearSplitFields(releaseCache: true);
+        RetireRebuildNumberText();
         _fieldsAreSplit = true;
         _splitPlan = default;
     }
@@ -1096,6 +1098,8 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             state.CancellationCheckpoint?.Invoke();
     }
 
+    private const int LocalRebuildSpellingCapacity = 8;
+
     private bool RebuildRecordText()
     {
         var fieldCount = _fieldTexts.Count;
@@ -1105,28 +1109,56 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var recycled = FitsRebuildWidth(_fieldTexts.Capacity, fieldCount) ? _fieldTexts : null;
         var bufferBytes = state.MemoryAccounting.IsEnabled
             ? AwkRuntimeMemory.CheckedAdd(reusable is null ? AwkRuntimeMemory.EstimateRecordFieldListBytes(fieldCapacity) : 0,
-                AwkRuntimeMemory.EstimateNumericFieldSpellingArrayBytes(numericCount))
+                numericCount > LocalRebuildSpellingCapacity ? AwkRuntimeMemory.EstimateNumericFieldSpellingArrayBytes(numericCount) : 0)
             : 0;
         // A reused array is already funded. The lease still has to admit the new record text.
         using var buffers = bufferBytes == 0 && reusable is not null
             ? state.MemoryAccounting.CreateTransientLease()
             : state.MemoryAccounting.ReserveTransient(bufferBytes);
         if (bufferBytes > 0) state.CancellationCheckpoint?.Invoke();
-        var formatted = numericCount == 0 ? [] : new (int FieldIndex, AwkText Text)[numericCount];
+        return numericCount == 0
+            ? PublishRebuiltRecord(fieldCount, _fieldPayloadByteLength, reusable, recycled, buffers)
+            : RebuildRecordWithNumbers(fieldCount, numericCount, reusable, recycled, buffers);
+    }
+
+    private bool RebuildRecordWithNumbers(int fieldCount, int numericCount,
+        AwkRecordFieldBuffer? reusable, AwkRecordFieldBuffer? recycled, AwkMemoryLease buffers)
+    {
+        Span<(int FieldIndex, int Start, int Length)> formatted = numericCount <= LocalRebuildSpellingCapacity
+            ? stackalloc (int, int, int)[LocalRebuildSpellingCapacity] : new (int, int, int)[numericCount];
+        var numberText = _rebuildNumberText ??= new(state.MemoryAccounting, capacity: 0);
+        numberText.Clear();
         var payloadByteLength = _fieldPayloadByteLength;
         var formattedCount = 0;
-        for (var index = 0; index < fieldCount && formattedCount < formatted.Length; index++)
+        for (var index = 0; index < fieldCount && formattedCount < numericCount; index++)
         {
             if ((index & 1023) == 0) state.CancellationCheckpoint?.Invoke();
             if (!TryGetCachedFieldValue(index, out var value) || !value.IsNumberValue) continue;
 
             state.CancellationCheckpoint?.Invoke();
-            var text = state.FormatStringByteText(value, buffers);
+            var start = numberText.Length;
+            state.AppendConversionNumber(value.StoredNumber, numberText);
             state.CancellationCheckpoint?.Invoke();
-            payloadByteLength = AwkRuntimeMemory.CheckedAdd(payloadByteLength, text.ByteLength);
-            formatted[formattedCount++] = (index, text);
+            var length = numberText.Length - start;
+            payloadByteLength = AwkRuntimeMemory.CheckedAdd(payloadByteLength, length);
+            formatted[formattedCount++] = (index, start, length);
         }
 
+        var retiredFunding = PublishRebuiltRecord(fieldCount, payloadByteLength, reusable, recycled, buffers,
+            numberText, formatted[..formattedCount]);
+        if (numberText.Capacity > AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity)
+        {
+            RetireRebuildNumberText();
+            retiredFunding |= state.MemoryAccounting.IsEnabled;
+        }
+        return retiredFunding;
+    }
+
+    private bool PublishRebuiltRecord(int fieldCount, int payloadByteLength, AwkRecordFieldBuffer? reusable,
+        AwkRecordFieldBuffer? recycled, AwkMemoryLease buffers, AwkUtf8Builder? numberText = null,
+        scoped ReadOnlySpan<(int FieldIndex, int Start, int Length)> formatted = default)
+    {
+        var fieldCapacity = reusable?.Capacity ?? fieldCount;
         var byteLength = EstimateComposedRecordByteLength(_recompositionSeparator.ByteLength,
             fieldCount, payloadByteLength);
         var retained = EstimateRetainedBytes(AwkRuntimeMemory.EstimateTextBytes(byteLength),
@@ -1140,6 +1172,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var record = byteLength == 0 ? default : RecordBytes();
         var sourceFields = _fieldTexts.AsSpan();
         var cache = CollectionsMarshal.AsSpan(_fieldValueCache);
+        var numericBytes = numberText is not null ? numberText.AsSpan() : default;
         var offset = 0;
         var bytesUntilCheck = AwkRuntimeLimits.CancellationCheckBytes;
         var nextFormatted = 0;
@@ -1153,8 +1186,13 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             if (index > 0 && !separator.IsEmpty)
                 AwkText.CopyFragment(separator, destination, ref offset, ref bytesUntilCheck, checkpoint);
             ref readonly var descriptor = ref sourceFields[index];
-            var bytes = nextFormatted < formattedCount && formatted[nextFormatted].FieldIndex == index
-                ? formatted[nextFormatted++].Text.AsSpan(checkpoint) : descriptor.Bytes(record, cache, checkpoint);
+            ReadOnlySpan<byte> bytes;
+            if (nextFormatted < formatted.Length && formatted[nextFormatted].FieldIndex == index)
+            {
+                var range = formatted[nextFormatted++];
+                bytes = numericBytes.Slice(range.Start, range.Length);
+            }
+            else bytes = descriptor.Bytes(record, cache, checkpoint);
             descriptor.WriteRebased(out stagedFields[index], offset, bytes.Length);
             if (!bytes.IsEmpty)
                 AwkText.CopyFragment(bytes, destination, ref offset, ref bytesUntilCheck, checkpoint);
@@ -1171,6 +1209,13 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         _recordWasRecomposed = true;
         _recompositionSeparator = AwkText.Empty;
         return TransferFieldProductionFunding(retained, buffers);
+    }
+
+    private void RetireRebuildNumberText()
+    {
+        var spelling = _rebuildNumberText;
+        _rebuildNumberText = null;
+        spelling?.Dispose();
     }
 
     public void PrepareOutputFieldSeparatorAssignment()

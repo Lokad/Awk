@@ -1351,6 +1351,54 @@ public sealed class AwkRecordInputMemoryTests
         AssertRefunded(budget);
     }
 
+    [Fact]
+    public async Task RebuiltNumericSpellingsSurvivePendingOutputAndRecordReplacement()
+    {
+        const string script = """
+            BEGIN { OFS="|"; CONVFMT="é%300.2f" }
+            NR==1 { for (i=10; i>=1; i--) $i=i+0.5; saved=$0; print saved }
+            NR==2 { CONVFMT=""; $2=1.25; print; print saved }
+            """;
+        var first = string.Join('|', Enumerable.Range(1, 10).Select(i => "é" + (i.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".50").PadLeft(300)));
+        var budget = new CooperativeTestBudget(4 << 20);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new InputHost(budget, "old\n", "next old\n")
+        {
+            PoisonConsumedBytes = true,
+            PendingOutput = () => { entered.TrySetResult(); return release.Task; }
+        };
+        var run = Execute(script, host, budget);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(run.IsCompleted);
+            Assert.Equal(first + "\n", host.Output);
+            Assert.True(budget.Reserved >= Encoding.UTF8.GetByteCount(host.Output));
+        }
+        finally { release.TrySetResult(); }
+
+        Assert.Equal(0, (await run.WaitAsync(TimeSpan.FromSeconds(10))).Value);
+        Assert.Equal(first + "\nnext|\n" + first + "\n", host.Output);
+        Assert.Equal("", host.Error);
+        AssertRefunded(budget);
+    }
+
+    [Fact]
+    public async Task RefusedNumericRebuildPublishesNoOutputAndRefunds()
+    {
+        var budget = new CooperativeTestBudget(4 << 20);
+        var host = new InputHost(budget, "a old\n")
+        {
+            OnRead = () => budget.RefuseNextAdmissionMinimumGrowth = 4 << 10
+        };
+        var exit = await Execute("BEGIN{CONVFMT=\"%8192.2f\"}{$2=1.25;print}END{print \"end\"}", host, budget);
+        Assert.Equal(2, exit.Value);
+        Assert.Equal("", host.Output);
+        Assert.Equal("awk: memory limit exceeded\n", host.Error);
+        AssertRefunded(budget);
+    }
+
     private static Task<AwkExitCode> Execute(string script, InputHost host, CooperativeTestBudget budget,
         CancellationToken token = default) =>
         AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []))

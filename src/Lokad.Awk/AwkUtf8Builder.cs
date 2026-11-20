@@ -33,6 +33,7 @@ internal sealed class AwkUtf8Builder : IDisposable
     }
 
     public int Length { get; private set; }
+    internal int Capacity => _buffer.Length;
 
     public ReadOnlySpan<byte> AsSpan()
     {

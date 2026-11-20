@@ -213,9 +213,11 @@ admits destination storage before copying/publication. Field/cache identities su
 split completion and reconstruction; failed staging leaves earlier observations valid.
 Bounded CSV current records can normalize newlines directly in the funded staging slot.
 Validation completes before publication. Reading into a scalar returns owned text.
-Reconstruction stages numeric spellings in field order under the active `CONVFMT`.
-After destination admission, it resolves the source bytes and rebases the field
-descriptors during the synchronous copy.
+Reconstruction stages numeric spellings as ranges in one frame-owned UTF-8 buffer
+under the active `CONVFMT`, in field order. It resolves the live record bytes after
+destination admission and rebases descriptors during the synchronous copy. Scratch
+holds a bounded spare after publication and refunds its capacity on record reset.
+Text-only reconstruction enters the same publication path directly.
 Immediate print, field formatting, case conversion and owned record or field copies
 carry slot coordinates through destination admission. They resolve the slot's current
 bytes for the synchronous copy into the destination owner. Output is owned before

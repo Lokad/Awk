@@ -45,16 +45,39 @@ internal sealed class AwkFormattingRuntime(
     private AwkText FormatNumberByteText(double number, AwkFormattingVariable variable,
         AwkMemoryLease? retainedTextLease)
     {
-        if (double.IsInteger(number))
-            return FormatNumberText(number, retainedTextLease);
-
-        if (UsesDefaultFormat(variable))
-            return FormatDefaultNumberText(number, retainedTextLease);
+        Span<byte> buffer = stackalloc byte[AwkNumberFormatter.FormattedByteCapacity(number)];
+        var bytes = FormatIntrinsicNumber(number, variable, buffer);
+        if (!bytes.IsEmpty)
+            return CopyNumericText(bytes, retainedTextLease);
 
         using var argumentText = state.MemoryAccounting.CreateTransientLease();
         return PrintfEvaluation.FormatByteText(
             state.DecodeText(resolveVariable(variable)), new NumericFormatArguments(number, variable, this, argumentText),
             PrintfMissingArgumentPolicy.OmitDirective, state, retainedTextLease);
+    }
+
+    internal void AppendConversionNumber(double number, AwkUtf8Builder destination)
+    {
+        const AwkFormattingVariable variable = AwkFormattingVariable.ConversionFormat;
+        Span<byte> buffer = stackalloc byte[AwkNumberFormatter.FormattedByteCapacity(number)];
+        var bytes = FormatIntrinsicNumber(number, variable, buffer);
+        if (!bytes.IsEmpty)
+        {
+            destination.Append(bytes, state.CancellationCheckpoint);
+            return;
+        }
+
+        using var argumentText = state.MemoryAccounting.CreateTransientLease();
+        PrintfEvaluation.FormatToBuilder(
+            destination, state.DecodeText(resolveVariable(variable)),
+            new NumericFormatArguments(number, variable, this, argumentText),
+            PrintfMissingArgumentPolicy.OmitDirective, state);
+    }
+
+    private ReadOnlySpan<byte> FormatIntrinsicNumber(double number, AwkFormattingVariable variable, Span<byte> buffer)
+    {
+        if (double.IsInteger(number)) return AwkNumberFormatter.Format(number, buffer);
+        return UsesDefaultFormat(variable) ? AwkNumberFormatter.FormatDefault(number, buffer) : default;
     }
 
     private AwkText FormatNumberArgumentText(double number, AwkFormattingVariable variable, AwkMemoryLease lease) =>

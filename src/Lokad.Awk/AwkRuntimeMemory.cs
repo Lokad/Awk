@@ -285,7 +285,7 @@ internal static class AwkRuntimeMemory
             EstimateArrayBufferBytes(capacity, sizeof(int) * 2));
 
     internal static long EstimateNumericFieldSpellingArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, System.Runtime.CompilerServices.Unsafe.SizeOf<(int, AwkText)>());
+        EstimateArrayBufferBytes(count, System.Runtime.CompilerServices.Unsafe.SizeOf<(int, int, int)>());
 
     // These fixed layouts have Int32 capacities: even the largest cache is below
     // 81 GiB. Widen before multiplying; general Int64 overflow checks add no safety.

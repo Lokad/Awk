@@ -1511,6 +1511,9 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkText FormatPrintByteText(AwkValue value, AwkMemoryLease retainedTextLease) =>
         _formattingRuntime.FormatPrintByteText(value, retainedTextLease);
 
+    internal void AppendConversionNumber(double number, AwkUtf8Builder destination) =>
+        _formattingRuntime.AppendConversionNumber(number, destination);
+
     public AwkText FormatStringByteText(AwkValue value, AwkMemoryLease? retainedTextLease = null) =>
         _formattingRuntime.FormatStringByteText(value, retainedTextLease);
 
