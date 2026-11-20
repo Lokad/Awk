@@ -59,7 +59,7 @@ internal sealed partial class AwkRegionCompiler
                 var slot = compiler._activeCalls++;
                 _call = compiler._calls.Count;
                 compiler._calls.Add(new(function, slot));
-                compiler.Emit(new(AwkRegionInstructionKind.BeginCall, Left: _call));
+                compiler.Emit(AwkRegionInstruction.BeginCall(_call));
             }
             else
             {
@@ -68,12 +68,12 @@ internal sealed partial class AwkRegionCompiler
                 _arguments[_argument - 1] = AwkRegionArgument.Bind(argument, compiler._operands[argument],
                     syntax.Children[_argument].Kind == AwkExpressionKind.Group,
                     function.LocalLayout.InputConsumption(_argument - 1));
-                var position = compiler.Emit(new(AwkRegionInstructionKind.Arguments, _call, _argument - 1, 1));
+                var position = compiler.Emit(AwkRegionInstruction.StageArgument(_call, _argument - 1));
                 if (_segment >= 0 && _segment == position - 1 &&
                     compiler._code[_segment] is { Kind: AwkRegionInstructionKind.Arguments } segment &&
-                    segment.Target == _call && segment.Left + segment.Right == _argument - 1)
+                    segment.CallSite == _call && segment.ArgumentEnd == _argument - 1)
                 {
-                    compiler._code.ReplaceTail(_segment, segment with { Right = segment.Right + 1 });
+                    compiler._code.ReplaceTail(_segment, segment with { ArgumentCount = segment.ArgumentCount + 1 });
                 }
                 else
                 {
@@ -89,15 +89,15 @@ internal sealed partial class AwkRegionCompiler
             }
             var firstPending = _arguments.Length;
             var returned = compiler._values++;
-            var instruction = new AwkRegionInstruction(AwkRegionInstructionKind.Call, returned, _call, firstPending);
+            var instruction = AwkRegionInstruction.Call(_call, returned, firstPending);
             var positionOfCall = compiler.Emit(instruction);
             var suffix = positionOfCall;
             var fieldDemand = 0;
             if (_segment >= 0 && _segment == suffix - 1 &&
                 compiler._code[_segment] is { Kind: AwkRegionInstructionKind.Arguments } pending &&
-                pending.Target == _call && pending.Left + pending.Right == _arguments.Length)
+                pending.CallSite == _call && pending.ArgumentEnd == _arguments.Length)
             {
-                firstPending = pending.Left;
+                firstPending = pending.FirstArgument;
                 fieldDemand = FieldDemand(compiler, pending);
                 suffix--;
             }
@@ -105,10 +105,10 @@ internal sealed partial class AwkRegionCompiler
             // Adjacent preparation belongs to the complete call. Intervening
             // argument work keeps its incoming frame at the original boundary.
             var beginsFrame = suffix > 0 && compiler._code[suffix - 1] is
-                { Kind: AwkRegionInstructionKind.BeginCall } begin && begin.Left == _call;
+                { Kind: AwkRegionInstructionKind.BeginCall } begin && begin.CallSite == _call;
             if (beginsFrame) suffix--;
             if (suffix != positionOfCall)
-                compiler._code.ReplaceTail(suffix, instruction with { Right = firstPending });
+                compiler._code.ReplaceTail(suffix, instruction with { FirstPendingArgument = firstPending });
             var incomingSlot = beginsFrame ? -1 : compiler._calls[_call].Slot;
             if (incomingSlot >= 0)
                 compiler._incomingCalls = Math.Max(compiler._incomingCalls, incomingSlot + 1);
@@ -121,14 +121,14 @@ internal sealed partial class AwkRegionCompiler
         {
             if (_segment < 0) return;
             var segment = compiler._code[_segment];
-            compiler._code[_segment] = segment with { Detail = FieldDemand(compiler, segment) };
+            compiler._code[_segment] = segment with { ArgumentFieldDemand = FieldDemand(compiler, segment) };
         }
 
         private int FieldDemand(AwkRegionCompiler compiler, AwkRegionInstruction segment)
         {
             var first = 0;
             var maximum = 0;
-            for (var index = segment.Left; index < segment.Left + segment.Right; index++)
+            for (var index = segment.FirstArgument; index < segment.ArgumentEnd; index++)
             {
                 if ((index & 127) == 127) compiler._scope.CheckCancellation();
                 var argument = _arguments[index];

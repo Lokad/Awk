@@ -225,10 +225,10 @@ internal sealed partial class AwkRegionCompiler
             _updates[update.Target.Capture] = site;
             if (site.PrepareAccess < 0 && site.Right.IsRegister && position > 0 &&
                 _code[position - 1] is { Kind: AwkRegionInstructionKind.Call,
-                    Detail: (int)AwkRegionReturnConsumer.Number } call && call.Target == site.Right.RegisterIndex)
+                    CallConsumer: AwkRegionReturnConsumer.Number } call && call.CallDestination == site.Right.RegisterIndex)
             {
-                _code[position - 1] = call with { Target = number, Detail = (int)AwkRegionReturnConsumer.ArrayUpdate };
-                if (call.Target == _numbers - 1) _numbers--;
+                _code[position - 1] = call with { CallDestination = number, CallConsumer = AwkRegionReturnConsumer.ArrayUpdate };
+                if (call.CallDestination == _numbers - 1) _numbers--;
                 _operands[right] = new(AwkRegionOperandKind.NumberTemporary, number);
                 site = site with { Right = AwkRegionNumberSource.Bind(result, _operands[result]) };
                 _updates[update.Target.Capture] = site;

@@ -671,8 +671,9 @@ internal sealed partial class AwkRegionCompiler
             var assignment = Emit(new(AwkRegionInstructionKind.Assign, variable, value));
             if (_operands[variable].Kind is AwkRegionOperandKind.LocalVariable or AwkRegionOperandKind.GlobalVariable &&
                 _operands[value] is { Kind: AwkRegionOperandKind.ValueTemporary } source && assignment > 0 &&
-                _code[assignment - 1] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
-                _code[assignment - 1] = call with { Detail = (int)AwkRegionReturnConsumer.AssignmentValue };
+                _code[assignment - 1] is { Kind: AwkRegionInstructionKind.Call, CallConsumer: AwkRegionReturnConsumer.Value } call &&
+                call.CallDestination == source.Index)
+                _code[assignment - 1] = call with { CallConsumer = AwkRegionReturnConsumer.AssignmentValue };
             return;
         }
         Emit(new(AwkRegionInstructionKind.AssignNumber, variable, NumericRegister(value)));
@@ -798,9 +799,9 @@ internal sealed partial class AwkRegionCompiler
             _code.ReplaceTail(predecessor, instruction with { Left = operand });
         }
         else if (_code[predecessor] is { Kind: AwkRegionInstructionKind.Call,
-            Detail: (int)AwkRegionReturnConsumer.Value } call && call.Target == value.Index)
+            CallConsumer: AwkRegionReturnConsumer.Value } call && call.CallDestination == value.Index)
         {
-            _code[predecessor] = call with { Detail = (int)AwkRegionReturnConsumer.ReturnValue };
+            _code[predecessor] = call with { CallConsumer = AwkRegionReturnConsumer.ReturnValue };
         }
     }
 
@@ -846,10 +847,11 @@ internal sealed partial class AwkRegionCompiler
                 position = predecessor;
             }
             else if (source.Kind == AwkRegionOperandKind.ValueTemporary &&
-                _code[predecessor] is { Kind: AwkRegionInstructionKind.Call, Detail: 0 } call && call.Target == source.Index)
+                _code[predecessor] is { Kind: AwkRegionInstructionKind.Call, CallConsumer: AwkRegionReturnConsumer.Value } call &&
+                call.CallDestination == source.Index)
             {
                 // The adjacent conversion runs while the callee still owns the value.
-                _code.ReplaceTail(predecessor, call with { Target = target, Detail = (int)AwkRegionReturnConsumer.Number });
+                _code.ReplaceTail(predecessor, call with { CallDestination = target, CallConsumer = AwkRegionReturnConsumer.Number });
                 if (source.Index == _values - 1) _values--;
                 _operands[operand] = new(AwkRegionOperandKind.NumberTemporary, target);
                 return new(operand);
@@ -914,9 +916,9 @@ internal sealed partial class AwkRegionCompiler
                 _code.ReplaceTail(_code.Count - 2, producer with { Target = assignment.Target });
             }
             else if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
-                _code[^2] is { Kind: AwkRegionInstructionKind.Call, Detail: (int)AwkRegionReturnConsumer.AssignmentValue } call &&
-                call.Target == source.Index)
-                _code[^2] = call with { Detail = (int)AwkRegionReturnConsumer.AssignmentDiscarded };
+                _code[^2] is { Kind: AwkRegionInstructionKind.Call, CallConsumer: AwkRegionReturnConsumer.AssignmentValue } call &&
+                call.CallDestination == source.Index)
+                _code[^2] = call with { CallConsumer = AwkRegionReturnConsumer.AssignmentDiscarded };
             else _code[^1] = assignment with { Kind = AwkRegionInstructionKind.AssignConsumedScalar };
             // The assignment already validated its scalar and may have retired
             // the captured slot through its complete consumer.

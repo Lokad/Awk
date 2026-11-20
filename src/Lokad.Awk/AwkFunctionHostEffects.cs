@@ -22,7 +22,7 @@ internal static class AwkFunctionHostEffects
                 checkpoint?.Invoke();
                 if (instruction.Kind == AwkRegionInstructionKind.Call)
                 {
-                    var target = indices[region.Calls[instruction.Left].Function];
+                    var target = indices[region.Calls[instruction.CallSite].Function];
                     (callers[target] ??= []).Add(index);
                 }
                 else unsafeHost[index] |= DirectHost(in instruction);
@@ -58,15 +58,15 @@ internal static class AwkFunctionHostEffects
             ref readonly var instruction = ref region.Instructions[index];
             if (instruction.Kind == AwkRegionInstructionKind.Call)
             {
-                ref var call = ref region.Calls[instruction.Left];
-                var start = firstArguments[instruction.Left];
+                ref var call = ref region.Calls[instruction.CallSite];
+                var start = firstArguments[instruction.CallSite];
                 var host = call.Function.MayInvokeHost;
                 call = call with { CanBorrowRecordText = !host && (start == 0 || lastHost < start) };
                 if (host) lastHost = index + 1;
                 continue;
             }
-            if (instruction.Kind == AwkRegionInstructionKind.Arguments && firstArguments[instruction.Target] == 0)
-                firstArguments[instruction.Target] = index + 1;
+            if (instruction.Kind == AwkRegionInstructionKind.Arguments && firstArguments[instruction.CallSite] == 0)
+                firstArguments[instruction.CallSite] = index + 1;
             if (DirectHost(in instruction)) lastHost = index + 1;
         }
     }

@@ -141,6 +141,22 @@ internal enum AwkRegionInstructionKind : byte
 internal readonly partial record struct AwkRegionInstruction(
     AwkRegionInstructionKind Kind, int Target = 0, int Left = 0, int Right = 0, int Detail = 0)
 {
+    // BeginCall, Arguments and Call use the same index into the region's call table.
+    internal int CallSite => Left;
+    internal int FirstArgument => Target;
+    internal int ArgumentCount { get => Right; init => Right = value; }
+    internal int ArgumentEnd => FirstArgument + ArgumentCount;
+    internal int ArgumentFieldDemand { get => Detail; init => Detail = value; }
+    internal int FirstPendingArgument { get => Right; init => Right = value; }
+    internal int CallDestination { get => Target; init => Target = value; }
+    internal AwkRegionReturnConsumer CallConsumer { get => (AwkRegionReturnConsumer)Detail; init => Detail = (int)value; }
+
+    internal static AwkRegionInstruction BeginCall(int site) => new(AwkRegionInstructionKind.BeginCall, Left: site);
+    internal static AwkRegionInstruction StageArgument(int site, int index) =>
+        new(AwkRegionInstructionKind.Arguments, index, site, 1);
+    internal static AwkRegionInstruction Call(int site, int destination, int firstPendingArgument) =>
+        new(AwkRegionInstructionKind.Call, destination, site, firstPendingArgument);
+
     internal static AwkRegionInstruction Arithmetic(AwkNumericOperation operation, int target, int left, int right) =>
         new(operation switch
         {

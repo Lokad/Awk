@@ -90,10 +90,10 @@ internal partial struct AwkRegionMachine
         else frame = _storage.IncomingFrame(call.Slot);
         try
         {
-            computation.StageCallArguments(in call, frame, instruction.Right,
-                call.Arguments.Length - instruction.Right, call.FinalFieldDemand);
+            computation.StageCallArguments(in call, frame, instruction.FirstPendingArgument,
+                call.Arguments.Length - instruction.FirstPendingArgument, call.FinalFieldDemand);
             _position = resumePosition;
-            EnterCall(in call, frame, instruction.Target, (AwkRegionReturnConsumer)instruction.Detail);
+            EnterCall(in call, frame, instruction.CallDestination, instruction.CallConsumer);
         }
         catch
         {
