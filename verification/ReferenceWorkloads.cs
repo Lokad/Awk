@@ -4,12 +4,15 @@ using System.Text;
 namespace Lokad.Awk.Benchmarking;
 
 internal sealed record ReferenceWorkload(string Name, string Scale, int Records, int Fields,
-    string Program, byte[] StandardInput, BenchmarkFile[] Files, byte[] ExpectedOutput, string Locale = "C",
+    string Program, byte[] StandardInput, BenchmarkFile[] Files, ReadOnlyMemory<byte> ExpectedOutput, string Locale = "C",
     string[]? Options = null)
 {
     public long InputBytes => StandardInput.LongLength + Files.Sum(file => file.ContentBytes.LongLength);
     public string[] Arguments => [.. Options ?? [], Program, .. Files.Select(file => file.Path.TrimStart('/'))];
-    public OutputDigest ExpectedDigest { get; } = OutputDigest.FromBytes(ExpectedOutput);
+    // A workload copy can vary execution details while keeping its original result.
+    // Changing the result requires construction so the cached digest follows it.
+    public ReadOnlyMemory<byte> ExpectedOutput { get; } = ExpectedOutput;
+    public OutputDigest ExpectedDigest { get; } = OutputDigest.FromBytes(ExpectedOutput.Span);
 }
 
 internal static class ReferenceWorkloads
@@ -55,7 +58,7 @@ internal static class ReferenceWorkloads
         if (scale == "control")
             return name switch
             {
-                "startup-empty" => new(name, scale, 0, 0, "BEGIN{}", [], [], []),
+                "startup-empty" => new(name, scale, 0, 0, "BEGIN{}", [], [], ReadOnlyMemory<byte>.Empty),
                 "startup-tiny" => new(name, scale, 1, 3, "{print $2}", Bytes("a b c\n"), [], Bytes("b\n")),
                 _ => throw new ArgumentException("Unknown workload control.")
             };

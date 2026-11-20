@@ -131,7 +131,7 @@ internal static class ReferenceComparison
             var reference = await ReferenceExecution.RunReferenceAsync(executable, prepared, true, token).ConfigureAwait(false);
             var equivalent = library.IsSuccess && reference.IsSuccess &&
                 library.Output.AsSpan().SequenceEqual(reference.Output) &&
-                library.Output.AsSpan().SequenceEqual(workload.ExpectedOutput) &&
+                library.Output.AsSpan().SequenceEqual(workload.ExpectedOutput.Span) &&
                 library.OutputDigest == workload.ExpectedDigest && reference.OutputDigest == workload.ExpectedDigest;
             if (!equivalent)
                 return new("Mismatch", $"Exit {library.ExitCode}/{reference.ExitCode}; " +

@@ -31,7 +31,7 @@ internal static class ReferenceContractRunner
                 contract.InputFile.Length == 0 ? [] : [new("/" + contract.InputFile, contract.Input)],
                 contract.ExpectedBytes, "C.UTF-8");
             var library = await ReferenceExecution.RunLibraryAsync(workload, true, token).ConfigureAwait(false);
-            var libraryMatches = library.IsSuccess && library.Output.AsSpan().SequenceEqual(workload.ExpectedOutput);
+            var libraryMatches = library.IsSuccess && library.Output.AsSpan().SequenceEqual(workload.ExpectedOutput.Span);
             ReferenceExecutionResult? native = null;
             var classification = new ReferenceContractClassification("NotRun", "No GNU executable selected.");
             if (executable is not null && identity is not null)
