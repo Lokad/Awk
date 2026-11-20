@@ -309,6 +309,8 @@ A dynamic match with an immediate pattern read can capture record coordinates
 before reading the pattern. Effectful pattern expressions keep an owned subject
 snapshot while evaluating the pattern. Numeric spelling uses the format at
 conversion and stays funded through the synchronous match.
+Immediate existence checks reuse the prepared cache entry when the current
+case sensitivity still matches and the entry remains live after preparation.
 Provider entry checks the invocation token after subject preparation and capture
 storage admission.
 
