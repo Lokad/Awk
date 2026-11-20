@@ -96,18 +96,27 @@ public sealed class AwkStringEscapeWarningTests
     [InlineData(2)]
     public void LongWarningScanObservesCancellationBeforeTheTail(int mode)
     {
+        var profile = (AwkCompatibilityMode)mode;
+        var shortChecks = 0;
+        AwkEscapes.ReportStringWarnings(@"a\q", profile, new AwkStringEscapeWarnings(), static _ => { },
+            () => shortChecks++);
+
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
+        var history = new AwkStringEscapeWarnings();
         void Check()
         {
-            if (++checks == 3) cancellation.Cancel();
+            if (++checks > shortChecks) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
         var raw = new string('a', 4096) + @"\q";
         var error = Assert.Throws<OperationCanceledException>(() => AwkEscapes.ReportStringWarnings(raw,
-            (AwkCompatibilityMode)mode, new AwkStringEscapeWarnings(), _ => Assert.Fail(), Check));
+            profile, history, _ => Assert.Fail(), Check));
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(3, checks);
+
+        List<AwkStringEscapeWarning> retried = [];
+        AwkEscapes.ReportStringWarnings(raw, profile, history, retried.Add);
+        Assert.Equal("escape sequence `\\q' treated as plain `q'", Assert.Single(retried).Message);
     }
 
     private static AwkRuntimeOptions Options(AwkRuntimeLimits? limits = null) =>

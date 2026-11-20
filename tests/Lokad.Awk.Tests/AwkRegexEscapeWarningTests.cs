@@ -90,19 +90,27 @@ public sealed class AwkRegexEscapeWarningTests
     [InlineData(2)]
     public void LongOperatorWarningScanCancelsBeforePublishingTail(int mode)
     {
+        var profile = (AwkCompatibilityMode)mode;
+        var shortChecks = 0;
+        AwkRegexEscapes.ReportWarnings(@"a\q", profile, new AwkRegexEscapeWarnings(), static _ => { },
+            null, () => shortChecks++);
+
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         var history = new AwkRegexEscapeWarnings();
+        var pattern = new string('a', 8192) + @"\q";
         void Check()
         {
-            if (++checks == 3) cancellation.Cancel();
+            if (++checks > shortChecks) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
         var failure = Assert.Throws<OperationCanceledException>(() => AwkRegexEscapes.ReportWarnings(
-            new string('a', 8192) + @"\q", (AwkCompatibilityMode)mode, history, _ => Assert.Fail(), null, Check));
+            pattern, profile, history, _ => Assert.Fail(), null, Check));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.False(history.HasReported(new AwkRegexEscapeWarning(AwkRegexEscapeWarningKind.UnknownOperator,
-            new System.Text.Rune('q'))));
+
+        List<AwkRegexEscapeWarning> retried = [];
+        AwkRegexEscapes.ReportWarnings(pattern, profile, history, retried.Add, null);
+        Assert.Equal(new System.Text.Rune('q'), Assert.Single(retried).Character);
     }
 
     [Theory]

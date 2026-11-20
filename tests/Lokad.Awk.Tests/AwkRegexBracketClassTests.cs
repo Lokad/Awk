@@ -119,22 +119,31 @@ public sealed class AwkRegexBracketClassTests
     [InlineData("comment")]
     public void LongAdmissionScansObserveCancellation(string shape)
     {
+        var shortChecks = 0;
+        AwkRegexBracketClasses.Validate(AwkText.FromString(Pattern(shape, "digit")), () => shortChecks++);
+
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
-        var text = new string('a', 8192);
-        var pattern = shape switch
+        var pattern = AwkText.FromString(Pattern(shape, new string('a', 8192)));
+        void Check()
+        {
+            if (++checks > shortChecks) cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+        var failure = Assert.Throws<OperationCanceledException>(() => AwkRegexBracketClasses.Validate(pattern, Check));
+        Assert.Equal(cancellation.Token, failure.CancellationToken);
+
+        if (shape == "name")
+            Assert.Throws<AwkRegexSyntaxException>(() => AwkRegexBracketClasses.Validate(pattern));
+        else
+            AwkRegexBracketClasses.Validate(pattern);
+
+        static string Pattern(string kind, string text) => kind switch
         {
             "name" => "[[:" + text + ":]]",
             "prefix" => text + "[[:digit:]]",
             _ => "(?x)#" + text + "\n[[:digit:]]"
         };
-        void Check()
-        {
-            if (++checks == 3) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        var failure = Assert.Throws<OperationCanceledException>(() => AwkRegexBracketClasses.Validate(AwkText.FromString(pattern), Check));
-        Assert.Equal(cancellation.Token, failure.CancellationToken);
     }
 
     [Fact]
