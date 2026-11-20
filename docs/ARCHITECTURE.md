@@ -255,6 +255,9 @@ owner and key before reusing a cached cell. Field and composite keys share borro
 preparation, with the evaluated key's origin retained through capture.
 Staged and complete updates share target preparation. Updates that span instructions
 use a funded capture slot and can reuse its location after checking the key and owner.
+An adjacent, single-use scalar capture can be consumed directly by a flat array
+assignment. The region lease holds its value through destination effects, preserving
+RHS-first observation and mutation admission.
 Complete updates capture and commit within one instruction and retire composite key
 scratch after capture. Both forms read the current value before RHS effects.
 The compiler selects the complete numeric update instruction when it emits a

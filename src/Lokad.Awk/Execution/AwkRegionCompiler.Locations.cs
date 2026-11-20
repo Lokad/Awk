@@ -155,6 +155,21 @@ internal sealed partial class AwkRegionCompiler
         }
     }
 
+    private bool TryConsumeArrayAssignment(int operand, int slot)
+    {
+        if (_code.Count < 2 || _code[^1] is not { Kind: AwkRegionInstructionKind.ArrayAssign } assignment ||
+            assignment.AssignedArrayValue != operand || _arrays[assignment.ArrayAccess].Path >= 0 ||
+            _code[^2] is not { Kind: AwkRegionInstructionKind.Value, Detail: 0 } capture || capture.Target != slot)
+            return false;
+
+        // The complete assignment reads its RHS first and funds the captured
+        // scalar through destination effects. Nothing else needs this slot.
+        _operands[operand] = _operands[capture.Left];
+        _code.ReplaceTail(_code.Count - 2, assignment with { ConsumesArrayAssignmentValue = true });
+        _values--;
+        return true;
+    }
+
     private sealed class IncrementWork(AwkExpressionSyntax syntax) : PreparationWork<int>
     {
         private bool _waiting;

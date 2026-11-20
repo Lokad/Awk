@@ -167,6 +167,7 @@ internal readonly partial record struct AwkRegionInstruction(
 
     internal int ArrayAccess => Left;
     internal int AssignedArrayValue => Target;
+    internal bool ConsumesArrayAssignmentValue { get => Detail != 0; init => Detail = value ? 1 : 0; }
 
     internal static AwkRegionInstruction AssignArray(int access, int valueOperand) =>
         new(AwkRegionInstructionKind.ArrayAssign, valueOperand, access);

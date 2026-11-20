@@ -403,6 +403,17 @@ internal sealed class AwkRegionStorage : IDisposable
         return new(caller, bytes, isText: false);
     }
 
+    internal ScalarSource HoldConsumedValue(scoped in AwkValue value)
+    {
+        var bytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
+        if (bytes > 0)
+        {
+            _payload.ReserveAdditional(bytes);
+            _state.ThrowIfCancellationRequested();
+        }
+        return new(this, bytes, isText: false);
+    }
+
     internal void ReleaseValue(int index)
     {
         var bytes = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;

@@ -53,6 +53,8 @@ internal sealed partial class AwkRegionCompiler
                     OperandDemand(instruction.Left) && OperandDemand(instruction.Right),
                 AwkRegionInstructionKind.ArrayUpdate or AwkRegionInstructionKind.CompleteArrayNumberUpdate =>
                     CompleteUpdate(_updates[instruction.Left]),
+                AwkRegionInstructionKind.ArrayAssign when instruction.ConsumesArrayAssignmentValue =>
+                    ConsumedArrayAssignment(instruction.AssignedArrayValue),
                 AwkRegionInstructionKind.ScalarUpdate => false,
                 AwkRegionInstructionKind.ReturnNumber => NumericReturn(instruction.Left),
                 AwkRegionInstructionKind.Return => ValueReturn(instruction.Left),
@@ -156,6 +158,12 @@ internal sealed partial class AwkRegionCompiler
         }
 
         bool TerminalAccess(int access) { Access(access); return false; }
+        bool ConsumedArrayAssignment(int operand)
+        {
+            OperandDemand(operand);
+            return InvalidatingBoundary();
+        }
+
         bool TerminalNumberSource(AwkRegionNumberSource location)
         {
             if (location.IsRegister) return false;

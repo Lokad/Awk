@@ -902,6 +902,8 @@ internal sealed partial class AwkRegionCompiler
     private void Discard(int operand)
     {
         var source = _operands[operand];
+        if (source.Kind == AwkRegionOperandKind.ValueTemporary && source.Index == _values - 1 &&
+            TryConsumeArrayAssignment(operand, source.Index)) return;
         if (source.Kind is AwkRegionOperandKind.TextTemporary or AwkRegionOperandKind.ValueTemporary &&
             _code.Count > 0 && _code[^1] is { Kind: AwkRegionInstructionKind.Assign } assignment && assignment.Left == operand)
         {

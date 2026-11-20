@@ -459,9 +459,14 @@ internal partial struct AwkRegionMachine
                     }
                     else
                     {
-                        // The RHS already lives in captured scratch. Consume a
-                        // located cell directly; only misses need an owned key.
+                        // Capture the RHS before reading or publishing the target.
                         var assignedValue = computationView.Value(instruction.AssignedArrayValue);
+                        AwkRegionStorage.ScalarSource capture = default;
+                        if (instruction.ConsumesArrayAssignmentValue)
+                        {
+                            assignedValue = assignedValue.AsScalarCopy();
+                            capture = computationView.Storage.HoldConsumedValue(in assignedValue);
+                        }
                         var assignedOperand = computationView.Operands[assigned.Key];
                         if (computationView.TryArrayNumberKey(assigned.Key, out var assignedNumber))
                         {
@@ -478,6 +483,7 @@ internal partial struct AwkRegionMachine
                             computationView.State.ThrowIfCancellationRequested();
                             computationView.State.Arrays.SetAwkValue(assigned.Name, assignedKey, assignedValue, assigned.Binding);
                         }
+                        capture.Release(0);
                     }
                     break;
                 case AwkRegionInstructionKind.BeginCall:
