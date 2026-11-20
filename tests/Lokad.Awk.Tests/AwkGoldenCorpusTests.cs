@@ -24,8 +24,20 @@ public sealed class AwkGoldenCorpusTests(ITestOutputHelper output)
 
     public static IEnumerable<object[]> SyntaxCases()
     {
+        var inlineInputs = new HashSet<(string Source, AwkExecutionOptions Options, bool ExpectsDiagnostic)>();
         foreach (var testCase in AwkGoldenCorpus.DirectCases)
+        {
+            var command = AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment);
+            var invocation = AwkCommandParser.Parse(command);
+            // A standalone inline script without directives has no host source dependencies.
+            if (!invocation.TerminalResult.IsTerminal &&
+                invocation.Sources is [AwkSourceReference.InlineSource { InlineScript: var source }] &&
+                !source.Contains('@') &&
+                !inlineInputs.Add((source, invocation.ExecutionOptions, IsParserDiagnosticCase(testCase))))
+                continue;
+
             yield return [testCase];
+        }
     }
 
     [Theory]

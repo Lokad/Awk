@@ -27,7 +27,8 @@ to enforcing tests.
 Goldens run through public command execution. Focused execution tests use the production
 async phase entry or the main-input scheduler. State-only tests can exercise publication
 directly to isolate admission. Golden parser diagnostics, binding and syntax outlines
-share one source load and parse per case.
+share one source load and parse per case. Identical standalone inline scripts share
+an outline when their execution options and diagnostic expectations match.
 Golden failures report the fixture file and line, including the generator location
 for cases built in loops. Focused policy drivers reuse explicit fixture families from
 the corpus and assert their additional host behavior, authority or budget lifetime.
