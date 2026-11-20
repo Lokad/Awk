@@ -6,7 +6,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
 {
     private AwkFunctionFrame? _current;
     private int _depth;
-    private readonly Stack<AwkFunctionFrame> _recycledFrames = new();
+    private AwkFunctionFrame? _recycledFrame;
     // Most potential aliases are independent function arguments. Counting live
     // references lets those promote directly; only forwarded aliases need a scan.
     private readonly Dictionary<AwkArrayName, int> _potentialArrayAliasCounts = new();
@@ -45,26 +45,21 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     public bool HasLocalSlot(AwkFunctionLocalSlotId slotId) =>
         TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount;
 
-    private int _allocatedFrameCount;
-
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout)
     {
-        if (_recycledFrames.TryPeek(out var cached) &&
-            cached.SlotCapacity >= layout.SlotCount)
-        {
-            var frame = _recycledFrames.Pop();
-            frame.InitializeIncoming(++_nextFrameId, layout);
-            return frame;
-        }
-        return PrepareFrameStorage(layout);
+        var cached = _recycledFrame;
+        if (cached is null || cached.SlotCapacity < layout.SlotCount)
+            return PrepareFrameStorage(layout, cached);
+
+        TakeRecycledFrame(cached);
+        cached.InitializeIncoming(++_nextFrameId, layout);
+        return cached;
     }
 
     // Only new owners or insufficient backing reach allocation preparation.
     // Sufficient recycled capacity remains funded without another admission.
-    private AwkFunctionFrame PrepareFrameStorage(AwkFunctionLocalLayout layout)
+    private AwkFunctionFrame PrepareFrameStorage(AwkFunctionLocalLayout layout, AwkFunctionFrame? cached)
     {
-        var newFrame = _recycledFrames.Count == 0;
-        var cached = newFrame ? null : _recycledFrames.Peek();
         var bufferBytes = 0L;
         var capacity = layout.SlotCount;
         if (cached is not null)
@@ -75,24 +70,23 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         }
         if (capacity > 0)
             bufferBytes = AwkRuntimeMemory.EstimateFunctionSlotBufferBytes(capacity);
-        var frameBytes = newFrame ? AwkRuntimeMemory.EstimateFunctionFrameBytes() : 0;
+        var frameBytes = cached is null ? AwkRuntimeMemory.EstimateFunctionFrameBytes() : 0;
         var unpublishedBytes = AwkRuntimeMemory.CheckedAdd(frameBytes, bufferBytes);
         state.MemoryAccounting.Charge(unpublishedBytes);
         AwkFunctionFrame? frame = null;
         try
         {
             state.CancellationCheckpoint();
-            if (newFrame)
+            if (cached is null)
             {
-                // Every allocated frame can return to the recycler, including an
-                // incoming frame whose initialization or argument staging fails.
-                var frameCount = checked(_allocatedFrameCount + 1);
-                _recycledFrames.EnsureCapacity(frameCount);
                 frame = new AwkFunctionFrame();
-                _allocatedFrameCount = frameCount;
                 unpublishedBytes -= frameBytes;
             }
-            else frame = _recycledFrames.Pop();
+            else
+            {
+                TakeRecycledFrame(cached);
+                frame = cached;
+            }
             frame.InitializeIncoming(++_nextFrameId, layout);
             unpublishedBytes -= bufferBytes;
             return frame;
@@ -286,7 +280,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             PrepareIncomingAliases(frame);
         else state.CancellationCheckpoint();
 
-        frame.Parent = _current;
+        frame.StackLink = _current;
         _current = frame;
         _depth++;
         frame.IsIncoming = false;
@@ -349,7 +343,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     public void PopFrame(Action<AwkArrayName> removeFunctionLocalArray)
     {
         var frame = CurrentFrame;
-        _current = frame.Parent;
+        _current = frame.StackLink;
         _depth--;
         for (var index = 0; index < frame.AliasEnd; index++)
         {
@@ -573,7 +567,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             }
 
             var remainingAliases = aliasCount;
-            for (var frame = _current; frame is not null; frame = frame.Parent)
+            for (var frame = _current; frame is not null; frame = frame.StackLink)
             {
                 for (var index = 0; index < frame.Layout.SlotCount; index++)
                 {
@@ -673,7 +667,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     public void RepairSubarrayAliases(AwkArrayIdentity removed, bool includeRoot, bool cancellable)
     {
         var poll = cancellable ? state.CancellationCheckpoint : null;
-        for (var frame = _current; frame is not null; frame = frame.Parent)
+        for (var frame = _current; frame is not null; frame = frame.StackLink)
         {
             var end = frame.AliasRepairEnd;
             if (end == 0) poll?.Invoke();
@@ -697,7 +691,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     public void RepairElementAliases(AwkUntypedScalar removed)
     {
         if (removed.IsScalar) return;
-        for (var frame = _current; frame is not null; frame = frame.Parent)
+        for (var frame = _current; frame is not null; frame = frame.StackLink)
         {
             var end = frame.AliasRepairEnd;
             if (end == 0) state.CancellationCheckpoint();
@@ -827,7 +821,15 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     private void RecycleFrame(AwkFunctionFrame frame)
     {
         frame.Reset();
-        _recycledFrames.Push(frame);
+        frame.StackLink = _recycledFrame;
+        _recycledFrame = frame;
+    }
+
+    private void TakeRecycledFrame(AwkFunctionFrame frame)
+    {
+        System.Diagnostics.Debug.Assert(ReferenceEquals(_recycledFrame, frame));
+        _recycledFrame = frame.StackLink;
+        frame.StackLink = null;
     }
 
     private AwkResolvedFunctionLocal ResolveLocal(

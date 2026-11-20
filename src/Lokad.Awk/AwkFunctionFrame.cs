@@ -124,9 +124,9 @@ internal sealed class AwkFunctionFrame
     internal int AliasEnd { get; private set; }
     // Incoming untyped origins can become aliases without replacing the slot.
     internal int AliasRepairEnd => Math.Max(AliasEnd, ReconcileEnd);
-    // Binding/ownership ancestry also includes callers hidden by a global phase;
-    // it need not equal the execution continuation's caller frame.
-    internal AwkFunctionFrame? Parent { get; set; }
+    // Active frames link to their binding parent, including callers hidden by a
+    // global phase. Cleared frames link to the next recycled owner during reuse.
+    internal AwkFunctionFrame? StackLink { get; set; }
     internal AwkFunctionFrame? CallerFrame { get; private set; }
     internal AwkRegionResumePoint ResumePoint { get; private set; }
 
@@ -179,7 +179,7 @@ internal sealed class AwkFunctionFrame
         ReconcileEnd = 0;
         PotentialAliasEnd = 0;
         AliasEnd = 0;
-        Parent = null;
+        StackLink = null;
         CallerFrame = null;
         ResumePoint = default;
         _regionStorage?.RetireActivation();

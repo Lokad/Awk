@@ -138,8 +138,8 @@ Concatenation starts in the runtime. A deferred pair keeps its parts, accounting
 and allocation observations until it can publish a complete copy.
 
 Incoming function storage belongs to its frame, while arguments evaluate in caller scope
-and source order. Frame allocation reserves recycler capacity for every allocated frame,
-so unwinding can return incoming and active frames without growing the recycler.
+and source order. Retirement clears a frame before linking it into the recycler.
+Incoming and active frames can return their funded storage without allocating.
 Activation reconciles aliases before publishing the callee's bindings.
 Known bindings may bypass name lookup only while visibility is valid.
 Forwarding a local scalar reuses the caller's classified value in the same
