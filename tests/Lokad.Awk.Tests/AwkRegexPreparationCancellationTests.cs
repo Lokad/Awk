@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Lokad.Awk.Tests;
 
 public sealed class AwkRegexPreparationCancellationTests
@@ -10,55 +8,54 @@ public sealed class AwkRegexPreparationCancellationTests
     [InlineData("literal")]
     public void LongPreparationCanBeCanceledAndRetried(string shape)
     {
+        var shortChecks = 0;
+        using (var control = Runtime(AwkRuntimeCounters.Disabled, () => shortChecks++))
+            _ = Create(control, Pattern(shape, 16));
+
         using var cancellation = new CancellationTokenSource();
-        var counters = AwkRuntimeCounters.CreateEnabled();
         var checks = 0;
         var armed = true;
-        using var runtime = Runtime(counters, () =>
+        using var runtime = Runtime(AwkRuntimeCounters.Disabled, () =>
         {
-            if (armed && ++checks == 3) cancellation.Cancel();
+            if (armed && ++checks > shortChecks) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
         });
-        var text = new string('a', 8192);
-        if (shape == "bracket") text = "[" + text + "]";
-        AwkRegex Create() => shape == "literal"
-            ? runtime.CreateLiteral(new AwkRegexLiteralText(text))
-            : runtime.Create(new AwkRegexPattern(text));
-        var error = Assert.Throws<OperationCanceledException>(() => Create());
+        var pattern = Pattern(shape, 8_192);
+        var error = Assert.Throws<OperationCanceledException>(() => Create(runtime, pattern));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         armed = false;
-        var retried = Create();
-        Assert.Same(retried, Create());
+        var retried = Create(runtime, pattern);
+        Assert.Equal(pattern, retried.Pattern.AsString());
+        Assert.Same(retried, Create(runtime, pattern));
+
+        AwkRegex Create(AwkRegexRuntime owner, string text) => shape == "literal"
+            ? owner.CreateLiteral(new AwkRegexLiteralText(text))
+            : owner.Create(new AwkRegexPattern(text));
     }
 
     [Theory]
-    [InlineData("translation", "plain")]
-    [InlineData("translation", "posix")]
-    [InlineData("translation", "collating")]
-    [InlineData("translation", "trailingescape")]
-    public void OwnedPreparationWalksObserveCancellation(string stage, string shape)
+    [InlineData("plain")]
+    [InlineData("posix")]
+    [InlineData("collating")]
+    [InlineData("trailingescape")]
+    public void LongTranslationCanBeCanceledAndRetried(string shape)
     {
-        var text = Pattern(shape);
+        var shortChecks = 0;
+        _ = AwkRegex.TranslatePattern(new AwkRegexPattern(Pattern(shape, 16)),
+            checkpoint: () => shortChecks++);
+
+        var pattern = new AwkRegexPattern(Pattern(shape));
+        var expected = AwkRegex.TranslatePattern(pattern);
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
-        var error = Assert.Throws<OperationCanceledException>(() => Prepare(() =>
-        {
-            if (++checks == 3) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }));
-        Assert.Equal(cancellation.Token, error.CancellationToken);
-        Prepare(null);
-
-        void Prepare(Action? checkpoint)
-        {
-            switch (stage)
+        var error = Assert.Throws<OperationCanceledException>(() => AwkRegex.TranslatePattern(pattern,
+            checkpoint: () =>
             {
-                case "translation":
-                    _ = AwkRegex.TranslatePattern(new AwkRegexPattern(text),
-                    checkpoint: checkpoint); break;
-                default: throw new ArgumentException("Unknown preparation stage.");
-            }
-        }
+                if (++checks > shortChecks) cancellation.Cancel();
+                cancellation.Token.ThrowIfCancellationRequested();
+            }));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(expected, AwkRegex.TranslatePattern(pattern, checkpoint: () => { }));
     }
 
     [Theory]
@@ -148,19 +145,14 @@ public sealed class AwkRegexPreparationCancellationTests
         Assert.Equal(expected, AwkRegex.TranslatePattern(new AwkRegexPattern(text), checkpoint: () => { }));
     }
 
-    private static string Pattern(string shape)
+    private static string Pattern(string shape, int length = 16_384)
     {
-        var text = new string('a', 16384);
+        var text = new string('a', length);
         return shape switch
         {
-            "plain" => text,
+            "plain" or "literal" => text,
             "bracket" => "[" + text + "]",
             "negated" => "[^" + text + "]",
-            "unclosed" => "[" + text,
-            "category" => @"\p{" + text + "}",
-            "named" => "(?<" + text + ">a)",
-            "options" => "(?" + new string('i', 16384) + ":a)",
-            "pairs" => string.Concat(Enumerable.Repeat("\U00010400", 8192)),
             "posix" => "[" + text + "[:digit:]]",
             "collating" => "[" + text + "[.x.]]",
             "trailingescape" => text + @"\q",
