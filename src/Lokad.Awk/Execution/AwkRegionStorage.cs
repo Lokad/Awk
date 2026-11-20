@@ -687,10 +687,10 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > 0) _payload.Release(oldBytes);
     }
 
-    internal void ClearRuleValues(AwkRegionRuleScope scope)
+    internal void ClearRuleValues(AwkRegionRuleScope scope) => ClearValues(in scope.Before, in scope.After);
+
+    private void ClearValues(in AwkRegionStorageLayout before, in AwkRegionStorageLayout after)
     {
-        ref readonly var before = ref scope.Before;
-        ref readonly var after = ref scope.After;
         ClearIncomingFrames(after.Incoming);
         for (var index = after.Sorts - 1; index >= before.Sorts; index--) ReleaseSort(index);
         if (after.Values != before.Values) Array.Clear(_values, before.Values, after.Values - before.Values);
@@ -731,7 +731,7 @@ internal sealed class AwkRegionStorage : IDisposable
 
     internal void RetireActivation()
     {
-        if (_preparedRegion is { } region) ClearValues(in region.Layout);
+        if (_preparedRegion is { } region) ClearValues(default, in region.Layout);
         else ClearValues(); // Failed preparation can leave unpublished storage.
     }
 
@@ -740,25 +740,7 @@ internal sealed class AwkRegionStorage : IDisposable
         var all = new AwkRegionStorageLayout(0, _values.Length, _texts.Length, _targets.Length,
             _builders.Length, _incoming.Length, _printSegments.Length, _getlineTargets.Length,
             _paths.Length, _iterators.Length, _arrayTargets.Length, _sorts.Length);
-        ClearValues(in all);
-    }
-
-    private void ClearValues(in AwkRegionStorageLayout active)
-    {
-        ClearIncomingFrames(active.Incoming);
-        for (var index = active.Sorts - 1; index >= 0; index--) ReleaseSort(index);
-        if (active.Values > 0) Array.Clear(_values, 0, active.Values);
-        if (active.Targets > 0) Array.Clear(_targets, 0, active.Targets);
-        for (var index = 0; index < active.Paths; index++) ReleasePath(index);
-        for (var index = 0; index < active.Iterators; index++) ReleaseIterator(index);
-        var reads = active.GetlineTargets;
-        for (var index = 0; index < reads; index++) _getlineTargets[index].Dispose();
-        if (reads > 0) Array.Clear(_getlineTargets, 0, reads);
-        if (active.ArrayTargets > 0) Array.Clear(_arrayTargets, 0, active.ArrayTargets);
-        if (active.Texts > 0) Array.Clear(_texts, 0, active.Texts);
-        if (active.PrintSegments > 0)
-            Array.Clear(_printSegments, 0, active.PrintSegments);
-        ClearBuildersAndPayload(active.Builders);
+        ClearValues(default, in all);
     }
 
     public void Dispose()
