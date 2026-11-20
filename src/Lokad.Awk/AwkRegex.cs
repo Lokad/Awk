@@ -177,7 +177,7 @@ internal sealed class AwkRegex
                     var close = AwkRegexConstruction.TokenEnd(bytes.Span, token, checkpoint);
                     if (close < 0 || close >= end) continue;
                     var symbol = bytes.Span[(token + 2)..close];
-                    var replacement = marker == (byte)':' ? ClassExpansion(symbol) : default;
+                    var replacement = marker == (byte)':' ? AwkRegexBracketClasses.Expansion(symbol) : default;
                     // Preserve the existing single-BMP-character equivalence/collating rule.
                     var single = marker != (byte)':' &&
                         System.Text.Rune.DecodeFromUtf8(symbol, out var scalar, out var consumed) ==
@@ -205,23 +205,6 @@ internal sealed class AwkRegex
         }
         finally { builder?.Dispose(); }
     }
-
-    private static ReadOnlySpan<byte> ClassExpansion(ReadOnlySpan<byte> name) => name switch
-    {
-        _ when name.SequenceEqual("alnum"u8) => @"\p{L}\p{Nd}"u8,
-        _ when name.SequenceEqual("alpha"u8) => @"\p{L}"u8,
-        _ when name.SequenceEqual("blank"u8) => " \\t"u8,
-        _ when name.SequenceEqual("cntrl"u8) => @"\p{Cc}"u8,
-        _ when name.SequenceEqual("digit"u8) => "0-9"u8,
-        _ when name.SequenceEqual("graph"u8) => @"\p{L}\p{M}\p{N}\p{P}\p{S}\p{Cf}\p{Co}"u8,
-        _ when name.SequenceEqual("lower"u8) => @"\p{Ll}"u8,
-        _ when name.SequenceEqual("print"u8) => @"\p{L}\p{M}\p{N}\p{P}\p{S}\p{Cf}\p{Co}\p{Zs}"u8,
-        _ when name.SequenceEqual("punct"u8) => @"\p{P}\p{S}"u8,
-        _ when name.SequenceEqual("space"u8) => @"\s"u8,
-        _ when name.SequenceEqual("upper"u8) => @"\p{Lu}"u8,
-        _ when name.SequenceEqual("xdigit"u8) => "0-9A-Fa-f"u8,
-        _ => default
-    };
 
     private static int FindBracketEnd(ReadOnlySpan<byte> bytes, int start, Action? checkpoint)
     {

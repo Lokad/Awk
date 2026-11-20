@@ -41,7 +41,7 @@ internal static class AwkRegexBracketClasses
                     var closing = AwkRegexConstruction.TokenEnd(pattern.AsSpan(), index, checkpoint);
                     if (marker == (byte)':')
                     {
-                        if (closing < 0 || !IsClassName(pattern.AsSpan().Slice(index + 2, closing - index - 2)))
+                        if (closing < 0 || Expansion(pattern.AsSpan().Slice(index + 2, closing - index - 2)).IsEmpty)
                             throw new AwkRegexSyntaxException();
                     }
                     if (closing >= 0)
@@ -123,19 +123,22 @@ internal static class AwkRegexBracketClasses
         }
     }
 
-    private static bool IsClassName(ReadOnlySpan<byte> name) =>
-        name.SequenceEqual("alnum"u8) ||
-        name.SequenceEqual("alpha"u8) ||
-        name.SequenceEqual("blank"u8) ||
-        name.SequenceEqual("cntrl"u8) ||
-        name.SequenceEqual("digit"u8) ||
-        name.SequenceEqual("graph"u8) ||
-        name.SequenceEqual("lower"u8) ||
-        name.SequenceEqual("print"u8) ||
-        name.SequenceEqual("punct"u8) ||
-        name.SequenceEqual("space"u8) ||
-        name.SequenceEqual("upper"u8) ||
-        name.SequenceEqual("xdigit"u8);
+    internal static ReadOnlySpan<byte> Expansion(ReadOnlySpan<byte> name) => name switch
+    {
+        _ when name.SequenceEqual("alnum"u8) => @"\p{L}\p{Nd}"u8,
+        _ when name.SequenceEqual("alpha"u8) => @"\p{L}"u8,
+        _ when name.SequenceEqual("blank"u8) => " \\t"u8,
+        _ when name.SequenceEqual("cntrl"u8) => @"\p{Cc}"u8,
+        _ when name.SequenceEqual("digit"u8) => "0-9"u8,
+        _ when name.SequenceEqual("graph"u8) => @"\p{L}\p{M}\p{N}\p{P}\p{S}\p{Cf}\p{Co}"u8,
+        _ when name.SequenceEqual("lower"u8) => @"\p{Ll}"u8,
+        _ when name.SequenceEqual("print"u8) => @"\p{L}\p{M}\p{N}\p{P}\p{S}\p{Cf}\p{Co}\p{Zs}"u8,
+        _ when name.SequenceEqual("punct"u8) => @"\p{P}\p{S}"u8,
+        _ when name.SequenceEqual("space"u8) => @"\s"u8,
+        _ when name.SequenceEqual("upper"u8) => @"\p{Lu}"u8,
+        _ when name.SequenceEqual("xdigit"u8) => "0-9A-Fa-f"u8,
+        _ => default
+    };
 
     private static bool TryReadOptions(AwkText pattern, int start, bool currentMode, out bool nextMode,
         out int end, Action? checkpoint)
