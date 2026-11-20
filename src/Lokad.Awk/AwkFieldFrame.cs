@@ -1116,9 +1116,18 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
             ? state.MemoryAccounting.CreateTransientLease()
             : state.MemoryAccounting.ReserveTransient(bufferBytes);
         if (bufferBytes > 0) state.CancellationCheckpoint?.Invoke();
-        return numericCount == 0
-            ? PublishRebuiltRecord(fieldCount, _fieldPayloadByteLength, reusable, recycled, buffers)
-            : RebuildRecordWithNumbers(fieldCount, numericCount, reusable, recycled, buffers);
+        if (numericCount == 0)
+            return PublishRebuiltRecord(fieldCount, _fieldPayloadByteLength, reusable, recycled, buffers);
+        try
+        {
+            return RebuildRecordWithNumbers(fieldCount, numericCount, reusable, recycled, buffers);
+        }
+        catch
+        {
+            // Failed staging has no pending user of the numeric spellings.
+            RetireRebuildNumberText();
+            throw;
+        }
     }
 
     private bool RebuildRecordWithNumbers(int fieldCount, int numericCount,

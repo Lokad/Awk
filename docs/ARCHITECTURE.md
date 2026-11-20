@@ -217,6 +217,7 @@ Reconstruction stages numeric spellings as ranges in one frame-owned UTF-8 buffe
 under the active `CONVFMT`, in field order. It resolves the live record bytes after
 destination admission and rebases descriptors during the synchronous copy. Scratch
 holds a bounded spare after publication and refunds its capacity on record reset.
+If rebuilding fails, release the spelling scratch before failure cleanup.
 Text-only reconstruction enters the same publication path directly.
 Immediate print, field formatting, case conversion and owned record or field copies
 carry slot coordinates through destination admission. They resolve the slot's current

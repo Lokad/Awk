@@ -139,6 +139,25 @@ public sealed class AwkNumericFieldResourceTests
     }
 
     [Fact]
+    public void LateRebuildRefusalRefundsTheUnpublishedSpellingBuffer()
+    {
+        const int width = 4096;
+        using var memory = State(AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
+        Prepare(state, "%4096.2f");
+        var committed = state.MemoryAccounting.LiveBytes;
+        // Permit the padded spelling. The complete record also contains the
+        // other field, the separator and its own backing.
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = width + 1;
+        var error = Assert.Throws<AwkRuntimeException>(() => _ = state.CurrentRecordByteText);
+        AssertMemoryFailure(error, state, committed);
+
+        Assert.Equal(1.25, state.RecordFields.GetFieldValue(new(1)).AsNumber());
+        SetFormat(state, "%.2f");
+        Assert.True(state.CurrentRecordByteText.AsSpan().SequenceEqual("1.25 b"u8));
+    }
+
+    [Fact]
     public void SeparatorGrowthIsReservedBeforeNumericRecordConversion()
     {
         using var memory = State(AwkRuntimeLimits.CreateDefault());
