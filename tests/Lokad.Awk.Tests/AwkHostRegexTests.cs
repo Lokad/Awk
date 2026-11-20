@@ -174,7 +174,8 @@ public sealed class AwkHostRegexTests
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new("(é)"));
         var committed = state.MemoryAccounting.LiveBytes;
-        var error = Assert.Throws<AwkRuntimeException>(() => state.MatchRegexCaptureValue(regex, AwkText.FromString("é")));
+        var error = Assert.Throws<AwkRuntimeException>(() =>
+            state.MatchRegexValue(regex, AwkText.FromString("é"), AwkRegexCapturePlan.All));
         Assert.Equal(AwkDiagnosticId.RuntimeInvalidRegex, error.Id);
 
         Assert.Equal(committed, state.MemoryAccounting.LiveBytes);
@@ -298,8 +299,11 @@ public sealed class AwkHostRegexTests
         }
     }
 
-    [Fact]
-    public void ImmediateMatchUsesCaseSensitivityAfterPreparation()
+    [Theory]
+    [InlineData("existence")]
+    [InlineData("position")]
+    [InlineData("capture")]
+    public void ImmediateMatchUsesCaseSensitivityAfterPreparation(string result)
     {
         var sensitivity = AwkRegexCaseSensitivity.CaseSensitive;
         var engine = new RecordingEngine
@@ -308,7 +312,21 @@ public sealed class AwkHostRegexTests
         };
         using var runtime = new AwkRegexRuntime(() => sensitivity,
             AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions() with { RegexEngine = engine });
-        Assert.True(runtime.IsMatch(new AwkRegexPattern("a"), new AwkByteTextOperand(AwkText.FromSourceLiteralString("A"))));
+        var pattern = new AwkRegexPattern("a");
+        var text = AwkText.FromSourceLiteralString("A");
+        switch (result)
+        {
+            case "existence":
+                Assert.True(runtime.IsMatch(pattern, new AwkByteTextOperand(text)));
+                break;
+            case "position":
+                Assert.Equal(new(true, 0, 1), runtime.MatchPosition(pattern, text));
+                break;
+            case "capture":
+                using (var captured = runtime.MatchCaptureValue(pattern, text))
+                    Assert.Equal("A", Assert.Single(captured.Match.Groups).Value.AsString());
+                break;
+        }
         runtime.Dispose();
         Assert.All(engine.Patterns, pattern => Assert.True(pattern.Disposed));
     }

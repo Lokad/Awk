@@ -6,15 +6,14 @@ internal static class AwkMatchRuntime
     internal static int Execute(AwkRuntimeState state, AwkText input, AwkRegexPattern pattern, AwkArrayTarget? capture)
     {
         state.ThrowIfCancellationRequested();
-        var regex = state.CreateRegex(pattern);
         if (capture is { } target)
         {
-            using var leased = state.MatchRegexCaptureValue(regex, input);
+            using var leased = state.MatchRegexCaptureValue(pattern, input);
             var match = leased.Match;
             state.Arrays.ReplaceMatchCaptures(target, leased);
             return PublishPosition(state, match.Success, match.Index, match.Length);
         }
-        var position = state.MatchRegexPosition(regex, input);
+        var position = state.MatchRegexPosition(pattern, input);
         return PublishPosition(state, position.Success, position.Index, position.Length);
     }
 

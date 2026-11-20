@@ -95,7 +95,10 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         return IsMatch(owner, input);
     }
 
-    public bool IsMatch(AwkRegexPattern pattern, AwkByteTextOperand input)
+    public bool IsMatch(AwkRegexPattern pattern, AwkByteTextOperand input) =>
+        IsMatch(PrepareImmediatePattern(pattern), input);
+
+    private CompiledPattern PrepareImmediatePattern(AwkRegexPattern pattern)
     {
         var sensitivity = _resolveCaseSensitivity();
         var owner = PreparePattern(pattern, sensitivity, hasFixedCaseSensitivity: false);
@@ -103,8 +106,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         _throwIfCancellationRequested();
         var current = _resolveCaseSensitivity();
         // A callback during preparation can change which cached pattern the match needs.
-        if (current != sensitivity || owner.IsRetired) owner = ResolveCompiledRegex(recipe, current);
-        return IsMatch(owner, input);
+        return current != sensitivity || owner.IsRetired ? ResolveCompiledRegex(recipe, current) : owner;
     }
 
     private bool IsMatch(CompiledPattern owner, AwkByteTextOperand input)
@@ -131,14 +133,27 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     public AwkLeasedRegexMatch MatchCaptureValue(AwkRegex regex, AwkText input) =>
         MatchValue(regex, input, AwkRegexCapturePlan.All);
 
+    public AwkLeasedRegexMatch MatchCaptureValue(AwkRegexPattern pattern, AwkText input)
+    {
+        using var search = OpenSearch(PrepareImmediatePattern(pattern), new SearchInput(input), 0);
+        return search.MatchValue(0, AwkRegexCapturePlan.All, out _);
+    }
+
     public AwkRegexMatchSpan MatchSpan(AwkRegex regex, AwkText input, int searchOffset = 0)
     {
         using var search = OpenSearch(regex, input);
         return search.MatchSpan(searchOffset);
     }
 
-    public AwkRegexMatchPosition MatchPosition(AwkRegex regex, AwkText input) =>
-        AwkRegexMatchPosition.FromSpan(MatchSpan(regex, input), input, _stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Scalar, _throwIfCancellationRequested);
+    public AwkRegexMatchPosition MatchPosition(AwkRegexPattern pattern, AwkText input)
+    {
+        AwkRegexMatchSpan match;
+        using (var search = OpenSearch(PrepareImmediatePattern(pattern), new SearchInput(input), 0))
+            match = search.MatchSpan(0);
+        var coordinatePolicy = _stringUnitMode == AwkStringUnitMode.Byte
+            ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Scalar;
+        return AwkRegexMatchPosition.FromSpan(match, input, coordinatePolicy, _throwIfCancellationRequested);
+    }
 
     public AwkRegexMatchEnumerator EnumerateMatchValues(AwkRegex regex, AwkText input,
         AwkRegexCapturePlan capturePlan) => new(OpenSearch(regex, input), capturePlan);
@@ -158,6 +173,11 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     {
         _throwIfCancellationRequested();
         var owner = ResolveCompiledRegex(regex, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
+        return OpenSearch(owner, input, inputStart);
+    }
+
+    private Search OpenSearch(CompiledPattern owner, SearchInput input, int inputStart)
+    {
         owner.Pin();
         var lease = AwkMemoryLease.Disabled;
         IAwkRegexSearch? provider = null;

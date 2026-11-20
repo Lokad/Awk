@@ -1529,11 +1529,11 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkRegexCapturePlan capturePlan) =>
         _regexRuntime.MatchValue(regex, input, capturePlan);
 
-    public AwkLeasedRegexMatch MatchRegexCaptureValue(AwkRegex regex, AwkText input) =>
-        _regexRuntime.MatchCaptureValue(regex, input);
+    public AwkLeasedRegexMatch MatchRegexCaptureValue(AwkRegexPattern pattern, AwkText input) =>
+        _regexRuntime.MatchCaptureValue(pattern, input);
 
-    public AwkRegexMatchPosition MatchRegexPosition(AwkRegex regex, AwkText input) =>
-        _regexRuntime.MatchPosition(regex, input);
+    public AwkRegexMatchPosition MatchRegexPosition(AwkRegexPattern pattern, AwkText input) =>
+        _regexRuntime.MatchPosition(pattern, input);
 
     public AwkRegexMatchSpan MatchRegexSpan(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchSpan(regex, input);
