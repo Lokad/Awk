@@ -117,7 +117,7 @@ public sealed class AwkRegexPreparationCancellationTests
         {
             if (armed) throw new InvalidOperationException("Construction callback was retained.");
         }
-        var regex = AwkRegex.Create(new AwkRegexPattern("a"), AwkRegexCaseSensitivity.CaseSensitive,
+        var regex = AwkRegex.FromValidatedPattern(AwkText.FromString("a"),
             checkpoint: Checkpoint);
         armed = true;
         using var runtime = Runtime(AwkRuntimeCounters.Disabled, static () => { });

@@ -15,21 +15,11 @@ internal static partial class AwkSourceLiterals
         if (!TryReadRegexLiteralPattern(expression, out var pattern, checkpoint))
             return false;
 
-        try
-        {
-            checkpoint?.Invoke();
-            var prepared = AwkRegex.Create(
-                new AwkRegexPattern(pattern),
-                AwkRegexCaseSensitivity.CaseSensitive,
-                compatibilityMode, checkpoint);
-            checkpoint?.Invoke();
-            regex = prepared;
-            return true;
-        }
-        catch (AwkRegexSyntaxException)
-        {
-            return false;
-        }
+        // Parse has already validated the literal. Lowering retains the raw recipe
+        // and leaves translation for the execution-owned cache.
+        regex = AwkRegex.FromValidatedPattern(AwkText.FromString(pattern, checkpoint), compatibilityMode, checkpoint);
+        checkpoint?.Invoke();
+        return true;
     }
 
     internal static bool TryReadRegexLiteralPattern(

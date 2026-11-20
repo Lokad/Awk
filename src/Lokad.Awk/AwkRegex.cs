@@ -39,16 +39,10 @@ internal sealed class AwkRegex
     public AwkRegexCaseSensitivity ResolveCaseSensitivity(Func<AwkRegexCaseSensitivity> resolveCurrent) =>
         _hasFixedCaseSensitivity ? _caseSensitivity : resolveCurrent();
 
-    public static AwkRegex Create(AwkRegexPattern pattern, AwkRegexCaseSensitivity caseSensitivity,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault, Action? checkpoint = null)
-    {
-        // Frontend preparation still validates AWK syntax. Retain only its source recipe;
-        // execution-owned cache entries fund source keys and provider handles. Translated
-        // buffers have a transient construction lifetime rather than escaping via recipes.
-        _ = TranslatePattern(pattern, compatibilityMode, checkpoint);
-        return new(pattern.Text, caseSensitivity, checkpoint: checkpoint,
+    internal static AwkRegex FromValidatedPattern(AwkText pattern,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault, Action? checkpoint = null) =>
+        new(pattern, AwkRegexCaseSensitivity.CaseSensitive, checkpoint: checkpoint,
             sourceKind: AwkRegexSourceKind.Pattern, compatibilityMode: compatibilityMode);
-    }
 
     public static AwkText TranslatePattern(AwkRegexPattern pattern,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,

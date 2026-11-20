@@ -107,9 +107,7 @@ public sealed class AwkPropertyTests
         {
             var prefix = GenerateWord(random, 2 + random.Next(4));
             var suffix = GenerateWord(random, 2 + random.Next(4));
-            var regex = AwkRegex.Create(
-                new AwkRegexPattern("^" + prefix + "[[:digit:]]+" + suffix + "$"),
-                AwkRegexCaseSensitivity.CaseSensitive);
+            var regex = AwkRegex.FromValidatedPattern(AwkText.FromString("^" + prefix + "[[:digit:]]+" + suffix + "$"));
 
             Assert.True(state.IsRegexMatch(
                 regex,
