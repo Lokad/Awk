@@ -85,56 +85,72 @@ public sealed class AwkReplacementCaptureCancellationTests
     public void LongReplacementScansCancelAndAllowASeparateRetry(bool gensub, string shape, string mode)
     {
         var compatibility = ReplacementCompatibility(mode);
-        var replacement = shape switch
-        {
-            "literal" => new string('a', LongText),
-            "slashes" => new string('\\', LongText),
-            "ampersands" => new string('&', LongText),
-            "pairs" => string.Concat(Enumerable.Repeat("\\1", LongText / 2)),
-            _ => throw new ArgumentOutOfRangeException(nameof(shape))
-        };
+        const int scanLength = LongText * 4;
+        var replacement = Replacement(scanLength);
         var text = AwkText.FromString(replacement);
-        using var memoryForGovernor = Governor();
-        var governor = memoryForGovernor.Accounting;
-        using var builder = new AwkUtf8Builder(governor, 0);
+        using var memory = Governor();
+        var accounting = memory.Accounting;
+        using var builder = new AwkUtf8Builder(accounting, 0);
         builder.Append("seed"u8);
+        var committed = accounting.LiveBytes;
+        var shortChecks = 0;
+        Scan(AwkText.FromString(Replacement(4)), () => shortChecks++);
+        builder.Clear();
+        builder.Append("seed"u8);
+        Assert.Equal(committed, accounting.LiveBytes);
+
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
-        Action checkpoint = () =>
+        var error = Assert.Throws<OperationCanceledException>(() => Scan(text, () =>
         {
-            if (++checks == (gensub ? 5 : 3)) cancellation.Cancel();
+            if (accounting.LiveBytes == committed && ++checks > shortChecks)
+                cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
-        };
-
-        Assert.Throws<OperationCanceledException>(() =>
-        {
-            if (gensub)
-            {
-                using var plan = AwkGensubReplacementPlan.Rent(text, checkpoint);
-            }
-            else
-                AwkReplacement.AppendSubstitution("H"u8, text, builder, compatibility, checkpoint);
-        });
-
+        }));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(committed, accounting.LiveBytes);
         Assert.Equal("seed", AwkUtf8Codec.Decode(builder.AsSpan()));
         using var retry = new CancellationTokenSource();
         if (gensub)
         {
-            using var plan = AwkGensubReplacementPlan.Rent(text, retry.Token.ThrowIfCancellationRequested);
+            using var plan = AwkGensubReplacementPlan.Rent(text, retry.Token.ThrowIfCancellationRequested, accounting);
             plan.Append(Match(), builder, retry.Token.ThrowIfCancellationRequested);
         }
         else
             AwkReplacement.AppendSubstitution("H"u8, text, builder, compatibility, retry.Token.ThrowIfCancellationRequested);
         var expected = shape switch
         {
-            "ampersands" => new string('H', LongText),
-            "slashes" => new string('\\', LongText / 2),
-            "pairs" => new string('G', LongText / 2),
+            "ampersands" => new string('H', scanLength),
+            "slashes" => new string('\\', scanLength / 2),
+            "pairs" => new string('G', scanLength / 2),
             _ => replacement
         };
         Assert.Equal("seed" + expected, AwkUtf8Codec.DecodeRuntimeText(builder.CopyToOwnedBytes()));
         builder.Dispose();
-        Assert.Equal(0, governor.LiveBytes);
+        Assert.Equal(0, accounting.LiveBytes);
+
+        string Replacement(int length) => shape switch
+        {
+            "literal" => new string('a', length),
+            "slashes" => new string('\\', length),
+            "ampersands" => new string('&', length),
+            "pairs" => string.Concat(Enumerable.Repeat("\\1", length / 2)),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape))
+        };
+
+        void Scan(AwkText replacement, Action checkpoint)
+        {
+            if (gensub)
+            {
+                using var plan = AwkGensubReplacementPlan.Rent(replacement, checkpoint, accounting);
+            }
+            else
+            {
+                // Keep ampersands from entering the copying loop. The long literal
+                // and slash outputs must grow the builder before the copy checks.
+                AwkReplacement.AppendSubstitution([], replacement, builder, compatibility, checkpoint);
+            }
+        }
     }
 
     [Theory]
