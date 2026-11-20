@@ -148,6 +148,7 @@ generation and correctness preflight are outside the timings. Larger inputs
 help expose processing costs. The comparison includes startup at every scale.
 
 Regex uses the example adapter with published Lokad.Utf8Regex 0.4.0.
+The managed benchmarks supply a per-invocation deadline, including in ordinary runs.
 The locale is C/UTC except for Unicode workloads, which use C.UTF-8.
 Quiet checks bracket each measurement pass. The single-launch figures sample
 ordinary process and JIT variation and describe this source revision.
