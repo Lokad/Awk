@@ -21,16 +21,18 @@ internal static partial class AwkBuiltins
         slice = default;
         whole = false;
         var zeroBasedStart = SubstringStart(state, in startValue);
-        state.PrepareStringRangeSource(field, ref source, zeroBasedStart, 0);
+        // ASCII byte coordinates remain valid when admission promotes a record.
+        var knownAscii = source.IsKnownAscii;
+        if (!knownAscii) state.PrepareStringRangeSource(field, ref source, zeroBasedStart, 0);
         // Check the start before converting length: an out-of-range start has always
         // returned empty without demanding a potentially invalid numeric conversion.
         var byteMode = state.StringUnitMode == AwkStringUnitMode.Byte;
-        if (!source.HasUnitAt(zeroBasedStart, byteMode, state.CancellationCheckpoint)) return;
+        if (!source.HasUnitAt(zeroBasedStart, byteMode || knownAscii, state.CancellationCheckpoint)) return;
         var length = SubstringLength(state, in lengthValue, argumentCount);
         if (length <= 0) return;
-        state.PrepareStringRangeSource(field, ref source, zeroBasedStart, length);
+        if (!knownAscii) state.PrepareStringRangeSource(field, ref source, zeroBasedStart, length);
         state.CancellationCheckpoint();
-        slice = source.SliceUnits(zeroBasedStart, length, byteMode, state, destination, borrowOwned);
+        slice = source.SliceUnits(zeroBasedStart, length, byteMode, knownAscii, state, destination, borrowOwned);
         whole = slice.ByteLength == source.ByteLength;
     }
 

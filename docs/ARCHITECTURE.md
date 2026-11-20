@@ -138,7 +138,8 @@ Returns copy into the funded capture before any flush, and forwarding materializ
 text before publishing it to another frame. Frame reset clears locals before reuse.
 Text backing resolves rune ranges. The runtime funds and copies partial slices and
 reuses the backing for whole slices. Byte slices must end up as valid UTF-8.
-When the record slot holds validated ASCII, substring can use byte coordinates.
+Substring uses one ASCII proof for the start check and the slice. A record
+slot or frame scratch with validated ASCII supplies byte coordinates.
 The fact follows the bytes through staging, assembly and borrow promotion. An
 assembled record reuses it when all appended bytes came from validated ASCII
 chunks. Unknown content undergoes strict UTF-8 validation. Escaping slices

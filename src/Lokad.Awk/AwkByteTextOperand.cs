@@ -38,13 +38,11 @@ internal readonly ref struct AwkByteTextOperand
     internal bool HasValue => _owner is not null || _recordPosition < 0;
     internal bool IsOwned => _recordPosition < 0 && _owner is not null;
     internal int ByteLength => _byteLength;
-    internal bool HasKnownAsciiRecord => KnownAsciiRecord is not null;
     internal bool IsAsciiScratch => _recordPosition == -2;
 
     // A promoted record keeps the proof and the bytes together in its slot.
-    private AwkRecordStorage? KnownAsciiRecord =>
-        _recordPosition >= 0 && _owner is AwkRecordStorage record && record.IsKnownAsciiAt(_recordPosition & 1)
-            ? record : null;
+    internal bool IsKnownAscii => IsAsciiScratch ||
+        _recordPosition >= 0 && _owner is AwkRecordStorage record && record.IsKnownAsciiAt(_recordPosition & 1);
 
     internal bool TryGetOwned(out AwkText text)
     {
@@ -59,17 +57,25 @@ internal readonly ref struct AwkByteTextOperand
             state.CopyText(AsSpan(state.CancellationCheckpoint), destination);
     }
 
-    internal bool HasUnitAt(int index, bool bytes, Action? checkpoint)
+    internal bool HasUnitAt(int index, bool byteCoordinates, Action? checkpoint)
     {
-        if (bytes || index == 0 || IsAsciiScratch || HasKnownAsciiRecord) return index < _byteLength;
+        if (byteCoordinates || index == 0) return index < _byteLength;
         return TryGetOwned(out var owned) ? owned.HasRuneAt(index, checkpoint) :
             index < _byteLength && AwkText.HasRuneAt(AsSpan(checkpoint), index, checkpoint);
     }
 
-    internal AwkByteTextOperand SliceUnits(int start, int length, bool bytes, AwkRuntimeState state,
+    internal AwkByteTextOperand SliceUnits(int start, int length, bool bytes, bool knownAscii, AwkRuntimeState state,
         AwkMemoryLease destination, bool borrowOwned = false)
     {
         var checkpoint = state.CancellationCheckpoint;
+        if (knownAscii)
+        {
+            var offset = Math.Min(start, _byteLength);
+            var count = Math.Min(length, _byteLength - offset);
+            return _owner is AwkRecordStorage asciiRecord
+                ? new(asciiRecord, _recordPosition & 1, (_recordPosition >> 1) + offset, count)
+                : new(AsSpan(checkpoint).Slice(offset, count), knownAscii: true);
+        }
         var isOwned = TryGetOwned(out var owned);
         if (isOwned && !borrowOwned)
         {
@@ -81,17 +87,6 @@ internal readonly ref struct AwkByteTextOperand
         {
             var view = owned.BorrowRuneSlice(start, length, state.MemoryAccounting, checkpoint);
             return view.Length == _byteLength ? new(owned) : new(view);
-        }
-        if (KnownAsciiRecord is { } asciiRecord)
-        {
-            var offset = Math.Min(start, _byteLength);
-            var count = Math.Min(length, _byteLength - offset);
-            return new(asciiRecord, _recordPosition & 1, (_recordPosition >> 1) + offset, count);
-        }
-        if (IsAsciiScratch)
-        {
-            var offset = Math.Min(start, _byteLength);
-            return new(AsSpan(checkpoint).Slice(offset, Math.Min(length, _byteLength - offset)), knownAscii: true);
         }
         var content = AsSpan(checkpoint);
         int first, last;
