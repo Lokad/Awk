@@ -114,4 +114,83 @@ public sealed partial class AwkBenchmarkCounterTests
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
     }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task CompositeMembershipBorrowsKeysWithoutInsertingMisses(bool governed, bool emptySeparator)
+    {
+        const int records = 128;
+        var source = "BEGIN{" + (emptySeparator ? "SUBSEP=\"\";" : "") + "seen[\"0007\",\"tag\"]=1}" +
+            "{hit+=(($1,$2) in seen);miss+=(($1,\"missing\") in seen)}END{print hit,miss,length(seen)}";
+        var host = new MockFileSystem();
+        host.SetStandardInput(string.Concat(Enumerable.Repeat("0007 tag\n", records)));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("128 0 1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 32);
+        Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, "i")]
+    [InlineData(true, "i")]
+    [InlineData(false, "\"k\" i")]
+    [InlineData(true, "\"k\" i")]
+    public async Task NumericValueSortDoesNotMaterializeUnusedKeyText(bool governed, string key)
+    {
+        const int count = 128;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var host = new MockFileSystem();
+        var source = "BEGIN{for(i=1;i<=" + count + ";i++)a[" + key + "]=" + count +
+            "-i;n=asort(a,b,\"@val_num_asc\");print n,b[1],b[n]}";
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("128 0 127\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        // Building string keys owns their formatting/concatenation; sorting distinct numbers
+        // needs no additional language-key text. Allow bounded preparation/output.
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, key == "i" ? 16 : 2 * count + 16);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task EqualPureIntegerSortValuesNeedNoFormattedTieText(bool governed, bool signedZero)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var host = new MockFileSystem();
+        var value = signedZero ? "(i%2?-0:0)" : "i%8";
+        var source = "BEGIN{for(i=1;i<=128;i++)a[i]=" + value +
+            ";n=asort(a,b,\"@val_num_asc\");print n,b[1],b[n]}";
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None,
+            CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+        Assert.Equal(0, exit.Value);
+        Assert.Equal(signedZero ? "128 0 0\n" : "128 0 7\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.InRange(counters[AwkCounter.TextAllocations], 0, 16);
+        Assert.Equal(0, counters[AwkCounter.Utf8Encodes]);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
 }
