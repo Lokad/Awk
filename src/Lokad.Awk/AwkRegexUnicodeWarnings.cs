@@ -84,7 +84,7 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting accounting, Aw
 
         void ReportWarnings(Action<string>? unicodeReport) =>
             AwkRegexEscapes.ReportWarnings(pattern.Text, mode, _operatorWarnings,
-                warning => report(warning.Message), unicodeReport, checkpoint);
+                report, unicodeReport, checkpoint);
     }
 
     public void Reset(object site)

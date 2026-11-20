@@ -78,7 +78,7 @@ internal static class AwkRegexEscapes
     }
 
     public static void ReportWarnings(AwkText pattern, AwkCompatibilityMode mode,
-        AwkRegexEscapeWarnings history, Action<AwkRegexEscapeWarning> reportOperator,
+        AwkRegexEscapeWarnings history, Action<string> reportOperator,
         Action<string>? reportUnicode, Action? checkpoint = null)
     {
         var bytes = pattern.AsSpan(checkpoint);
@@ -112,7 +112,7 @@ internal static class AwkRegexEscapes
                 ? AwkRegexEscapeWarningKind.PlainDigit : AwkRegexEscapeWarningKind.UnknownOperator, character);
             if (history.HasReported(warning)) continue;
             checkpoint?.Invoke();
-            reportOperator(warning);
+            reportOperator(warning.Message);
             history.Record(warning);
         }
         checkpoint?.Invoke();
