@@ -235,7 +235,9 @@ key can be constructed directly from a bounded byte span. Field-key captures, fu
 arguments and missing-entry insertions resolve their source after admission. If a callback
 promotes the input borrow, they copy the current bytes with the original spelling.
 The array runtime resolves named operands. Operations on an already resolved array
-use the variable store directly. Numeric reads classify an ordinal once and pass
+use the variable store directly. The `SYMTAB` view reads the live scalar slots,
+array names and bound global names from that store. Its inventory polls while
+visiting candidates, including names filtered as duplicates. Numeric reads classify an ordinal once and pass
 any captured location by value through binding. The store validates the current
 owner and key before reusing a cached cell. Field and composite keys share borrowed update
 preparation, with the evaluated key's origin retained through capture.

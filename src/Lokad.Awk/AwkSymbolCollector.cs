@@ -165,7 +165,7 @@ internal static class AwkSymbolCollector
                   AwkCompatibilityNames.EnablesSpecial(special.Id, _mode)))
                 (_functionConflicts ??= []).Add(identifier);
 
-            if (!(AwkSymbolTableArray.IsName(identifier.Name) &&
+            if (!(AwkVariables.IsSymbolTableName(identifier.Name) &&
                   AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.SymbolTable, _mode)))
                 Globals.Add(name);
         }

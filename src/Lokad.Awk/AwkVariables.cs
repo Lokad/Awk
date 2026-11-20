@@ -3,6 +3,11 @@ using System.Text;
 
 namespace Lokad.Awk;
 
+internal readonly record struct AwkArraySnapshotSize(int Count, long KeyTextBytes, long ValueTextBytes = 0)
+{
+    public long TextBytes => AwkRuntimeMemory.CheckedAdd(KeyTextBytes, ValueTextBytes);
+}
+
 internal sealed partial class AwkVariables
 {
     public const string FunctionTableName = "FUNCTAB";
@@ -16,7 +21,6 @@ internal sealed partial class AwkVariables
     private readonly AwkScalarCell?[] _specialScalarCells;
     private readonly AwkArrayKeyComparer _arrayKeyComparer;
     private readonly AwkArrayStorage _arrays;
-    private readonly AwkSymbolTableArray _symbolTable;
     private IReadOnlySet<AwkVariableName> _globalNames = FrozenSet<AwkVariableName>.Empty;
     private bool _governScalarMemory;
 
@@ -82,40 +86,6 @@ internal sealed partial class AwkVariables
         }
         _arrayKeyComparer = AwkArrayKeyComparer.ForRuntime(checkpoint);
         _arrays = new AwkArrayStorage(_arrayKeyComparer);
-        _symbolTable = new AwkSymbolTableArray(
-            () => _globalNames,
-            EnumerateScalarInventory,
-            TryResolveScalarSlot,
-            TryGetScalarSlot,
-            _arrays.Contains,
-            () => _arrays.Names,
-            CreateValue,
-            state.ApplySpecialVariableAssignment,
-            checkpoint);
-
-        bool TryResolveScalarSlot(AwkVariableName name, out AwkGlobalSlotId slotId) =>
-            _scalarSlotsByName.TryGetValue(name, out slotId);
-
-        bool TryGetScalarSlot(AwkGlobalSlotId slotId, out AwkValue slot)
-        {
-            if (slotId.Value >= 0 && slotId.Value < _scalarSlots.Count)
-            {
-                var cell = GetScalarCell(slotId);
-                slot = IsFieldCountCell(cell)
-                    ? AwkValue.ForVariableStorage(_state.RecordFields.GetFieldCountValue(), _state.NumberParsingMode)
-                    : cell.State.Slot;
-                return true;
-            }
-
-            slot = default;
-            return false;
-        }
-
-        IEnumerable<AwkScalarInventoryItem> EnumerateScalarInventory()
-        {
-            for (var index = 0; index < _scalarSlots.Count; index++)
-                yield return new AwkScalarInventoryItem(new AwkGlobalSlotId(index), _scalarSlots[index].Name);
-        }
     }
 
     public bool ContainsScalar(AwkVariableName name) =>
@@ -125,7 +95,7 @@ internal sealed partial class AwkVariables
 
     public bool IsSymbolTable(string name) =>
         AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.SymbolTable, _state.CompatibilityMode) &&
-        AwkSymbolTableArray.IsName(name);
+        IsSymbolTableName(name);
 
     public bool ContainsArray(AwkArrayName name) =>
         !name.IsFunctionLocal && IsSymbolTable(name.Text) ||
@@ -351,7 +321,7 @@ internal sealed partial class AwkVariables
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            count = _symbolTable.Count;
+            count = SymbolCount;
             return true;
         }
 
@@ -616,7 +586,7 @@ internal sealed partial class AwkVariables
     public AwkValue GetArrayValue(AwkArrayName name, AwkArrayKey index)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
-            return _symbolTable.GetValue(_state.DecodeArrayKey(index));
+            return GetSymbolValue(_state.DecodeArrayKey(index));
 
         var values = GetOrCreateArray(name);
         if (values.TryGetValue(index, out var slot))
@@ -631,7 +601,7 @@ internal sealed partial class AwkVariables
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            value = _symbolTable.GetValue(_state.DecodeArrayKey(index));
+            value = GetSymbolValue(_state.DecodeArrayKey(index));
             return true;
         }
 
@@ -653,7 +623,7 @@ internal sealed partial class AwkVariables
 
     public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index) =>
         !name.IsFunctionLocal && IsSymbolTable(name.Text)
-            ? _symbolTable.ContainsValue(_state.DecodeArrayKey(index))
+            ? ContainsSymbolValue(_state.DecodeArrayKey(index))
             : GetOrCreateArray(name).ContainsKey(index);
 
     public bool ContainsArrayValue(AwkArrayName name, ReadOnlySpan<byte> index)
@@ -663,14 +633,14 @@ internal sealed partial class AwkVariables
 
         var decoded = AwkUtf8Codec.DecodeRuntimeText(index);
         _state.Counters.Add(AwkCounter.StringDecodes);
-        return _symbolTable.ContainsValue(decoded);
+        return ContainsSymbolValue(decoded);
     }
 
     public void SetArrayValue(AwkArrayName name, AwkArrayKey index, AwkValue value)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            _symbolTable.AssignValue(_state.DecodeArrayKey(index), value);
+            AssignSymbolValue(_state.DecodeArrayKey(index), value);
             return;
         }
 
@@ -705,7 +675,7 @@ internal sealed partial class AwkVariables
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            value = _symbolTable.GetValue(_state.DecodeArrayKey(index));
+            value = GetSymbolValue(_state.DecodeArrayKey(index));
             return true;
         }
         if (_arrays.TryGetArray(name, out var slots) && slots.TryGetValue(index, out var slot))
@@ -760,7 +730,7 @@ internal sealed partial class AwkVariables
 
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
         !name.IsFunctionLocal && IsSymbolTable(name.Text)
-            ? _symbolTable.GetElementRuntimeKind(_state.DecodeArrayKey(index))
+            ? GetSymbolValue(_state.DecodeArrayKey(index)).RuntimeKind
             : GetArrayValue(name, index).RuntimeKind;
 
     public AwkMemoryMutationAdmission PreflightArrayElementRead(AwkArrayName name, AwkArrayKey index)
@@ -850,7 +820,7 @@ internal sealed partial class AwkVariables
         Func<TState, AwkArrayKey, AwkValue, TResult> project)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
-            return _symbolTable.SnapshotValues(count, state, project);
+            return SnapshotSymbolValues(count, state, project);
 
         if (!name.IsFunctionLocal && ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
@@ -872,7 +842,7 @@ internal sealed partial class AwkVariables
     public int GetArraySnapshotCount(AwkArrayName name)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
-            return _symbolTable.Count;
+            return SymbolCount;
 
         if (!name.IsFunctionLocal && ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
@@ -884,8 +854,8 @@ internal sealed partial class AwkVariables
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
             return _state.MemoryAccounting.IsEnabled
-                ? _symbolTable.MeasureSnapshot(retainValues)
-                : new AwkArraySnapshotSize(_symbolTable.Count, 0);
+                ? MeasureSymbolSnapshot(retainValues)
+                : new AwkArraySnapshotSize(SymbolCount, 0);
 
         var count = GetArraySnapshotCount(name);
         return MeasureArraySnapshot(GetOrCreateArray(name), count, materializeKeys, retainValues);
@@ -974,7 +944,7 @@ internal sealed partial class AwkVariables
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            _symbolTable.CopyKeys(destination);
+            CopySymbolKeys(destination);
             return;
         }
 

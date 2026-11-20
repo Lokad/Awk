@@ -98,37 +98,34 @@ public sealed class AwkInventoryOutputBoundaryTests
     public void SymbolTableInventoryChecksEvenFilteredNamesAndAllowsRetry(string source, string operation)
     {
         var names = Enumerable.Range(0, 4_096).Select(index => AwkVariableName.FromText("v" + index)).ToArray();
-        var duplicate = source.StartsWith("duplicate-", StringComparison.Ordinal);
-        var globals = source == "globals" ? names.ToHashSet() : duplicate ? new HashSet<AwkVariableName> { names[0] } : [];
-        globals.Add(AwkVariableName.FromText(AwkVariables.SymbolTableName));
-        var scalarNames = source.EndsWith("scalars", StringComparison.Ordinal)
-            ? duplicate ? Enumerable.Repeat(names[0], names.Length) : names : [];
-        var arrayNames = source.EndsWith("arrays", StringComparison.Ordinal)
-            ? duplicate ? Enumerable.Repeat(names[0], names.Length) : names : [];
+        var symbolTable = AwkArrayName.FromText(AwkVariables.SymbolTableName);
         using var cancellation = new CancellationTokenSource();
+        using var memory = State(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var variables = memory.State.Variables;
+        var initialKeys = new AwkArrayKey[variables.GetArraySnapshotCount(symbolTable)];
+        variables.CopyArrayKeys(symbolTable, initialKeys);
         var armed = false;
-        var checks = 0;
-        void Check()
+        InitializeSymbolInventory(variables, source, names, name =>
         {
-            if (!armed) return;
-            if (++checks == 5) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        var table = Table(globals, scalarNames, arrayNames, Check);
-        var count = table.Count;
-        Assert.Equal(duplicate ? 1 : names.Length, count);
+            if (armed && name == names[128]) cancellation.Cancel();
+        });
+        var count = variables.GetArraySnapshotCount(symbolTable);
+        var liveBytes = memory.Accounting.LiveBytes;
         armed = true;
 
-        var error = Assert.Throws<OperationCanceledException>(() => ReadInventory(table, count, operation));
-
+        var error = Assert.Throws<OperationCanceledException>(() => ReadInventory(variables, symbolTable, count, operation));
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(5, checks);
-        armed = false;
-        Assert.Equal(count, table.Count);
+        Assert.Equal(liveBytes, memory.Accounting.LiveBytes);
+
+        using var retry = State(AwkRuntimeCounters.Disabled, CancellationToken.None);
+        var retryVariables = retry.State.Variables;
+        InitializeSymbolInventory(retryVariables, source, names, static _ => { });
+        Assert.Equal(count, retryVariables.GetArraySnapshotCount(symbolTable));
         var keys = new AwkArrayKey[count];
-        table.CopyKeys(keys);
-        var values = table.SnapshotValues(count, 0, static (_, key, _) => key);
-        var expected = (duplicate ? names.Take(1) : names).Select(static name => name.Text).Order(StringComparer.Ordinal);
+        retryVariables.CopyArrayKeys(symbolTable, keys);
+        var values = retryVariables.SnapshotArrayValues(symbolTable, count, 0, static (_, key, _) => key);
+        var expected = initialKeys.Select(static key => key.ToString()).Concat(names.Select(static name => name.Text))
+            .Order(StringComparer.Ordinal);
         Assert.Equal(expected, keys.Select(static key => key.ToString()).Order(StringComparer.Ordinal));
         Assert.Equal(keys, values);
     }
@@ -138,28 +135,40 @@ public sealed class AwkInventoryOutputBoundaryTests
     [InlineData("values")]
     public void SymbolTableLongKeyEncodingUsesTheCheckpoint(string operation)
     {
+        var first = AwkVariableName.FromText("first");
         var name = AwkVariableName.FromText(new string('a', Large));
+        var symbolTable = AwkArrayName.FromText(AwkVariables.SymbolTableName);
         using var cancellation = new CancellationTokenSource();
-        var checks = 0;
+        using var memory = State(AwkRuntimeCounters.Disabled, cancellation.Token);
+        var variables = memory.State.Variables;
         var armed = false;
-        void Check()
+        variables.InitializeGlobalNames(new ObservedGlobals([first, name], visit: visited =>
         {
-            if (!armed) return;
-            if (++checks == 5) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        var table = Table(new HashSet<AwkVariableName> { name }, [], [], Check);
+            if (armed && visited == name) cancellation.Cancel();
+        }));
+        var count = variables.GetArraySnapshotCount(symbolTable);
+        var keys = new AwkArrayKey[count];
+        var projectedLongKey = false;
         armed = true;
 
-        var error = Assert.Throws<OperationCanceledException>(() => ReadInventory(table, 1, operation));
+        var error = Assert.Throws<OperationCanceledException>(() =>
+        {
+            if (operation == "keys") variables.CopyArrayKeys(symbolTable, keys);
+            else
+                _ = variables.SnapshotArrayValues(symbolTable, count, 0, (_, key, _) =>
+                {
+                    projectedLongKey |= key.ByteLength == Large;
+                    return key;
+                });
+        });
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(5, checks);
-        armed = false;
-        var keys = new AwkArrayKey[1];
-        table.CopyKeys(keys);
-        Assert.Equal(name.Text, keys[0].ToString());
-        Assert.Equal(1, table.Count);
+        Assert.DoesNotContain(keys, key => key.ByteLength == Large);
+        Assert.False(projectedLongKey);
+        using var retry = State(AwkRuntimeCounters.Disabled, CancellationToken.None);
+        retry.State.Variables.InitializeGlobalNames(new HashSet<AwkVariableName> { first, name });
+        retry.State.Variables.CopyArrayKeys(symbolTable, keys);
+        Assert.Contains(keys, key => key.ToString() == name.Text);
     }
 
     [Theory]
@@ -256,31 +265,46 @@ public sealed class AwkInventoryOutputBoundaryTests
 
     }
 
-    private static AwkSymbolTableArray Table(IReadOnlySet<AwkVariableName> globals,
-        IEnumerable<AwkVariableName> scalars, IEnumerable<AwkVariableName> arrays, Action checkpoint) =>
-        new(() => globals, () => scalars.Select(static name => new AwkScalarInventoryItem(new AwkGlobalSlotId(0), name)),
-            Resolve, GetSlot, static _ => false, () => arrays.Select(static name => new AwkArrayName(name.Identifier)),
-            static _ => AwkValue.Unassigned(), static (_, _) => { }, checkpoint);
-
-    private static bool Resolve(AwkVariableName name, out AwkGlobalSlotId slot)
+    private static void InitializeSymbolInventory(AwkVariables variables, string source,
+        AwkVariableName[] names, Action<AwkVariableName> observe)
     {
-        slot = default;
-        return false;
+        var fromGlobals = source == "globals";
+        AwkVariableName[] globals = fromGlobals || source.StartsWith("duplicate-", StringComparison.Ordinal) ? names : [];
+        variables.InitializeGlobalNames(new ObservedGlobals([.. globals, AwkVariableName.FromText(AwkVariables.SymbolTableName)],
+            visit: fromGlobals ? observe : null, contains: fromGlobals ? null : observe));
+        if (source.EndsWith("scalars", StringComparison.Ordinal))
+            foreach (var name in names) variables.SetScalarValue(name, AwkValue.FromNumber(1));
+        if (source.EndsWith("arrays", StringComparison.Ordinal))
+            foreach (var name in names) variables.SetArrayValue(new AwkArrayName(name.Identifier), new AwkArrayKey("key"), AwkValue.FromNumber(1));
     }
 
-    private static bool GetSlot(AwkGlobalSlotId id, out AwkValue slot)
+    private sealed class ObservedGlobals(IReadOnlyList<AwkVariableName> names,
+        Action<AwkVariableName>? visit = null, Action<AwkVariableName>? contains = null)
+        : HashSet<AwkVariableName>(names), IReadOnlySet<AwkVariableName>
     {
-        slot = default;
-        return false;
+        bool IReadOnlySet<AwkVariableName>.Contains(AwkVariableName value)
+        {
+            contains?.Invoke(value);
+            return Contains(value);
+        }
+
+        IEnumerator<AwkVariableName> IEnumerable<AwkVariableName>.GetEnumerator()
+        {
+            foreach (var name in names)
+            {
+                visit?.Invoke(name);
+                yield return name;
+            }
+        }
     }
 
-    private static void ReadInventory(AwkSymbolTableArray table, int count, string operation)
+    private static void ReadInventory(AwkVariables variables, AwkArrayName array, int count, string operation)
     {
         switch (operation)
         {
-            case "count": _ = table.Count; break;
-            case "keys": table.CopyKeys(new AwkArrayKey[count]); break;
-            case "values": _ = table.SnapshotValues(count, 0, static (_, key, _) => key); break;
+            case "count": _ = variables.GetArraySnapshotCount(array); break;
+            case "keys": variables.CopyArrayKeys(array, new AwkArrayKey[count]); break;
+            case "values": _ = variables.SnapshotArrayValues(array, count, 0, static (_, key, _) => key); break;
             default: throw new ArgumentOutOfRangeException(nameof(operation));
         }
     }

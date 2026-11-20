@@ -154,12 +154,12 @@ internal sealed class AwkRuntimeState : IDisposable
         }
     }
 
-    internal void ApplySpecialVariableAssignment(string name, AwkValue value)
+    internal void ApplySpecialVariableAssignment(AwkVariableName name, AwkValue value)
     {
-        if (AwkSpecialVariables.IsName(name, AwkSpecialVariableId.FieldCount))
+        if (AwkSpecialVariables.IsName(name.Text, AwkSpecialVariableId.FieldCount))
             AssignFieldCountValue(value);
         else
-            _specialVariables.Assign(AwkVariableName.FromText(name), value);
+            _specialVariables.Assign(name, value);
     }
 
     internal AwkVariables Variables => _variables;
