@@ -119,7 +119,8 @@ Capture spelling before later effects. Formatting uses the language conversion p
 including the then-current CONVFMT/OFMT.
 The runtime owns UTF-16 encoding, including sizing, destination admission and conversion
 observations. Decoding is observed before cancellation-checked cache publication.
-Text caches retain decoded strings, never invocation state.
+Text caches retain decoded strings, never invocation state. A borrowed casing input
+uses admitted temporary strings and resolves record bytes after admission.
 Builders fund and copy their bytes. The runtime observes the allocation when adopting
 the owned result as text. Host byte ingress validates UTF-8 before copy admission.
 Copies into already funded destinations use the caller's admission.

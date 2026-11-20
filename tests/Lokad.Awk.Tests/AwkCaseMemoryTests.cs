@@ -65,16 +65,18 @@ public sealed class AwkCaseMemoryTests
         {
             var state = State(owner, false);
             var initialBytes = budget.Reserved;
-            var source = AwkText.FromString("😀_" + new string(upper ? 'a' : 'A', 8193));
+            var input = "😀_" + new string(upper ? 'a' : 'A', 8193);
+            var source = AwkText.FromString(input);
+            var temporaryStrings = 2 * AwkRuntimeMemory.EstimateUtf16StringBytes(input.Length);
             using (var destination = state.MemoryAccounting.CreateTransientLease())
             {
                 var sawFundedDecodedSource = false;
                 budget.OnGrowth = _ =>
                 {
                     if (state.Counters[AwkCounter.StringDecodes] == 0) return;
-                    // A decoded source exists before conversion/output allocation. Its copied
-                    // UTF-8 owner must still be funded, without relying on future result funding.
-                    Assert.True(destination.Bytes >= source.EstimatedRetainedMemoryBytes);
+                    // Decoding and casing have produced two strings. Their live funding
+                    // must already cover both while the result requests its own admission.
+                    Assert.True(budget.Reserved - initialBytes >= temporaryStrings);
                     sawFundedDecodedSource = true;
                 };
                 var result = AwkBuiltins.EvaluateCaseText(state, new(source.AsSpan()), destination, upper);

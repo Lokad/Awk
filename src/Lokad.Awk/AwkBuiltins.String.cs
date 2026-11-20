@@ -154,25 +154,36 @@ internal static partial class AwkBuiltins
             return unchanged ? state.OwnStringResult(source, field, destination: destination) : asciiResult;
         }
 
-        var beforeSource = destination.Bytes;
-        var ownedSource = state.OwnStringResult(source, field, destination: destination);
-        var sourceBytes = destination.Bytes - beforeSource;
-        var decoded = state.DecodeText(ownedSource);
+        if (source.TryGetOwned(out var owned))
+        {
+            var decoded = state.DecodeText(owned);
+            state.ThrowIfCancellationRequested();
+            using var casing = state.MemoryAccounting.ReserveTransient(
+                AwkRuntimeMemory.EstimateUtf16StringBytes(decoded.Length));
+            return EncodeCaseResult(decoded, state, destination, conversion);
+        }
+
+        // Borrowed UTF-8 can be decoded without publishing a value to cache its
+        // string. Its byte length bounds the UTF-16 length of both strings.
+        var stringBytes = AwkRuntimeMemory.EstimateUtf16StringBytes(source.ByteLength);
+        using var scratch = state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(stringBytes, stringBytes));
         state.ThrowIfCancellationRequested();
-        // Invariant casing preserves UTF-16 length. Keep the conversion result funded
-        // until its UTF-8 copy is constructed; the source owns its decoding cache.
-        using var scratch = state.MemoryAccounting.ReserveTransient(
-            AwkRuntimeMemory.EstimateUtf16StringBytes(decoded.Length));
+        var bytes = source.AsSpan(state.CancellationCheckpoint);
+        state.ThrowIfCancellationRequested();
+        var temporary = AwkUtf8Codec.DecodeRuntimeText(bytes);
+        state.Counters.Add(AwkCounter.StringDecodes);
+        return EncodeCaseResult(temporary, state, destination, conversion);
+    }
+
+    private static AwkText EncodeCaseResult(string decoded, AwkRuntimeState state,
+        AwkMemoryLease destination, AwkCaseConversion conversion)
+    {
         state.ThrowIfCancellationRequested();
         var converted = conversion is AwkCaseConversion.Upper
             ? decoded.ToUpperInvariant()
             : decoded.ToLowerInvariant();
         state.ThrowIfCancellationRequested();
-        var result = state.EncodeText(converted, destination);
-        // A borrowed source's owning copy is needed only through conversion.
-        // The completed result keeps its own existing destination funding.
-        if (sourceBytes > 0) destination.Release(sourceBytes);
-        return result;
+        return state.EncodeText(converted, destination);
     }
 
     private enum AwkCaseConversion

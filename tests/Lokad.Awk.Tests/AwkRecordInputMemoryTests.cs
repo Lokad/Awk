@@ -357,6 +357,7 @@ public sealed class AwkRecordInputMemoryTests
     [InlineData("substring-list", true)]
     [InlineData("upper", false)]
     [InlineData("lower", false)]
+    [InlineData("lower-unicode", false)]
     public async Task TextSourcesSurviveBorrowPromotionDuringGrowth(string form, bool redirected)
     {
         var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(AwkRuntimeCounters.Disabled);
@@ -367,6 +368,7 @@ public sealed class AwkRecordInputMemoryTests
             {
                 "upper" => "SKU-" + new string('x', 1500),
                 "lower" => "sku-" + new string('X', 1500),
+                "lower-unicode" => "KÜ𐐀" + new string('X', 1500),
                 _ => new string('x', 1500),
             };
             var record = "0007 café " + payload + " 😀";
@@ -395,6 +397,7 @@ public sealed class AwkRecordInputMemoryTests
                 "substring-list" => ("print 7,substr($2,2,3)", "7 afé" + terminator),
                 "upper" => ("saved=toupper($3);print saved", "SKU-" + new string('X', 1500) + "\n"),
                 "lower" => ("saved=tolower($3);print saved", "sku-" + new string('x', 1500) + "\n"),
+                "lower-unicode" => ("saved=tolower($3);print saved", payload.ToLowerInvariant() + "\n"),
                 _ => throw new ArgumentOutOfRangeException(nameof(form)),
             };
             var target = redirected ? " > \"/out\"" : "";
@@ -427,6 +430,49 @@ public sealed class AwkRecordInputMemoryTests
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         }
         AssertRefunded(memory.Budget);
+    }
+
+    [Fact]
+    public async Task UnicodeCaseStopsBeforeDecodingWhenBorrowedMemoryCancelsAfterAdmission()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(1 << 20).InitializeRuntime(counters, cancellation.Token);
+        var state = memory.State;
+        using var manager = new TestMemoryManager(Encoding.UTF8.GetBytes(new string('Ä', 1500)));
+        ReadOnlyMemory<byte> bytes = manager.Memory;
+        Assert.True(memory.Budget.TryReserve(bytes.Length, out var funding));
+        var host = new MockFileSystem
+        {
+            ReadAsyncOverride = (_, _, _) => ValueTask.FromResult(AwkReadBuffer.FromContent(bytes,
+                AwkReadCompletion.EndOfFile, _ => funding.Dispose()))
+        };
+        using var reader = new AwkByteReader(host, AwkFileDescriptor.StdIn, CancellationToken.None, state.Options);
+        Assert.True(await reader.TryBufferAsync());
+        var records = state.InputRecordStorage;
+        records.StageBorrowed(reader, reader.Content);
+        using var destination = state.MemoryAccounting.CreateTransientLease();
+        memory.Budget.OnGrowth = _ => manager.OnGetSpan = cancellation.Cancel;
+        try
+        {
+            Assert.ThrowsAny<OperationCanceledException>(Convert);
+            Assert.Equal(0, counters[AwkCounter.StringDecodes]);
+            Assert.Equal(0, destination.Bytes);
+        }
+        finally
+        {
+            memory.Budget.OnGrowth = null;
+            manager.OnGetSpan = null;
+        }
+        reader.Dispose();
+        memory.Dispose();
+        AssertRefunded(memory.Budget);
+
+        void Convert()
+        {
+            var source = new AwkByteTextOperand(records, records.CurrentSlot, 0, bytes.Length);
+            _ = AwkBuiltins.EvaluateCaseText(state, source, destination, upper: false);
+        }
     }
 
     [Theory]
