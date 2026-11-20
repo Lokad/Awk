@@ -57,13 +57,11 @@ Non-regex processing needs no provider.
 Supported core behavior includes records/fields, expressions, loops, functions, arrays,
 formatting and `getline`, with selected GNU conveniences. This is not full POSIX/GNU
 conformance: `system()` and namespaces remain unsupported.
-The development checkout adds CSV input (`--csv`/`-k`) and arrays of arrays (`a[i][j]`).
-These are unreleased; published 0.4.0 supports neither. See the
-[development migration notes](CHANGELOG.md#unreleased) for current API changes.
+Version 0.5.0 adds CSV input (`--csv`/`-k`) and arrays of arrays (`a[i][j]`).
 
 - [Compatibility](docs/COMPATIBILITY.md): supported boundaries and known differences.
 - [Benchmarks](docs/BENCHMARKS.md): representative elapsed-time ratios and managed allocations.
-- [0.4.0 migration notes](CHANGELOG.md#040): breaking host, regex and policy API changes.
+- [Changelog](CHANGELOG.md#050): release highlights and migration guidance.
 
 Before 1.0, minor releases may remove public APIs as described in the release notes.
 
@@ -72,5 +70,5 @@ Before 1.0, minor releases may remove public APIs as described in the release no
 Use the stable SDK pinned in `global.json`, then run `dotnet test Lokad.Awk.slnx -c Release`.
 CI builds, tests and packs on Windows and Linux. Only `src/Lokad.Awk` produces a NuGet package;
 the adapter example, tests and benchmarks are not packaged.
-Development packages use `0.0.0-dev`, with output kept separate from published artifacts.
-Release versions and tags are assigned separately from development builds.
+The 0.5.0 release candidate packs to `artifacts/nuget/0.5.0/`.
+Release tagging and NuGet publication are separate steps.
