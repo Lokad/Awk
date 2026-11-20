@@ -143,12 +143,13 @@ internal sealed class AwkFunctionFrame
 
     public long Id { get; private set; }
 
-    public void Initialize(long id, AwkFunctionLocalLayout layout)
+    internal void InitializeIncoming(long id, AwkFunctionLocalLayout layout)
     {
         if (layout.SlotCount > 0 && _slots.Length == 0)
             _slots = new AwkFunctionLocalSlot[layout.SlotCount];
         Id = id;
         Layout = layout;
+        IsIncoming = true;
     }
 
     internal void RecordArgument(int index, AwkFunctionLocalSlotKind kind)

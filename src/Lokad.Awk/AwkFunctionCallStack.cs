@@ -45,7 +45,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     public bool HasLocalSlot(AwkFunctionLocalSlotId slotId) =>
         TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount;
 
-    private int _incomingFrames;
+    private int _allocatedFrameCount;
 
     internal AwkFunctionFrame PrepareFrame(AwkFunctionLocalLayout layout)
     {
@@ -53,18 +53,10 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             cached.SlotCapacity >= layout.SlotCount)
         {
             var frame = _recycledFrames.Pop();
-            frame.Initialize(++_nextFrameId, layout);
-            return PublishIncomingFrame(frame);
+            frame.InitializeIncoming(++_nextFrameId, layout);
+            return frame;
         }
         return PrepareFrameStorage(layout);
-    }
-
-    private AwkFunctionFrame PublishIncomingFrame(AwkFunctionFrame frame)
-    {
-        frame.IsIncoming = true;
-        _incomingFrames++;
-
-        return frame;
     }
 
     // Only new owners or insufficient backing reach allocation preparation.
@@ -92,17 +84,18 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             state.CancellationCheckpoint();
             if (newFrame)
             {
-                // Covers active, incoming and recycled owners. Cleanup never grows
-                // the recycle stack, including when nested argument calls fail.
-                var frameCapacity = checked(_depth + _incomingFrames + _recycledFrames.Count + 1);
-                _recycledFrames.EnsureCapacity(frameCapacity);
+                // Every allocated frame can return to the recycler, including an
+                // incoming frame whose initialization or argument staging fails.
+                var frameCount = checked(_allocatedFrameCount + 1);
+                _recycledFrames.EnsureCapacity(frameCount);
                 frame = new AwkFunctionFrame();
+                _allocatedFrameCount = frameCount;
                 unpublishedBytes -= frameBytes;
             }
             else frame = _recycledFrames.Pop();
-            frame.Initialize(++_nextFrameId, layout);
+            frame.InitializeIncoming(++_nextFrameId, layout);
             unpublishedBytes -= bufferBytes;
-            return PublishIncomingFrame(frame);
+            return frame;
         }
         catch
         {
@@ -283,6 +276,18 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     internal void ActivateFrame(AwkFunctionFrame frame)
     {
         EnsureDepthAvailable();
+        if (frame.ReconcileEnd != 0 || frame.PotentialAliasEnd != 0)
+            PrepareIncomingAliases(frame);
+        else state.CancellationCheckpoint();
+
+        frame.Parent = _current;
+        _current = frame;
+        _depth++;
+        frame.IsIncoming = false;
+    }
+
+    private void PrepareIncomingAliases(AwkFunctionFrame frame)
+    {
         var registered = 0;
         try
         {
@@ -316,12 +321,6 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
                     RegisterPotentialArrayAlias(slot.ArrayName);
             }
             state.CancellationCheckpoint();
-            frame.Parent = _current;
-            _current = frame;
-            _depth++;
-            _incomingFrames--;
-            frame.IsIncoming = false;
-
         }
         catch
         {
@@ -337,7 +336,6 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         // An incoming frame has not executed its body, and recycled scratch was
         // cleared at prior retirement. Its reset cannot own another incoming tree.
         var payload = frame.RetainedMemoryBytes;
-        _incomingFrames--;
         RecycleFrame(frame);
         state.MemoryAccounting.Refund(payload);
     }

@@ -135,7 +135,10 @@ Concatenation starts in the runtime. A deferred pair keeps its parts, accounting
 and allocation observations until it can publish a complete copy.
 
 Incoming function storage belongs to its frame, while arguments evaluate in caller scope
-and source order. Known bindings may bypass name lookup only while visibility is valid.
+and source order. Frame allocation reserves recycler capacity for every allocated frame,
+so unwinding can return incoming and active frames without growing the recycler.
+Activation reconciles aliases before publishing the callee's bindings.
+Known bindings may bypass name lookup only while visibility is valid.
 Text-only arguments can retain a record slot and range while call preparation and the
 callee cannot advance input. The slot holds funded fallback bytes when admission retires
 the host borrow. Text operations resolve the range after admission before copying.
