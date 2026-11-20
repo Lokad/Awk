@@ -900,6 +900,13 @@ internal sealed partial class AwkVariables
         if (!_state.MemoryAccounting.IsEnabled)
             return new AwkArraySnapshotSize(count, 0);
 
+        // Indexed owners enumerate ordinals, which retain no text in an unsorted key snapshot.
+        if (slots.IsIndexed && !materializeKeys && !retainValues)
+        {
+            _state.ThrowIfCancellationRequested();
+            return new AwkArraySnapshotSize(count, 0);
+        }
+
         var keyTextBytes = 0L;
         var valueTextBytes = 0L;
         var visited = 0;
