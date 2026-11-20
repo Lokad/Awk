@@ -122,6 +122,11 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     {
         if ((uint)index >= (uint)frame.Layout.SlotCount) return;
         var captured = value.ForFunctionStorage(state.NumberParsingMode, state.CancellationCheckpoint);
+        PublishScalarArgument(frame, index, in captured);
+    }
+
+    private void PublishScalarArgument(AwkFunctionFrame frame, int index, in AwkValue captured)
+    {
         // Arithmetic-only consumers need the normalized numeric fact, rather than
         // another owner of its spelling. Other contracts retain the full scalar.
         if (captured.StoredKind == AwkValueKind.NumericString &&
@@ -246,7 +251,8 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             if (prepareKey && value.TryGetStoredScalarText(out var text))
                 StageKey(incoming, index,
                     new AwkArrayKey(text, state.CancellationCheckpoint).WithInputOrigin(value.HasInputOrigin));
-            else StageScalarArgument(incoming, index, in value);
+            else if ((uint)index < (uint)incoming.Layout.SlotCount)
+                PublishScalarArgument(incoming, index, in value);
             return true;
         }
         if (!allowArray) return false;

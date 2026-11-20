@@ -407,6 +407,51 @@ public sealed class AwkArgumentBindingTests
         VerifyArgumentCaptureBeforeAdmission(preparedLocal: true);
 
     [Theory]
+    [InlineData(false, false, 10)]
+    [InlineData(false, true, 10)]
+    [InlineData(true, false, 8)]
+    [InlineData(true, true, 8)]
+    public async Task ForwardedLocalsRetainNumericStringSpellingAndInvocationMode(bool nonDecimal, bool governed, int expected)
+    {
+        const string source = "function leaf(s){print typeof(s),s,s+0} " +
+            "function middle(s){leaf(s)} function relay(s){middle(s)} {relay($1)}";
+        var command = AwkTestHarness.ParseAwk(nonDecimal
+            ? AwkTestHarness.BuildInvocation("awk", "--non-decimal-data", source)
+            : AwkTestHarness.BuildInvocation("awk", source));
+        var host = new MockFileSystem();
+        host.SetStandardInput("010\n");
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        Assert.Equal(AwkExitCode.Success, await command.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal($"strnum 010 {expected}\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ForwardedLocalDefersMalformedNumberUntilConversion(bool governed)
+    {
+        const string source = "function leaf(s){print s;print s+0} function relay(s){leaf(s)} {relay($1)}";
+        var command = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "--non-decimal-data", source));
+        var host = new MockFileSystem();
+        host.SetStandardInput("0x1.5\n");
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        Assert.Equal(2, (await command.ExecuteAsync(host, policy, CancellationToken.None)).Value);
+        Assert.Equal("0x1.5\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Contains("exponent", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void PreparedKeysCaptureBeforeAdmissionCanChangeTheirSource(bool existingKey)

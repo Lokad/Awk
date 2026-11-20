@@ -142,6 +142,8 @@ and source order. Frame allocation reserves recycler capacity for every allocate
 so unwinding can return incoming and active frames without growing the recycler.
 Activation reconciles aliases before publishing the callee's bindings.
 Known bindings may bypass name lookup only while visibility is valid.
+Forwarding a local scalar reuses the caller's classified value in the same
+invocation. The incoming frame admits the spelling it retains before publication.
 Text-only arguments can retain a record slot and range while call preparation and the
 callee cannot advance input. The slot holds funded fallback bytes when admission retires
 the host borrow. Text operations resolve the range after admission before copying.
