@@ -234,6 +234,25 @@ public sealed class AwkRecordCursorContextTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task UnicodeSuffixOfAnAsciiChunkUsesScalarCoordinates(bool governed)
+    {
+        var input = "key " + new string('a', 4092) + "éZ\n";
+        var host = new CursorHost(input, 4096, "stdin");
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var invocation = AwkCommandInvocation.CreateWithStandardDescriptors("awk", ["{print substr($2,4094,1)}"], []);
+        var awk = AwkTestHarness.ParseAwk(invocation);
+
+        Assert.Equal(AwkExitCode.Success, await awk.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal("Z\n", host.Output);
+        Assert.Empty(host.Error);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task RegexRecordWindowsBorrowTheUtf8Batch(bool governed)
     {
         const int count = 2048;

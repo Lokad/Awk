@@ -11,6 +11,7 @@ internal sealed partial class AwkRecordCursor
         if (_bufferStart == buffer.Length)
         {
             buffer.Clear();
+            _bufferIsAscii = true;
             _validatedRegexBytes = 0;
             _bufferStart = 0;
             ResetSeparatorSearch();

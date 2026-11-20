@@ -22,6 +22,8 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     private AwkInputRecordResult _recordResult;
     private readonly AwkParagraphLeaderPolicy _paragraphLeaderPolicy;
     private AwkUtf8Builder? _buffer;
+    // True only when every copied byte came from a reader borrow known to be ASCII.
+    private bool _bufferIsAscii;
     private bool _pendingRead;
     // Map the current borrowed chunk into owned scanner storage. Only successful
     // record consumption advances its prefix; disposal leaves the remaining suffix.
@@ -187,6 +189,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         if (buffer.Length != 0 || _borrowBytesCopied != 0)
         {
             buffer.Clear();
+            _bufferIsAscii = true;
             _bufferStart = 0;
             _validatedRegexBytes = 0;
             _borrowBufferStart = 0;
@@ -233,6 +236,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
             var removedLength = _bufferStart;
 
             buffer.RemovePrefix(_bufferStart);
+            if (buffer.Length == 0) _bufferIsAscii = true;
             _validatedRegexBytes = Math.Max(0, _validatedRegexBytes - removedLength);
             _bufferStart = 0;
             _borrowBufferStart -= removedLength;
@@ -355,6 +359,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         if (_buffer is null)
         {
             var tail = _reader.Content;
+            var knownAscii = tail.IsEmpty || _reader.ContentIsAscii;
             _state.ThrowIfCancellationRequested();
             var buffer = new AwkUtf8Builder(_state.MemoryAccounting,
                 Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Length));
@@ -365,6 +370,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
             }
             catch { buffer.Dispose(); throw; }
             _buffer = buffer;
+            _bufferIsAscii = knownAscii;
             _borrowBufferStart = 0;
             _borrowBytesCopied = tail.Length;
             _borrowBytesCommitted = 0;
@@ -384,9 +390,11 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     private void AppendBorrowedPrefix(int length)
     {
         var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
+        var knownAscii = _reader.ContentIsAscii;
         var bytes = _reader.Content.Span.Slice(_borrowBytesCopied - _borrowBytesCommitted, length);
         var start = buffer.Length;
         buffer.Append(bytes, _state.CancellationCheckpoint);
+        if (length != 0 && !knownAscii) _bufferIsAscii = false;
         if (_borrowBytesCopied == 0) _borrowBufferStart = start;
         _borrowBytesCopied += length;
         // EOF is visible to the owned scanner only after its entire final borrow
@@ -448,7 +456,7 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
         int consumedLength,
         AwkRecordTerminator terminator,
         AwkRecordFieldSplittingMode fieldSplittingMode, AwkRecordStorage? storage = null) =>
-        ConsumePreparedRecord(PrepareRecord(recordBytes, terminator, fieldSplittingMode, storage), consumedLength);
+        ConsumePreparedRecord(PrepareRecord(recordBytes, terminator, fieldSplittingMode, storage, _bufferIsAscii), consumedLength);
 
     private AwkRecordReadStatus ConsumePreparedRecord(AwkInputRecordResult record, int consumedLength)
     {
@@ -459,12 +467,13 @@ internal sealed partial class AwkRecordCursor : IAwkInputRecordReader, IDisposab
     }
 
     private AwkInputRecordResult PrepareRecord(ReadOnlySpan<byte> recordBytes, AwkRecordTerminator terminator,
-        AwkRecordFieldSplittingMode fieldSplittingMode, AwkRecordStorage? storage)
+        AwkRecordFieldSplittingMode fieldSplittingMode, AwkRecordStorage? storage, bool knownAscii = false)
     {
         if (storage is not null && AwkRecordStorage.CanStage(recordBytes.Length))
         {
-            AwkText.ThrowIfInvalidUtf8(recordBytes, _state.CancellationCheckpoint);
-            storage.StageValidated(recordBytes);
+            if (knownAscii) _state.ThrowIfCancellationRequested();
+            else AwkText.ThrowIfInvalidUtf8(recordBytes, _state.CancellationCheckpoint);
+            storage.StageValidated(recordBytes, knownAscii);
             return AwkInputRecordResult.Buffered(storage, terminator);
         }
         return AwkInputRecordResult.Record(_state.CopyHostText(recordBytes), terminator, fieldSplittingMode);

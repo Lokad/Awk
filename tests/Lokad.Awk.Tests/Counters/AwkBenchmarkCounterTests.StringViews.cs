@@ -54,25 +54,28 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false, 2048)]
-    [InlineData(true, 2048)]
-    [InlineData(false, 16384)]
-    [InlineData(true, 16384)]
-    public async Task ShiftedAsciiSliceDoesNotOwnItsSourceField(bool governed, int fieldLength)
+    [InlineData(false, 2048, 1)]
+    [InlineData(true, 2048, 1)]
+    [InlineData(false, 16384, 1)]
+    [InlineData(true, 16384, 1)]
+    [InlineData(false, 16384, 8)]
+    [InlineData(true, 16384, 8)]
+    public async Task ShiftedAsciiSliceDoesNotOwnItsSourceField(bool governed, int fieldLength, int records)
     {
         var half = fieldLength / 2;
         var host = new MockFileSystem();
-        host.SetStandardInput("key " + new string('a', half) + "ID" + new string('z', half - 2) + "\n");
+        var line = "key " + new string('a', half) + "ID" + new string('z', half - 2) + "\n";
+        host.SetStandardInput(string.Concat(Enumerable.Repeat(line, records)));
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(8 << 20);
         var exit = await AwkExecutor.ExecuteAsync(host,
-            AwkTestHarness.BuildInvocation("awk", $"{{ kept = substr($2, {half + 1}, 2) }} END {{ print kept }}"),
+            AwkTestHarness.BuildInvocation("awk", $"{{ kept = substr($2, {half + 1}, 2); n += kept == \"ID\" }} END {{ print n }}"),
             CancellationToken.None, CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
 
         Assert.Equal(AwkExitCode.Success, exit);
-        Assert.Equal("ID\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal($"{records}\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.InRange(counters[AwkCounter.TextBytes], 2, fieldLength - 1);
+        Assert.InRange(counters[AwkCounter.TextBytes], records * 2, fieldLength - 1);
         Assert.Equal(0, budget.Reserved);
     }
 
