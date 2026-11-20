@@ -49,7 +49,10 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     public AwkRegex Create(AwkRegexPattern pattern, AwkRegexCaseSensitivity caseSensitivity) =>
         Create(pattern, caseSensitivity, hasFixedCaseSensitivity: true);
 
-    private AwkRegex Create(
+    private AwkRegex Create(AwkRegexPattern pattern, AwkRegexCaseSensitivity caseSensitivity,
+        bool hasFixedCaseSensitivity) => PreparePattern(pattern, caseSensitivity, hasFixedCaseSensitivity).Recipe;
+
+    private CompiledPattern PreparePattern(
         AwkRegexPattern pattern,
         AwkRegexCaseSensitivity caseSensitivity,
         bool hasFixedCaseSensitivity)
@@ -70,17 +73,17 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         bool hasFixedCaseSensitivity)
     {
         _throwIfCancellationRequested();
-        return Prepare(literal.Text, caseSensitivity, hasFixedCaseSensitivity, AwkRegexSourceKind.Literal);
+        return Prepare(literal.Text, caseSensitivity, hasFixedCaseSensitivity, AwkRegexSourceKind.Literal).Recipe;
     }
 
-    private AwkRegex Prepare(AwkText source, AwkRegexCaseSensitivity sensitivity, bool fixedSensitivity,
+    private CompiledPattern Prepare(AwkText source, AwkRegexCaseSensitivity sensitivity, bool fixedSensitivity,
         AwkRegexSourceKind kind)
     {
         var key = new AwkRegexCacheKey(source, source.GetHashCode(_throwIfCancellationRequested),
             sensitivity, kind, _compatibilityMode, fixedSensitivity, suppressInputStart: false);
-        if (_compiledRegexCache is { } cache && cache.TryGetValue(key, out var cached)) return cached.Recipe;
+        if (_compiledRegexCache is { } cache && cache.TryGetValue(key, out var cached)) return cached;
         return CompileAndCache(key, source, sensitivity, fixedSensitivity, kind, _compatibilityMode,
-            suppressInputStart: false).Recipe;
+            suppressInputStart: false);
     }
 
     public bool IsMatch(AwkRegex regex, AwkText input) => IsMatch(regex, new AwkByteTextOperand(input));
@@ -89,6 +92,23 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     {
         _throwIfCancellationRequested();
         var owner = ResolveCompiledRegex(regex, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
+        return IsMatch(owner, input);
+    }
+
+    public bool IsMatch(AwkRegexPattern pattern, AwkByteTextOperand input)
+    {
+        var sensitivity = _resolveCaseSensitivity();
+        var owner = PreparePattern(pattern, sensitivity, hasFixedCaseSensitivity: false);
+        var recipe = owner.Recipe;
+        _throwIfCancellationRequested();
+        var current = _resolveCaseSensitivity();
+        // A callback during preparation can change which cached pattern the match needs.
+        if (current != sensitivity || owner.IsRetired) owner = ResolveCompiledRegex(recipe, current);
+        return IsMatch(owner, input);
+    }
+
+    private bool IsMatch(CompiledPattern owner, AwkByteTextOperand input)
+    {
         owner.Pin();
         try
         {
@@ -280,6 +300,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         private bool _retired;
         private AwkRegex? _recipe = recipe;
         public AwkRegex Recipe => _recipe ?? throw new ObjectDisposedException(nameof(CompiledPattern));
+        public bool IsRetired => _retired;
         public bool HasInputStart { get; } = hasInputStart;
         public IAwkCompiledRegex Pattern => _pattern ?? throw new ObjectDisposedException(nameof(CompiledPattern));
         public void Pin() { _ = Pattern; _users++; }

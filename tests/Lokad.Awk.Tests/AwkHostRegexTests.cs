@@ -299,6 +299,21 @@ public sealed class AwkHostRegexTests
     }
 
     [Fact]
+    public void ImmediateMatchUsesCaseSensitivityAfterPreparation()
+    {
+        var sensitivity = AwkRegexCaseSensitivity.CaseSensitive;
+        var engine = new RecordingEngine
+        {
+            BeforeCompile = _ => sensitivity = AwkRegexCaseSensitivity.IgnoreCase
+        };
+        using var runtime = new AwkRegexRuntime(() => sensitivity,
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkTestHarness.CreateRuntimeOptions() with { RegexEngine = engine });
+        Assert.True(runtime.IsMatch(new AwkRegexPattern("a"), new AwkByteTextOperand(AwkText.FromSourceLiteralString("A"))));
+        runtime.Dispose();
+        Assert.All(engine.Patterns, pattern => Assert.True(pattern.Disposed));
+    }
+
+    [Fact]
     public void CacheEvictionKeepsAnActiveSubjectSearchAlive()
     {
         var engine = new RecordingEngine();

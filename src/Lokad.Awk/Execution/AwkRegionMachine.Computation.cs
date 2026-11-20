@@ -772,8 +772,7 @@ internal partial struct AwkRegionMachine
                 ? state.MemoryAccounting.CreateTransientLease() : AwkMemoryLease.Disabled;
             var pattern = state.FormatStringByteText(patternValue, formatting);
             var subject = input.Text(state, formatting);
-            var regex = state.CreateRegex(new AwkRegexPattern(pattern, warningSite: match));
-            return state.IsRegexMatch(regex, subject);
+            return state.IsRegexMatch(new AwkRegexPattern(pattern, warningSite: match), subject);
         }
 
         internal AwkByteTextOperand TextOperand(int index)

@@ -1520,6 +1520,9 @@ internal sealed class AwkRuntimeState : IDisposable
     internal bool IsRegexMatch(AwkRegex regex, AwkByteTextOperand input) =>
         _regexRuntime.IsMatch(regex, input);
 
+    internal bool IsRegexMatch(AwkRegexPattern pattern, AwkByteTextOperand input) =>
+        _regexRuntime.IsMatch(pattern, input);
+
     public AwkLeasedRegexMatch MatchRegexValue(
         AwkRegex regex,
         AwkText input,
