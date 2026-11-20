@@ -7,7 +7,7 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfaceTestBase
+public sealed class AwkCancellationResourceTests
 {
     [Fact]
     public async Task Awk_ClassicLoopObservesCancellation()
@@ -53,7 +53,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         };
         fileSystem.AddFile("/file.txt", "one\ntwo\n");
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print $0}", "/file.txt"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print $0}", "/file.txt"));
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), cancellation.Token));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -65,7 +65,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", "unread\n");
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{exit}",
             "/file.txt"));
@@ -86,7 +86,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AfterCloseDescriptor = static () => throw new InvalidOperationException("cleanup failed")
         };
         fileSystem.AddFile("/file.txt", "one\ntwo\n");
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "{print}",
             "/file.txt"));
@@ -105,7 +105,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         {
             AfterAppend = cancellation.Cancel
         };
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{print \"one\" > \"/out.txt\"; print \"unreached\"}"));
 
@@ -120,7 +120,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public async Task Awk_RuntimeFailureClosesRedirectedOutputBeforeReportingTheDiagnostic()
     {
         var fileSystem = new MockFileSystem();
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{print \"one\" > \"/out.txt\"; values[1]=1; print values}"));
 
@@ -149,7 +149,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         };
         fileSystem.SetStandardInput(input);
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", program));
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), cancellation.Token));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -164,7 +164,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             BeforeAppend = cancellation.Cancel
         };
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{print sprintf(\"%10000s\", \"x\")}"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{print sprintf(\"%10000s\", \"x\")}"));
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), cancellation.Token));
     }
@@ -184,7 +184,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             }
         };
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{print \"before\"; print \"after\"}"));
 
@@ -200,7 +200,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         host.EnqueueAppendResult(AwkAppendResult.Failure(new(AwkOperationErrorKind.IoFailure, "destination failed")));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{print \"x\"}"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{print \"x\"}"));
 
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
@@ -283,7 +283,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var input = new string('a', 64);
-        var command = BuildInvocation("awk", "BEGIN{s=\"" + input + "\"; gsub(/a/,\"b\",s); print length(s)}");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{s=\"" + input + "\"; gsub(/a/,\"b\",s); print length(s)}");
         var fileSystem = new MockFileSystem();
 
         var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
@@ -342,7 +342,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) with
         { MemoryBudget = new CooperativeTestBudget(memoryBudgetBytes) };
-        var command = BuildInvocation("awk", program);
+        var command = AwkTestHarness.BuildInvocation("awk", program);
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput(standardInput);
 
@@ -357,7 +357,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public async Task Awk_RecursiveFunctionLimitFailsWithAwkDiagnostic()
     {
         var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(2));
-        var command = BuildInvocation("awk", "function f(){return f()} BEGIN{print f()}");
+        var command = AwkTestHarness.BuildInvocation("awk", "function f(){return f()} BEGIN{print f()}");
         var fileSystem = new MockFileSystem();
 
         var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
@@ -762,7 +762,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) with
         { MemoryBudget = new CooperativeTestBudget(1 << 20) };
         var content = new string('x', 80);
-        var command = BuildInvocation("awk", $"BEGIN{{print \"{content}\" > \"/out.txt\"}}");
+        var command = AwkTestHarness.BuildInvocation("awk", $"BEGIN{{print \"{content}\" > \"/out.txt\"}}");
         var fileSystem = new MockFileSystem();
 
         var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
@@ -1023,7 +1023,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             program.Append(')');
 
         program.Append('}');
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program.ToString()));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", program.ToString()));
         var fileSystem = new MockFileSystem();
 
         var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
@@ -1061,7 +1061,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var budget = new CooperativeTestBudget(128 << 20);
         var policy = (restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)) : AwkExecutionPolicy.CreateDefault())
             .WithMemoryBudget(budget);
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", source));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, cancellation.Token));
         Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
@@ -1091,7 +1091,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var budget = new CooperativeTestBudget(8 << 20);
         var policy = (restricted ? AwkExecutionPolicy.CreateRestricted(AwkMemoryBudget.CreateFixed(64L << 20)) : AwkExecutionPolicy.CreateDefault())
             .WithMemoryBudget(budget);
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", source));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: program nesting limit exceeded.\n", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -1104,7 +1104,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/one.txt", "one\n");
         fileSystem.AddFile("/two.txt", "two\n");
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{getline one < \"/one.txt\"; getline two < \"/two.txt\"}"));
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMaxInputFiles(1);
@@ -1123,7 +1123,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         fileSystem.AddFile("/one.awk", "@include \"/two.awk\"\n");
         fileSystem.AddFile("/two.awk", "@include \"/three.awk\"\n");
         fileSystem.AddFile("/three.awk", "BEGIN{print \"unreachable\"}\n");
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/one.awk"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/one.awk"));
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMaxIncludeDepth(1);
 
         var exitCode = await tool.ExecuteAsync(fileSystem, policy, CancellationToken.None);
@@ -1188,7 +1188,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxOutputFiles(1), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation(
+        var command = AwkTestHarness.BuildInvocation(
                 "awk",
                 "BEGIN{print \"one\" > \"/one.txt\"; print \"two\" > \"/two.txt\"}");
         var fileSystem = new MockFileSystem();

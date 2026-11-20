@@ -4,7 +4,7 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
+public sealed class AwkHostContractTests
 {
     [Theory]
     [InlineData("input")] [InlineData("source")] [InlineData("output")]
@@ -159,7 +159,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         var policy = AwkTestHarness.CreatePolicy();
         if (governed) policy = policy.WithMemoryBudget(budget);
         var redirection = target == "file" ? ">\"out\"" : target == "pipe" ? "|\"consumer a:b\"" : "";
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{print \"payload\"" + redirection + ";print \"after\"} END{print \"end\"}"));
 
         Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
@@ -186,7 +186,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         };
         var source = runtimeWarning ? "BEGIN{p=sprintf(\"%cq\",92);x=(\"q\"~p);print \"after\"}" :
             "BEGIN{print \"\\q\";print \"after\"}";
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", source));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
         Assert.Equal(1, writes);
     }
@@ -216,7 +216,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             entered.TrySetResult();
             return release.Task; // Cancellation does not release the host's borrow.
         };
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{printf \"%0100000d\",0;print \"after\"}"));
         var execution = tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
         try
@@ -296,7 +296,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             var policy = AwkTestHarness.CreatePolicy();
             if (governed) policy = policy.WithMemoryBudget(budget);
             var statement = warning ? "fflush(\"missing\")" : "print \"held\"";
-            var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+            var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
                 "BEGIN{print \"file prefix\">\"held\";" + statement + ";print \"after\"}"));
             var execution = tool.ExecuteAsync(host, policy, cancellation.Token);
             if (cancellation.IsCancellationRequested)
@@ -352,7 +352,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             return release.Task;
         };
         var statement = warning ? "fflush(\"missing\")" : "print \"held\"";
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{print \"file prefix\">\"held\";" + statement + ";print \"after\"}"));
         var execution = tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), cancellation.Token);
         var expectedBorrow = warning ? "awk: warning: fflush: `missing' is not an open file, pipe or co-process\n" : "held\n";
@@ -405,7 +405,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         var reads = 0;
         host.AfterRead = () => reads++;
         string[] arguments = profile.Length == 0 ? ["BEGIN{print \"B\"}"] : [profile, "BEGIN{print \"B\"}"];
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", arguments));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments));
         var budget = new CooperativeTestBudget(1 << 20);
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
@@ -438,7 +438,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         var budget = new CooperativeTestBudget(1 << 20);
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             getline ? "BEGIN{getline x;print x,NR}" : "BEGIN{print \"B\"}"));
         var run = tool.ExecuteAsync(host, policy, CancellationToken.None);
         pending.TrySetResult(AwkReadBuffer.EndOfFile);
@@ -455,7 +455,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
     public async Task Awk_ExitFromBeginDoesNotOpenMainInput()
     {
         var host = new TestOperationVisitor([]);
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{exit}",
             "/unopened.txt"));
@@ -470,7 +470,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAppendResult(AwkAppendResult.Failure(new(AwkOperationErrorKind.IoFailure, "destination failed")));
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "--help"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "--help"));
 
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
@@ -497,7 +497,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         var script = input ? "BEGIN{\"worker\"|getline x;print \"after\"}" :
             "BEGIN{print \"payload\"|\"worker\";print \"after\"}";
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", script));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", script));
         var budget = new CooperativeTestBudget(1 << 20);
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
@@ -555,7 +555,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         var script = input ? "BEGIN{\"worker\"|getline x;close(\"worker\");print \"after\"}" :
             "BEGIN{print \"payload\"|\"worker\";close(\"worker\");print \"after\"}";
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", script));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", script));
         var budget = new CooperativeTestBudget(1 << 20);
         var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
@@ -582,7 +582,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
                 ? AwkPipeCreationResult.NotSupported(new AwkOperationError(AwkOperationErrorKind.NotSupported, "Pipes are disabled."))
                 : AwkPipeCreationResult.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Pipe allocation failed.")));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{print \"payload\" | \"consumer a:b\\\\*.txt\"}"));
 

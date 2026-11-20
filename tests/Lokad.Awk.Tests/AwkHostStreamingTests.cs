@@ -2,7 +2,7 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
+public sealed class AwkHostStreamingTests
 {
     [Fact]
     public async Task Awk_StandardOutputFlushesThroughHostBetweenStatements()
@@ -13,7 +13,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueReadBuffer(AwkReadBuffer.EndOfFile);
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{print \"one\"; print \"two\"}"));
 
@@ -28,7 +28,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
     public async Task Awk_OutputPipeStreamsThroughBoundedHostPipe()
     {
         var host = new BoundedPipeHost(capacityBytes: 4);
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{print \"a\" | \"consumer\"; print \"bc\" | \"consumer\"}"));
 

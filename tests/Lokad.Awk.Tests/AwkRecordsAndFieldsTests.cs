@@ -7,7 +7,7 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestBase
+public sealed class AwkRecordsAndFieldsTests
 {
     private const string InvalidUtf8Diagnostic = "awk: invalid UTF-8 input\n";
 
@@ -44,7 +44,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInputBytes([0x61, 0x80, 0x0A]);
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print $0}"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print $0}"));
         var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         AssertInvalidUtf8Failure(exitCode, fileSystem);
@@ -90,7 +90,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/bad.txt", [0xC3, 0x28, 0x0A]);
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print $0}", "/bad.txt"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print $0}", "/bad.txt"));
         var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         AssertInvalidUtf8Failure(exitCode, fileSystem);
@@ -122,7 +122,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInputBytes([0xC3, 0x28, 0x0A]);
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{ if ((getline line) > 0) print line }"));
         var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
@@ -140,7 +140,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "BEGIN{getline line; print line}");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{getline line; print line}");
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput("caf\u00e9\n");
 
@@ -157,7 +157,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInputBytes([0x61, 0xC3, 0x28, 0x7C]);
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{RS=\"|\"} {print $0}"));
         var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
@@ -174,7 +174,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkReadCompletion.MoreData, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print; exit}"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -197,7 +197,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var program = "{record=$0; terminator=RT; gsub(/\\n/,\"N\",record); gsub(/\\n/,\"N\",terminator); " +
             "print NR \":\" record \"[\" terminator \"]\"; if(NR==1) RS=\"|\"}";
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", program));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -216,7 +216,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkReadCompletion.MoreData, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"|\"} {print; exit}"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{RS=\"|\"} {print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -233,7 +233,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "BEGIN{RS=\"|\"} {print $0}");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{RS=\"|\"} {print $0}");
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput("alpha|beta|");
 
@@ -256,7 +256,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "BEGIN{RS=\",\"} {count++} END{print count}");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{RS=\",\"} {count++} END{print count}");
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput(string.Join(",", Enumerable.Range(0, 64).Select(static index => "r" + index)));
 
@@ -277,7 +277,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "BEGIN{RS=1} {RS=(NR%2 ? \"1\" : 1); count++} END{print count}");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{RS=1} {RS=(NR%2 ? \"1\" : 1); count++} END{print count}");
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput(string.Join("1", Enumerable.Repeat("record", 64)));
 
@@ -298,7 +298,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "{print length($0)}");
+        var command = AwkTestHarness.BuildInvocation("awk", "{print length($0)}");
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput("alpha beta\ncarrot delta\n");
 
@@ -322,7 +322,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "{print NF}");
+        var command = AwkTestHarness.BuildInvocation("awk", "{print NF}");
         var fileSystem = new MockFileSystem();
         var fieldCount = 128;
         fileSystem.SetStandardInput(string.Join(" ", Enumerable.Range(0, fieldCount).Select(index => "f" + index)) + "\n");
@@ -357,7 +357,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
                 new AwkRandomGenerator(),
                 counters,
                 AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-            var command = BuildInvocation("awk", scenario.Program);
+            var command = AwkTestHarness.BuildInvocation("awk", scenario.Program);
             var fileSystem = new MockFileSystem();
             fileSystem.SetStandardInput(scenario.Input);
 
@@ -387,8 +387,8 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var command = charactersAsBytes
-                ? BuildInvocation("awk", "--characters-as-bytes", program, "/file.txt")
-                : BuildInvocation("awk", program, "/file.txt");
+                ? AwkTestHarness.BuildInvocation("awk", "--characters-as-bytes", program, "/file.txt")
+                : AwkTestHarness.BuildInvocation("awk", program, "/file.txt");
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", "café\n");
 
@@ -410,7 +410,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "BEGIN{n=split(\"café,bravo\", a, \",\"); print n, a[1], a[2]}");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{n=split(\"café,bravo\", a, \",\"); print n, a[1], a[2]}");
         var fileSystem = new MockFileSystem();
 
         var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
@@ -431,7 +431,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "--characters-as-bytes", "BEGIN{FS=\"\"} {print NF, $1, $2, $3}", "/file.txt");
+        var command = AwkTestHarness.BuildInvocation("awk", "--characters-as-bytes", "BEGIN{FS=\"\"} {print NF, $1, $2, $3}", "/file.txt");
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", "abc\n");
 
@@ -453,7 +453,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "BEGIN{FS=\"\"} {print NF, $1, $2, $3}", "/file.txt");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{FS=\"\"} {print NF, $1, $2, $3}", "/file.txt");
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", "éA😀\n");
 
@@ -508,7 +508,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", program);
+        var command = AwkTestHarness.BuildInvocation("awk", program);
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput(input);
 
@@ -579,7 +579,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", program);
+        var command = AwkTestHarness.BuildInvocation("awk", program);
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput(input);
 
@@ -604,7 +604,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "{for(i=1;i<=NF;i++) $i=$i; print $0}");
+        var command = AwkTestHarness.BuildInvocation("awk", "{for(i=1;i<=NF;i++) $i=$i; print $0}");
         var input = string.Join(' ', Enumerable.Range(1, fieldCount));
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput(input + "\n");
@@ -665,7 +665,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", arguments);
+        var command = AwkTestHarness.BuildInvocation("awk", arguments);
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", input);
 
@@ -681,7 +681,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     [Fact]
     public async Task Awk_FieldWidthsRejectByteModeSplitInsideUtf8Character()
     {
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "--characters-as-bytes",
             "BEGIN{FIELDWIDTHS=\"1 1\"} {print NF}",
@@ -726,7 +726,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", program);
+        var command = AwkTestHarness.BuildInvocation("awk", program);
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput(input);
 
@@ -747,7 +747,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "BEGIN{split(\"a,b\", a, \",\", s); print length(s)}");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{split(\"a,b\", a, \",\", s); print length(s)}");
 
         var exitCode = await AwkExecutor.ExecuteAsync(new MockFileSystem(), command, CancellationToken.None, options);
 
@@ -761,7 +761,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput("first|second,third,");
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{RS=\"|\"} {print $0; RS=\",\"}"));
         var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
@@ -787,7 +787,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", program);
+        var command = AwkTestHarness.BuildInvocation("awk", program);
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput(input);
 
@@ -860,7 +860,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
                 host.EnqueueAppendResult(AwkAppendResult.Accepted());
         }
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", program));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -888,7 +888,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var program = "BEGIN{RS=\"" + separator + "\"} {records++} END{print length($0), records}";
-        var command = BuildInvocation("awk", program);
+        var command = AwkTestHarness.BuildInvocation("awk", program);
         var host = new TestOperationVisitor([]);
         var batch = Encoding.UTF8.GetBytes(new string('a', batchLength));
         for (var index = 0; index < batchCount; index++)
@@ -922,7 +922,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "BEGIN{RS=\"([,]|;)+\"} {print length($0)}");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{RS=\"([,]|;)+\"} {print length($0)}");
         var host = new TestOperationVisitor([]);
         var batch = Encoding.UTF8.GetBytes(new string('a', batchLength));
         for (var index = 0; index < batchCount; index++)
@@ -959,7 +959,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{RS=\"(^x|,)\"} {print $0 \"[\" RT \"]\"}"));
 
@@ -989,7 +989,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var program = "BEGIN{RS=\"" + separator + "\"} {print $0 \"[\" length(RT) \"]\"}";
-        var command = BuildInvocation("awk", program);
+        var command = AwkTestHarness.BuildInvocation("awk", program);
         var host = new TestOperationVisitor([]);
         host.EnqueueReadBuffer(AwkReadBuffer.FromContent(
             Encoding.UTF8.GetBytes(firstBatch),
@@ -1028,7 +1028,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkReadCompletion.MoreData, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"[,;]\"} {print; exit}"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{RS=\"[,;]\"} {print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -1045,7 +1045,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "BEGIN{RS=\"(,+|;+)\"} {print $0}");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{RS=\"(,+|;+)\"} {print $0}");
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput("alpha,beta;gamma");
 
@@ -1065,7 +1065,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkReadCompletion.MoreData, static _ => { }));
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
 
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0; exit}"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0; exit}"));
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -1082,7 +1082,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0}");
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0}");
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput("one\n\ntwo\n");
 

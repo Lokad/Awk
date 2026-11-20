@@ -4,7 +4,7 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
+public sealed class AwkHostReadFailureTests
 {
     [Theory]
     [InlineData(false)]
@@ -361,7 +361,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendResult(AwkAppendResult.Accepted());
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "{\"producer\"|getline x;print $0;close(\"producer\");exit}"));
         var budget = new CooperativeTestBudget(2 << 20);
         var policy = AwkTestHarness.CreatePolicy();
@@ -417,7 +417,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
                 "BEGIN{print \"body\"}\n"u8.ToArray(), _ => completed = true)
         };
         host.AddFile("/source", "unused");
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/source"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/source"));
         var budget = new CooperativeTestBudget(2 << 20);
         var policy = AwkTestHarness.CreatePolicy();
         if (governed) policy = policy.WithMemoryBudget(budget);
@@ -437,7 +437,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     {
         var host = new MockFileSystem();
         host.SetStandardInputBytes(bytes);
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"x|Q+\"}{print \"after\"}"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{RS=\"x|Q+\"}{print \"after\"}"));
         Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: invalid UTF-8 input\n", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -452,7 +452,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
             ReadOverride = (_, maxBytes) => AwkReadBuffer.FromContent(new byte[maxBytes + 1],
                 AwkReadCompletion.EndOfFile, count => consumed = count)
         };
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print \"after\"}"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print \"after\"}"));
         Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: file descriptor 0: read failed: Read exceeded the requested byte count.\n",
@@ -492,7 +492,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
             host.AddFile("/source", "unused");
             string[] arguments = kind == "source" ? ["-f", "/source"] :
                 [kind == "regex" ? "BEGIN{RS=\"x|Q+\"}{print}" : "{print}"];
-            var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", arguments));
+            var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments));
             var budget = new CooperativeTestBudget(2 << 20);
             var policy = AwkTestHarness.CreatePolicy();
             if (governed) policy = policy.WithMemoryBudget(budget);
@@ -517,7 +517,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
                 ? AwkReadBuffer.FromContent("one\n"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { })
                 : AwkReadBuffer.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
         };
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print}"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
 
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
@@ -537,7 +537,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
                 AwkReadBuffer.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
         };
         host.AddFile("/data.txt", "unread");
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "BEGIN{result=(getline value < \"/data.txt\"); print result, ERRNO; exit}"));
 
@@ -559,7 +559,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
                 AwkReadBuffer.Failure(new AwkOperationError(AwkOperationErrorKind.IoFailure, "Device read failed"))
         };
         host.AddFile("/script.awk", "BEGIN{print \"unread\"}");
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/script.awk"));
 
         var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
@@ -581,7 +581,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
                 AwkReadBuffer.FromContent("BEGIN{print 1}"u8.ToArray(), AwkReadCompletion.MoreData, static _ => { })
         };
         host.AddFile("/script.awk", "unread");
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/script.awk"));
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), cancellation.Token));
@@ -674,7 +674,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
             "csv" => "{print $1;exit}",
             _ => "{print;exit}"
         };
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             separator == "csv" ? ["--csv", script] : [script]));
         var budget = new CooperativeTestBudget(2 << 20);
         var policy = AwkTestHarness.CreatePolicy();
@@ -709,7 +709,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
             }
         };
         var script = getline ? "BEGIN{for(i=0;i<3;i++){s=(getline x);print s,x,ERRNO}}" : "{print}END{print \"end\"}";
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", script));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", script));
         Assert.Equal(getline ? AwkExitCode.Success : AwkExitCode.FatalError,
             await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
         Assert.Equal(getline ? "1 one \n1 two \n-1 two device failed\n" : "one\ntwo\n",

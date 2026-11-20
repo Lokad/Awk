@@ -10,7 +10,7 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTestBase
+public sealed class AwkExpressionsAndRegexTests
 {
     [Fact]
     public void Awk_RegexTranslationRejectsLargeUnterminatedPosixClassWithoutBackendCompilation()
@@ -392,7 +392,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation("awk", program);
+        var command = AwkTestHarness.BuildInvocation("awk", program);
         var fileSystem = new MockFileSystem();
 
         var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
@@ -418,7 +418,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
                 AwkRuntimeCounters.Disabled,
                 AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
             var fileSystem = new MockFileSystem();
-            var command = BuildInvocation("awk", "BEGIN{IGNORECASE=1; print (\"I\" ~ /i/), (\"i\" ~ /I/)}");
+            var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{IGNORECASE=1; print (\"I\" ~ /i/), (\"i\" ~ /I/)}");
 
             var exitCode = await AwkExecutor.ExecuteAsync(fileSystem, command, CancellationToken.None, options);
 
@@ -437,7 +437,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     public async Task Awk_CharactersAsBytesRegexUsesByteOffsetsForValidUtf8()
     {
         var fileSystem = new MockFileSystem();
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
             "--characters-as-bytes",
             "BEGIN{s=\"éa\"; print (s ~ /éa/), match(s,/a/), RSTART, RLENGTH; print match(s,/é/,m), RSTART, RLENGTH, m[0], m[0,\"start\"], m[0,\"length\"]}"));
@@ -458,7 +458,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
-        var command = BuildInvocation(
+        var command = AwkTestHarness.BuildInvocation(
                 "awk",
                 "BEGIN{switch(\"éclair\"){case /écl/: print \"switch\"}; p=\"fé\"; print (\"café\" ~ p)} /é/{print \"action\", $0} /dé/,/fin/{print \"range\", $0}",
                 "/file.txt");

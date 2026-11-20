@@ -6,7 +6,7 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBase
+public sealed class AwkTimeBuiltinsTests
 {
     [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
