@@ -54,6 +54,27 @@ public sealed partial class AwkBenchmarkCounterTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ShiftedAsciiSliceDoesNotOwnItsSourceField(bool governed)
+    {
+        const int fieldLength = 2048;
+        var host = new MockFileSystem();
+        host.SetStandardInput("key " + new string('a', 1024) + "ID" + new string('z', 1022) + "\n");
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var exit = await AwkExecutor.ExecuteAsync(host,
+            AwkTestHarness.BuildInvocation("awk", "{ kept = substr($2, 1025, 2) } END { print kept }"),
+            CancellationToken.None, CreateOptions(counters) with { MemoryBudget = governed ? budget : null });
+
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("ID\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.InRange(counters[AwkCounter.TextBytes], 2, fieldLength - 1);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]

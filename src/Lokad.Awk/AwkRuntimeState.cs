@@ -627,7 +627,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (field >= 0 && !source.IsOwned && StringUnitMode != AwkStringUnitMode.Byte &&
             source.ByteLength > AwkRuntimeMemory.TextRuneCheckpointStride &&
-            (long)start + length > AwkRuntimeMemory.TextRuneCheckpointStride)
+            (long)start + length > AwkRuntimeMemory.TextRuneCheckpointStride && !source.HasKnownAsciiRecord)
             source = new(CaptureFieldStringText(new(field)));
     }
 
