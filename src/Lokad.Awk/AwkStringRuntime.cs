@@ -22,7 +22,8 @@ internal sealed class AwkStringRuntime
 
     internal int CountUnits(in AwkByteTextOperand value) => value.TryGetOwned(out var owned)
         ? CountUnits(owned)
-        : _unitMode == AwkStringUnitMode.Byte ? value.ByteLength : AwkText.CountRunes(value.AsSpan(checkpoint: null), _checkpoint);
+        : _unitMode == AwkStringUnitMode.Byte || value.IsAsciiScratch ? value.ByteLength :
+            AwkText.CountRunes(value.AsSpan(checkpoint: null), _checkpoint);
 
     public int Compare(AwkText left, AwkText right, bool ignoreCase, bool sorting)
     {

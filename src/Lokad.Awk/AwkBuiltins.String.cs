@@ -49,6 +49,26 @@ internal static partial class AwkBuiltins
         EvaluateCaseConversion(source, field, state, destination,
             upper ? AwkCaseConversion.Upper : AwkCaseConversion.Lower);
 
+    internal static bool TryWriteShortAsciiCase(AwkRuntimeState state, in AwkByteTextOperand source,
+        bool upper, AwkUtf8Builder scratch)
+    {
+        var bytes = source.AsSpan(state.CancellationCheckpoint);
+        if (!Ascii.IsValid(bytes) || (upper ? bytes.IndexOfAnyInRange((byte)'a', (byte)'z') :
+            bytes.IndexOfAnyInRange((byte)'A', (byte)'Z')) < 0) return false;
+
+        // Admission may retire a host borrow. Resolve the same record range
+        // after growth before reading the input into the frame's scratch.
+        var captured = source.TryGetRecordSource(out var record) ? record : new AwkCopySource(bytes);
+        var result = scratch.PrepareEmptyBuffer(bytes.Length);
+        state.ThrowIfCancellationRequested();
+        bytes = captured.AsSpan();
+        var status = upper ? Ascii.ToUpper(bytes, result, out var written) : Ascii.ToLower(bytes, result, out written);
+        if (status != OperationStatus.Done || written != result.Length)
+            throw new InvalidOperationException("Previously validated ASCII conversion failed.");
+        scratch.PublishLength(written);
+        return true;
+    }
+
     private static AwkText EvaluateCaseConversion(
         in AwkByteTextOperand source,
         int field,

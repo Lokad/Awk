@@ -204,7 +204,7 @@ internal sealed class AwkRuntimeState : IDisposable
     internal void InitializeRangePatterns(int count)
     {
         if (count == 0) return;
-        var bytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(count);
+        var bytes = AwkRuntimeMemory.EstimateOneByteArrayBytes(count);
         MemoryAccounting.Charge(bytes);
         bool[] states;
         try
@@ -1097,7 +1097,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
                 return value;
             }
-            if (slot.Kind == AwkFunctionLocalSlotKind.RecordText)
+            if (slot.Kind == AwkFunctionLocalSlotKind.BorrowedText)
             {
                 var value = _functions.ReadFrameValue(frame, slotId);
 
@@ -1630,7 +1630,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 try { _recordFields.ResetRecord(); }
                 finally
                 {
-                    var retiredBytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(_rangePatterns.Length);
+                    var retiredBytes = AwkRuntimeMemory.EstimateOneByteArrayBytes(_rangePatterns.Length);
                     _rangePatterns = [];
                     if (_randomGenerator is not null)
                     {

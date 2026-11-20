@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 // within this computation. The snapshot cannot cross a host suspension.
 internal readonly ref struct AwkTextInput
 {
-    private const int OwnedText = -1, RecordSlot0 = -2, RecordSlot1 = -3, TextRange = -4;
+    private const int OwnedText = -1, RecordSlot0 = -2, RecordSlot1 = -3, TextRange = -4, ScratchText = -5;
     private readonly object? _reference;
     private readonly long _word;
     private readonly int _kind;
@@ -44,6 +44,9 @@ internal readonly ref struct AwkTextInput
     internal static AwkTextInput FromTextRange(AwkText text, int offset, int length, int field) =>
         new(text.Backing, offset, length, TextRange, field);
 
+    internal static AwkTextInput FromScratch(AwkUtf8Builder buffer) =>
+        new(buffer, 0, buffer.Length, ScratchText, -1);
+
     internal int TextField => _field;
 
     internal AwkByteTextOperand ReadyText
@@ -58,6 +61,7 @@ internal readonly ref struct AwkTextInput
                 RecordSlot0 or RecordSlot1 when _reference is AwkRecordStorage storage =>
                     new(storage, _kind == RecordSlot0 ? 0 : 1, offset, length),
                 TextRange => new(AwkText.FromBacking(_reference).AsSpan().Slice(offset, length)),
+                ScratchText when _reference is AwkUtf8Builder scratch => new(scratch.AsSpan(), knownAscii: true),
                 _ => throw new InvalidOperationException("A scalar text input requires formatting at use.")
             };
         }

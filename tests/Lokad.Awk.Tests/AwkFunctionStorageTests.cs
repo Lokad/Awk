@@ -30,7 +30,7 @@ public sealed partial class AwkFunctionStorageTests
             Assert.Equal(1, memory.Budget.Refusals);
             Assert.Equal(0, memory.Budget.GrowthAttemptsAfterRefusal);
         }
-        Assert.Equal(AwkFunctionLocalSlotKind.RecordText, frame.GetSlot(0).Kind);
+        Assert.Equal(AwkFunctionLocalSlotKind.BorrowedText, frame.GetSlot(0).Kind);
         Assert.Equal(allocations, counters[AwkCounter.TextAllocations]);
         Assert.Equal(before, memory.Budget.Reserved);
         Assert.Equal(0, frame.RetainedMemoryBytes);
@@ -86,7 +86,7 @@ public sealed partial class AwkFunctionStorageTests
         {
             stack.StageRecordText(first, 0, record, record.CurrentSlot, 0, 4);
             stack.StageArgument(second, 0, in first.GetSlot(0));
-            Assert.True(second.GetSlot(0).TryGetRecordSource(out var forwarded));
+            Assert.True(second.GetSlot(0).TryGetBorrowedTextSource(out var forwarded));
             Assert.True(forwarded.AsSpan().SequenceEqual("text"u8));
             Assert.Equal(0, first.RetainedMemoryBytes);
             Assert.Equal(0, second.RetainedMemoryBytes);

@@ -20,10 +20,10 @@ internal readonly ref struct AwkByteTextOperand
         _byteLength = owned.ByteLength;
     }
 
-    public AwkByteTextOperand(ReadOnlySpan<byte> bytes)
+    public AwkByteTextOperand(ReadOnlySpan<byte> bytes, bool knownAscii = false)
     {
         _firstByte = ref MemoryMarshal.GetReference(bytes);
-        _recordPosition = -1;
+        _recordPosition = knownAscii ? -2 : -1;
         _byteLength = bytes.Length;
     }
 
@@ -39,6 +39,7 @@ internal readonly ref struct AwkByteTextOperand
     internal bool IsOwned => _recordPosition < 0 && _owner is not null;
     internal int ByteLength => _byteLength;
     internal bool HasKnownAsciiRecord => KnownAsciiRecord is not null;
+    internal bool IsAsciiScratch => _recordPosition == -2;
 
     // A promoted record keeps the proof and the bytes together in its slot.
     private AwkRecordStorage? KnownAsciiRecord =>
@@ -60,7 +61,7 @@ internal readonly ref struct AwkByteTextOperand
 
     internal bool HasUnitAt(int index, bool bytes, Action? checkpoint)
     {
-        if (bytes || index == 0 || HasKnownAsciiRecord) return index < _byteLength;
+        if (bytes || index == 0 || IsAsciiScratch || HasKnownAsciiRecord) return index < _byteLength;
         return TryGetOwned(out var owned) ? owned.HasRuneAt(index, checkpoint) :
             index < _byteLength && AwkText.HasRuneAt(AsSpan(checkpoint), index, checkpoint);
     }
@@ -86,6 +87,11 @@ internal readonly ref struct AwkByteTextOperand
             var offset = Math.Min(start, _byteLength);
             var count = Math.Min(length, _byteLength - offset);
             return new(asciiRecord, _recordPosition & 1, (_recordPosition >> 1) + offset, count);
+        }
+        if (IsAsciiScratch)
+        {
+            var offset = Math.Min(start, _byteLength);
+            return new(AsSpan(checkpoint).Slice(offset, Math.Min(length, _byteLength - offset)), knownAscii: true);
         }
         var content = AsSpan(checkpoint);
         int first, last;

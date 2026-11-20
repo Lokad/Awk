@@ -137,6 +137,20 @@ internal partial struct AwkRegionMachine
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        internal void ExecuteCaseScratch(in AwkRegionInstruction instruction)
+        {
+            state.ThrowIfCancellationRequested();
+            ref readonly var operand = ref operands[instruction.Left];
+            var field = IsField(operand) ? FieldOrdinal(operand) : -1;
+            var text = TextOperand(instruction.Left);
+            ref readonly var destination = ref operands[instruction.Target];
+            var upper = instruction.Detail != 0;
+            if (frame is not null && storage.TryStageCaseResult(frame, destination.Index, in text, upper, instruction.Right))
+                return;
+            storage.StoreCaseResult(in destination, in text, upper, field);
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         internal void ExecuteLength(in AwkRegionInstruction instruction)
         {
             ref readonly var lengthOperand = ref operands[instruction.Left];
@@ -263,6 +277,9 @@ internal partial struct AwkRegionMachine
         }
 
         internal AwkValue Value(int index) => Value(in operands[index]);
+
+        internal bool CaptureScratchReturn(in AwkRegionInstruction instruction) =>
+            frame is not null && storage.TryCaptureScratchReturn(instruction.Target, frame, operands[instruction.Left].Index);
 
         private AwkValue Value(scoped in AwkRegionOperand operand)
         {

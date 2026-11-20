@@ -218,12 +218,22 @@ internal struct AwkFunctionLocalSlot
         _arrayIdentifier = default;
     }
 
-    internal readonly bool TryGetRecordSource(out AwkCopySource source)
+    internal readonly AwkUtf8Builder? ScratchText =>
+        Kind == AwkFunctionLocalSlotKind.BorrowedText ? _reference as AwkUtf8Builder : null;
+
+    internal readonly bool TryGetBorrowedTextSource(out AwkCopySource source)
     {
-        if (Kind == AwkFunctionLocalSlotKind.RecordText && _reference is AwkRecordStorage record)
+        if (Kind == AwkFunctionLocalSlotKind.BorrowedText)
         {
-            source = new(record, _payloadTag, (int)(_word >> 32), (int)_word);
-            return true;
+            switch (_reference)
+            {
+                case AwkRecordStorage record:
+                    source = new(record, _payloadTag, (int)(_word >> 32), (int)_word);
+                    return true;
+                case AwkUtf8Builder scratch:
+                    source = new(scratch.AsSpan());
+                    return true;
+            }
         }
         source = default;
         return false;
@@ -231,10 +241,14 @@ internal struct AwkFunctionLocalSlot
 
     internal readonly bool TryGetTextInput(out AwkTextInput text, Action? checkpoint)
     {
-        if (Kind == AwkFunctionLocalSlotKind.RecordText && _reference is AwkRecordStorage record)
+        if (Kind == AwkFunctionLocalSlotKind.BorrowedText)
         {
-            var word = _word;
-            text = AwkTextInput.FromRecord(record, _payloadTag, (int)(word >> 32), (int)word, field: -1);
+            text = _reference switch
+            {
+                AwkRecordStorage record => AwkTextInput.FromRecord(record, _payloadTag, (int)(_word >> 32), (int)_word, field: -1),
+                AwkUtf8Builder scratch => AwkTextInput.FromScratch(scratch),
+                _ => throw new InvalidOperationException("Borrowed text requires a live buffer.")
+            };
             return true;
         }
         var kind = (AwkValueKind)_payloadTag;
@@ -250,8 +264,8 @@ internal struct AwkFunctionLocalSlot
         return true;
     }
 
-    internal readonly bool HasSameRecordText(in AwkFunctionLocalSlot other) =>
-        Kind == AwkFunctionLocalSlotKind.RecordText && other.Kind == Kind &&
+    internal readonly bool HasSameBorrowedText(in AwkFunctionLocalSlot other) =>
+        Kind == AwkFunctionLocalSlotKind.BorrowedText && other.Kind == Kind &&
         ReferenceEquals(_reference, other._reference) && _payloadTag == other._payloadTag && _word == other._word;
 
     public AwkFunctionLocalSlotKind Kind { readonly get; private set; }
@@ -269,7 +283,7 @@ internal struct AwkFunctionLocalSlot
 
     internal readonly bool TryGetArrayBinding([NotNullWhen(true)] out AwkArrayIdentity? array)
     {
-        if (Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key or AwkFunctionLocalSlotKind.RecordText)
+        if (Kind is AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.Key or AwkFunctionLocalSlotKind.BorrowedText)
         {
             array = null;
             return false;
@@ -279,8 +293,8 @@ internal struct AwkFunctionLocalSlot
 
     internal readonly AwkValue ReadValue(Action? checkpoint)
     {
-        if (Kind == AwkFunctionLocalSlotKind.RecordText)
-            throw new InvalidOperationException("Record text requires its funded frame consumer.");
+        if (Kind == AwkFunctionLocalSlotKind.BorrowedText)
+            throw new InvalidOperationException("Borrowed text requires its funded frame consumer.");
         // Capture before the callback; the cell can retire while it runs.
         var value = Value;
         if (AwkValue.HasInputClassification(value.StoredKind) &&
@@ -350,7 +364,14 @@ internal struct AwkFunctionLocalSlot
         _reference = record;
         _word = ((long)offset << 32) | (uint)length;
         _payloadTag = slot;
-        Kind = AwkFunctionLocalSlotKind.RecordText;
+        Kind = AwkFunctionLocalSlotKind.BorrowedText;
+    }
+
+    internal void InitializeScratchText(AwkUtf8Builder scratch)
+    {
+        System.Diagnostics.Debug.Assert(Kind == AwkFunctionLocalSlotKind.MissingScalar);
+        _reference = scratch;
+        Kind = AwkFunctionLocalSlotKind.BorrowedText;
     }
 
     internal void InitializeKey(AwkArrayKey key)
@@ -414,7 +435,7 @@ internal enum AwkFunctionLocalSlotKind
     PotentialArrayAlias,
     UntypedScalar,
     Key,
-    RecordText
+    BorrowedText
 }
 
 internal readonly struct AwkResolvedFunctionLocal

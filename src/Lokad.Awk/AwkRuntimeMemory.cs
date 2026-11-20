@@ -215,8 +215,8 @@ internal static class AwkRuntimeMemory
     internal static long EstimateInt32ArrayBytes(int count) =>
         CheckedAdd(EstimateArrayBufferBytes(count, sizeof(int)), 7) & ~7L;
 
-    internal static long EstimateBooleanArrayBytes(int count) =>
-        CheckedAdd(EstimateArrayBufferBytes(count, sizeof(bool)), 7) & ~7L;
+    internal static long EstimateOneByteArrayBytes(int count) =>
+        CheckedAdd(EstimateArrayBufferBytes(count, sizeof(byte)), 7) & ~7L;
 
     public static long EstimateRegionBuilderArrayBytes(int count) =>
         CheckedAdd(EstimateArrayBufferBytes(count, 2 * ReferenceBytes),

@@ -21,6 +21,7 @@ internal sealed partial class AwkRegionCompiler
     private readonly List<AwkRegionPath> _paths = [];
     private int _capturedPaths;
     private int _builderCount;
+    private bool _hasLocalCaseResult;
     private readonly List<AwkRegionCall> _calls = [];
     private readonly List<AwkRegionBuiltin> _builtins = [];
     private readonly List<AwkRegionStringCall> _strings = [];
@@ -228,6 +229,7 @@ internal sealed partial class AwkRegionCompiler
             PrepareArrayOwners(0);
             PrepareArrayLocations(0, 0);
         }
+        if (_hasLocalCaseResult) BindCaseScratch();
         var entryFieldDemand = PrepareFieldDemands();
         var region = new AwkRegion(_code.ToArray(), _operands.ToArray(),
             _constants.ToArray(), _literals.ToArray(), _arrays.ToArray(), _updates.ToArray(), _scalarUpdates.ToArray(),
@@ -923,6 +925,12 @@ internal sealed partial class AwkRegionCompiler
             if (source.Kind == AwkRegionOperandKind.TextTemporary && _code.Count >= 2 &&
                 TryTakeFreshTextProducer(operand, _code.Count - 2, out var producer))
             {
+                if (producer.Kind == AwkRegionInstructionKind.Case &&
+                    _operands[assignment.Target].Kind == AwkRegionOperandKind.LocalVariable)
+                {
+                    producer = producer with { Right = -1 };
+                    _hasLocalCaseResult = true;
+                }
                 _code.ReplaceTail(_code.Count - 2, producer with { Target = assignment.Target });
             }
             else if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&

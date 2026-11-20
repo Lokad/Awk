@@ -228,15 +228,19 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             incoming.StageNumber(index, number);
             return true;
         }
-        if (sourceSlot.Kind == AwkFunctionLocalSlotKind.RecordText)
+        if (sourceSlot.Kind == AwkFunctionLocalSlotKind.BorrowedText)
         {
 
-            if (!prepareKey) StageArgument(incoming, index, in sourceSlot);
+            if (!prepareKey && sourceSlot.ScratchText is null) StageArgument(incoming, index, in sourceSlot);
             else
             {
-                var owned = MaterializeRecordText(frame, source, in sourceSlot).Value;
-                StageKey(incoming, index,
-                    new AwkArrayKey(owned.ByteText, state.CancellationCheckpoint).WithInputOrigin(owned.HasInputOrigin));
+                var captured = sourceSlot;
+                var owned = MaterializeBorrowedText(frame, source, in captured).Value;
+                if (prepareKey)
+                    StageKey(incoming, index,
+                        new AwkArrayKey(owned.ByteText, state.CancellationCheckpoint).WithInputOrigin(owned.HasInputOrigin));
+                else if ((uint)index < (uint)incoming.Layout.SlotCount)
+                    PublishScalarArgument(incoming, index, in owned);
             }
             return true;
         }
@@ -376,7 +380,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
                 value = slot.ReadValue(state.CancellationCheckpoint);
                 return true;
             }
-            if (slot.Kind == AwkFunctionLocalSlotKind.RecordText)
+            if (slot.Kind == AwkFunctionLocalSlotKind.BorrowedText)
             {
                 value = ReadFrameValue(frame, slotId);
                 return true;
@@ -902,14 +906,14 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
     internal AwkValue ReadFrameValue(AwkFunctionFrame frame, AwkFunctionLocalSlotId slotId)
     {
         var slot = frame.GetSlot(slotId.Index);
-        if (slot.Kind == AwkFunctionLocalSlotKind.RecordText) slot = MaterializeRecordText(frame, slotId, in slot);
+        if (slot.Kind == AwkFunctionLocalSlotKind.BorrowedText) slot = MaterializeBorrowedText(frame, slotId, in slot);
         return slot.ReadValue(state.CancellationCheckpoint);
     }
 
-    private AwkFunctionLocalSlot MaterializeRecordText(AwkFunctionFrame frame, AwkFunctionLocalSlotId slotId,
+    private AwkFunctionLocalSlot MaterializeBorrowedText(AwkFunctionFrame frame, AwkFunctionLocalSlotId slotId,
         in AwkFunctionLocalSlot slot)
     {
-        if (!slot.TryGetRecordSource(out var source)) throw new InvalidOperationException("A record-text cell needs its source slot.");
+        if (!slot.TryGetBorrowedTextSource(out var source)) throw new InvalidOperationException("A borrowed text cell needs its source.");
         var captured = slot;
         var id = frame.Id;
         var retained = state.MemoryAccounting.IsEnabled ? AwkRuntimeMemory.EstimateTextBytes(source.Length) : 0;
@@ -923,7 +927,7 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
             // Admission and polls can retire/reuse a cell. Keep the copy funded
             // through construction, caching only into its original live owner.
             if (frame.Id == id && (uint)slotId.Index < (uint)frame.Layout.SlotCount &&
-                frame.GetSlot(slotId.Index).HasSameRecordText(in captured))
+                frame.GetSlot(slotId.Index).HasSameBorrowedText(in captured))
             {
                 var total = AwkRuntimeMemory.CheckedAdd(frame.RetainedMemoryBytes, retained);
                 frame.GetSlot(slotId.Index) = owned;
@@ -941,8 +945,8 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         AwkFunctionLocalSlot slot,
         AwkFunctionLocalProjection projection)
     {
-        if (projection == AwkFunctionLocalProjection.Value && slot.Kind == AwkFunctionLocalSlotKind.RecordText)
-            return MaterializeRecordText(frame, slotId, in slot);
+        if (projection == AwkFunctionLocalProjection.Value && slot.Kind == AwkFunctionLocalSlotKind.BorrowedText)
+            return MaterializeBorrowedText(frame, slotId, in slot);
         if (projection == AwkFunctionLocalProjection.Value && slot.TryGetArrayBinding(out _))
             throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(frame.Layout.Parameters[slotId.Index].Text));
         if (projection != AwkFunctionLocalProjection.Value ||

@@ -132,6 +132,10 @@ uses admitted temporary strings and resolves record bytes after admission.
 Builders fund and copy their bytes. The runtime observes the allocation when adopting
 the owned result as text. Host byte ingress validates UTF-8 before copy admission.
 Copies into already funded destinations use the caller's admission.
+Preparation can bind a short ASCII case result to a frame-owned builder when its
+local is read by substring. The builder holds borrowed text while the frame is live.
+Returns copy into the funded capture before any flush, and forwarding materializes
+text before publishing it to another frame. Frame reset clears locals before reuse.
 Text backing resolves rune ranges. The runtime funds and copies partial slices and
 reuses the backing for whole slices. Byte slices must end up as valid UTF-8.
 When the record slot holds validated ASCII, substring can use byte coordinates.

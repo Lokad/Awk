@@ -4,6 +4,48 @@ namespace Lokad.Awk;
 
 internal sealed partial class AwkRegionCompiler
 {
+    private void BindCaseScratch()
+    {
+        // Keep ordinary owning assignments when a local has no slice consumer.
+        const byte slice = 1, scratch = 2;
+        byte[] uses = [];
+        if (_strings.Count != 0)
+        {
+            _scope.Memory.AdmitLoweringBytes(AwkRuntimeMemory.EstimateOneByteArrayBytes(_operands.Count));
+            _scope.CheckCancellation();
+            uses = new byte[_operands.Count];
+            for (var index = 0; index < _code.Count; index++)
+            {
+                if ((index & 127) == 127) _scope.CheckCancellation();
+                if (_code[index] is { Kind: AwkRegionInstructionKind.Substring } substring)
+                    uses[_strings[substring.Left].First] = slice;
+            }
+        }
+        var builder = 0;
+        for (var index = 0; index < _code.Count; index++)
+        {
+            if ((index & 127) == 127) _scope.CheckCancellation();
+            if (_code[index] is not { Kind: AwkRegionInstructionKind.Case, Right: -1 } instruction) continue;
+            if (uses.Length != 0 && uses[instruction.Target] != 0)
+            {
+                // One result may remain borrowed until retirement. Key builders
+                // can still be reused independently while that result is live.
+                if (builder == 0) builder = ++_builderCount;
+                uses[instruction.Target] = scratch;
+                _code[index] = instruction with { Kind = AwkRegionInstructionKind.CaseScratch, Right = builder - 1 };
+            }
+            else _code[index] = instruction with { Right = 0 };
+        }
+        if (builder == 0) return;
+        for (var index = 0; index < _code.Count; index++)
+        {
+            if ((index & 127) == 127) _scope.CheckCancellation();
+            if (_code[index] is { Kind: AwkRegionInstructionKind.Return, Left: >= 0 } instruction &&
+                uses[instruction.Left] == scratch)
+                _code[index] = instruction with { Kind = AwkRegionInstructionKind.ReturnScratch };
+        }
+    }
+
     private bool TryTakeFreshTextProducer(int operand, int position,
         out AwkRegionInstruction producer)
     {

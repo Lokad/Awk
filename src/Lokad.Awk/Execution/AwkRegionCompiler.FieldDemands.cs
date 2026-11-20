@@ -44,7 +44,8 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.Value or AwkRegionInstructionKind.Length or
                 AwkRegionInstructionKind.Truth or AwkRegionInstructionKind.Not or
                 AwkRegionInstructionKind.Discard or AwkRegionInstructionKind.KeyAppend => OperandDemand(instruction.Left),
-                AwkRegionInstructionKind.Case => TextResult(instruction.Target, OperandDemand(instruction.Left)),
+                AwkRegionInstructionKind.Case or AwkRegionInstructionKind.CaseScratch =>
+                    TextResult(instruction.Target, OperandDemand(instruction.Left)),
                 AwkRegionInstructionKind.Index => StringCall(instruction.Left),
                 AwkRegionInstructionKind.Substring => TextResult(instruction.Target, StringCall(instruction.Left)),
                 AwkRegionInstructionKind.Compare =>
@@ -57,7 +58,7 @@ internal sealed partial class AwkRegionCompiler
                     ConsumedArrayAssignment(instruction.AssignedArrayValue),
                 AwkRegionInstructionKind.ScalarUpdate => false,
                 AwkRegionInstructionKind.ReturnNumber => NumericReturn(instruction.Left),
-                AwkRegionInstructionKind.Return => ValueReturn(instruction.Left),
+                AwkRegionInstructionKind.Return or AwkRegionInstructionKind.ReturnScratch => ValueReturn(instruction.Left),
                 AwkRegionInstructionKind.ArrayPrepare or AwkRegionInstructionKind.ArrayRead or
                 AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.ArrayContains => TerminalAccess(instruction.ArrayAccess),
                 AwkRegionInstructionKind.PrintField => TerminalOperand(instruction.Left),

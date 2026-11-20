@@ -39,7 +39,7 @@ internal readonly partial record struct AwkRegionInstruction
         AwkRegionInstructionKind.Poll or AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.VariableNumber or
         AwkRegionInstructionKind.Value or AwkRegionInstructionKind.Length or AwkRegionInstructionKind.InspectVariable or
         AwkRegionInstructionKind.InspectArray or AwkRegionInstructionKind.InspectValue or AwkRegionInstructionKind.Index or
-        AwkRegionInstructionKind.Substring or AwkRegionInstructionKind.Case or AwkRegionInstructionKind.Compare or
+        AwkRegionInstructionKind.Substring or AwkRegionInstructionKind.Case or AwkRegionInstructionKind.CaseScratch or AwkRegionInstructionKind.Compare or
         AwkRegionInstructionKind.CompareText or AwkRegionInstructionKind.Not or AwkRegionInstructionKind.Truth or
         AwkRegionInstructionKind.Discard or AwkRegionInstructionKind.Assign or AwkRegionInstructionKind.AssignNumber or
         AwkRegionInstructionKind.AssignConsumedScalar or AwkRegionInstructionKind.ScalarUpdate or
@@ -51,7 +51,8 @@ internal readonly partial record struct AwkRegionInstruction
         AwkRegionInstructionKind.PathKey or AwkRegionInstructionKind.PathEnd or AwkRegionInstructionKind.KeyAppend or
         AwkRegionInstructionKind.BeginCall or AwkRegionInstructionKind.Arguments or AwkRegionInstructionKind.InputValue or
         AwkRegionInstructionKind.ConcatArgument or AwkRegionInstructionKind.ConcatValue or AwkRegionInstructionKind.Return or
-        AwkRegionInstructionKind.ReturnNumber or AwkRegionInstructionKind.PrepareString or AwkRegionInstructionKind.PrepareByteText or
+        AwkRegionInstructionKind.ReturnScratch or AwkRegionInstructionKind.ReturnNumber or
+        AwkRegionInstructionKind.PrepareString or AwkRegionInstructionKind.PrepareByteText or
         AwkRegionInstructionKind.GetlineTarget or AwkRegionInstructionKind.Jump or AwkRegionInstructionKind.JumpIfFalse or
         AwkRegionInstructionKind.JumpIfTrue or AwkRegionInstructionKind.JumpIfZero or AwkRegionInstructionKind.JumpIfNonzero or
         AwkRegionInstructionKind.JumpIfCase => AwkRegionEffects.None,

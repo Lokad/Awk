@@ -274,6 +274,18 @@ internal sealed class AwkRegionStorage : IDisposable
         ConsumeProducedText(in destination, text, _payload.Bytes - before);
     }
 
+    internal bool TryStageCaseResult(AwkFunctionFrame frame, int local, in AwkByteTextOperand source,
+        bool upper, int builder)
+    {
+        if (source.ByteLength > AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity ||
+            frame.GetSlot(local).Kind != AwkFunctionLocalSlotKind.MissingScalar) return false;
+        var scratch = _builders[builder].Buffer;
+        if (scratch.Length != 0 || !AwkBuiltins.TryWriteShortAsciiCase(_state, in source, upper, scratch))
+            return false;
+        frame.GetSlot(local).InitializeScratchText(scratch);
+        return true;
+    }
+
     private void ConsumeProducedText(in AwkRegionOperand destination, AwkText text, long producedBytes)
     {
         if (destination.Kind == AwkRegionOperandKind.TextTemporary)
@@ -306,6 +318,20 @@ internal sealed class AwkRegionStorage : IDisposable
         _values[index] = value.AsScalarCopy();
         // Publish the funded snapshot and retire its source before refund reentry.
         if (oldBytes > 0) _payload.Release(oldBytes);
+        return true;
+    }
+
+    internal bool TryCaptureScratchReturn(int index, AwkFunctionFrame frame, int local)
+    {
+        if ((uint)local >= (uint)frame.Layout.SlotCount || frame.GetSlot(local).ScratchText is not { } scratch)
+            return false;
+        // The return owner funds the copy while the retiring frame's bytes
+        // remain stable. No borrowed view crosses the return continuation.
+        var previous = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;
+        var text = _state.CopyText(new AwkCopySource(scratch.AsSpan()), _payload);
+        _values[index] = _state.CreateStringValue(text);
+        frame.GetSlot(local) = default;
+        if (previous > 0) _payload.Release(previous);
         return true;
     }
 

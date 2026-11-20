@@ -232,6 +232,19 @@ internal sealed class AwkUtf8Builder : IDisposable
         Length = 0;
     }
 
+    internal Span<byte> PrepareEmptyBuffer(int length)
+    {
+        System.Diagnostics.Debug.Assert(Length == 0);
+        EnsureCapacity(length);
+        return _buffer.AsSpan(0, length);
+    }
+
+    internal void PublishLength(int length)
+    {
+        System.Diagnostics.Debug.Assert(Length == 0 && (uint)length <= (uint)_buffer.Length);
+        Length = length;
+    }
+
     public void RemovePrefix(int length)
     {
         ThrowIfDisposed();
