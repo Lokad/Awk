@@ -84,9 +84,8 @@ internal partial struct AwkRegionMachine
             {
                 if (consumption == AwkParameterInput.Arithmetic)
                     return state.RecordFields.GetFieldArithmeticArgument(FieldIndex(in operand), state.NumberParsingMode);
-                if (consumption == AwkParameterInput.NumericComparison &&
-                    state.RecordFields.TryGetFieldComparisonNumber(FieldIndex(in operand), state.NumberParsingMode,
-                        out var number)) return AwkValue.FromNumber(number);
+                if (consumption == AwkParameterInput.NumericComparison)
+                    return state.RecordFields.GetFieldComparisonArgument(FieldIndex(in operand), state.NumberParsingMode);
                 if (consumption == AwkParameterInput.Text &&
                     state.TryGetFieldTextArgument(FieldIndex(in operand), out var text)) return text;
             }
@@ -471,19 +470,17 @@ internal partial struct AwkRegionMachine
                             state.TryStageFunctionFieldKey(fieldIndex, incoming, index)) break;
                         if (argument.Consumption == AwkParameterInput.Text &&
                             state.TryStageFunctionFieldText(fieldIndex, incoming, index, borrowRecord)) break;
-                        var fieldNumber = 0d;
-                        var numeric = argument.Consumption == AwkParameterInput.Arithmetic
-                            ? state.RecordFields.TryGetFieldArithmeticNumber(fieldIndex, state.NumberParsingMode, out fieldNumber)
-                            : argument.Consumption == AwkParameterInput.NumericComparison &&
-                                state.RecordFields.TryGetFieldComparisonNumber(fieldIndex, state.NumberParsingMode, out fieldNumber);
-                        if (numeric)
-                            incoming.StageNumber(index, fieldNumber);
-                        else
+                        if (argument.Consumption == AwkParameterInput.Arithmetic &&
+                            state.RecordFields.TryGetFieldArithmeticNumber(fieldIndex, state.NumberParsingMode, out var number))
                         {
-                            // The record frame classifies input in this invocation's mode.
-                            var value = state.RecordFields.GetFieldValue(fieldIndex);
-                            state.FunctionCalls.StageValue(incoming, index, in value, preserveInputClassification: true);
+                            incoming.StageNumber(index, number);
+                            break;
                         }
+                        var value = argument.Consumption == AwkParameterInput.NumericComparison
+                            ? state.RecordFields.GetFieldComparisonArgument(fieldIndex, state.NumberParsingMode)
+                            : state.RecordFields.GetFieldValue(fieldIndex);
+                        // The record frame classifies input in this invocation's mode.
+                        state.FunctionCalls.StageValue(incoming, index, in value, preserveInputClassification: true);
                         break;
                     }
                     default:

@@ -16,7 +16,8 @@ public sealed class AwkNumericFieldConsumptionTests
             state.SetCurrentRecord(AwkText.FromSourceLiteralString("k " + spelling));
             var expected = AwkTestHarness.NumericInput(AwkText.FromSourceLiteralString(spelling));
             Assert.Equal(expected.AsNumber(), state.RecordFields.GetFieldNumber(new(2), state.NumberParsingMode));
-            Assert.Equal(spelling == "0007", state.RecordFields.TryGetFieldComparisonNumber(new(2), state.NumberParsingMode, out _));
+            var comparison = state.RecordFields.GetFieldComparisonArgument(new(2), state.NumberParsingMode);
+            Assert.Equal(spelling == "0007", comparison.IsNumberValue);
             var captured = captureText ? state.CaptureFieldStringText(new(2)) : AwkText.Empty;
 
             var value = state.RecordFields.GetFieldValue(new(2));
@@ -42,8 +43,9 @@ public sealed class AwkNumericFieldConsumptionTests
         var state = memory.State;
         var spelling = new string('0', 8192) + "7";
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("k " + spelling));
-        Assert.True(state.RecordFields.TryGetFieldComparisonNumber(new(2), state.NumberParsingMode, out var number));
-        Assert.Equal(7, number);
+        var comparison = state.RecordFields.GetFieldComparisonArgument(new(2), state.NumberParsingMode);
+        Assert.True(comparison.IsNumberValue);
+        Assert.Equal(7, comparison.StoredNumber);
         var captured = state.CaptureFieldStringText(new(2));
         var committed = state.MemoryAccounting.LiveBytes;
         cancellation.Cancel();
@@ -79,9 +81,10 @@ public sealed class AwkNumericFieldConsumptionTests
                     Assert.Equal(strict, frame.TryGetStoredFieldComparisonNumber(new(1), out var actualNumber));
                     if (strict)
                         Assert.Equal(BitConverter.DoubleToUInt64Bits(expectedNumber), BitConverter.DoubleToUInt64Bits(actualNumber));
-                    Assert.Equal(strict, frame.TryGetFieldComparisonNumber(new(1), mode, out _));
+                    var comparison = frame.GetFieldComparisonArgument(new(1), mode);
+                    Assert.Equal(strict, comparison.IsNumberValue);
 
-                    Assert.True(frame.TryGetFieldTextSnapshot(new(1), out var captured));
+                    var captured = context.State.CaptureFieldStringText(new(1));
                     Assert.Equal(spelling, captured.AsString());
                     frame.SetRecordText(AwkText.FromSourceLiteralString("next"));
                     Assert.Equal(spelling, captured.AsString());
@@ -114,7 +117,9 @@ public sealed class AwkNumericFieldConsumptionTests
             frame.SetRecordText(AwkText.FromSourceLiteralString(spelling + "|tail"));
             Assert.Equal(spelling.Length == 0 ? 0 : 7, frame.GetFieldNumber(new(1), AwkNumberParsingMode.Decimal));
             Assert.False(frame.TryGetStoredFieldComparisonNumber(new(1), out _));
-            Assert.Equal(spelling == "7 ", frame.TryGetFieldComparisonNumber(new(1), AwkNumberParsingMode.Decimal, out _));
+            var comparison = frame.GetFieldComparisonArgument(new(1), AwkNumberParsingMode.Decimal);
+            Assert.Equal(spelling == "7 ", comparison.IsNumberValue);
+            if (!comparison.IsNumberValue) Assert.Equal(spelling, comparison.AsString());
 
             Assert.Equal(spelling, frame.GetFieldValue(new(1)).AsString());
         }
@@ -293,8 +298,9 @@ public sealed class AwkNumericFieldConsumptionTests
         var committed = state.MemoryAccounting.LiveBytes;
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Equal(7, state.RecordFields.GetFieldNumber(new(2), state.NumberParsingMode));
-        Assert.True(state.RecordFields.TryGetFieldComparisonNumber(new(2), state.NumberParsingMode, out var comparison));
-        Assert.Equal(7, comparison);
+        var comparison = state.RecordFields.GetFieldComparisonArgument(new(2), state.NumberParsingMode);
+        Assert.True(comparison.IsNumberValue);
+        Assert.Equal(7, comparison.StoredNumber);
 
         Assert.Throws<AwkRuntimeException>(() => state.RecordFields.GetFieldValue(new(2)));
         Assert.Equal(7, state.RecordFields.GetFieldNumber(new(2), state.NumberParsingMode));
@@ -320,12 +326,12 @@ public sealed class AwkNumericFieldConsumptionTests
         Assert.Equal(3, state.FieldCount);
         Assert.Equal(7, state.RecordFields.GetFieldNumber(new(2), state.NumberParsingMode));
         Assert.True(state.RecordFields.TryGetStoredFieldComparisonNumber(new(2), out _));
-        Assert.True(state.RecordFields.TryGetFieldComparisonNumber(new(2), state.NumberParsingMode, out _));
+        Assert.True(state.RecordFields.GetFieldComparisonArgument(new(2), state.NumberParsingMode).IsNumberValue);
         Assert.True(state.RecordFields.TryGetStoredFieldComparisonNumber(new(2), out var number));
         Assert.Equal(7, number);
         Assert.Equal(7, state.RecordFields.GetFieldNumber(new(3), state.NumberParsingMode));
         Assert.False(state.RecordFields.TryGetStoredFieldComparisonNumber(new(3), out _));
-        Assert.False(state.RecordFields.TryGetFieldComparisonNumber(new(3), state.NumberParsingMode, out _));
+        Assert.Equal("7tail", state.RecordFields.GetFieldComparisonArgument(new(3), state.NumberParsingMode).AsString());
         Assert.False(state.RecordFields.TryGetStoredFieldComparisonNumber(new(3), out _));
 
     }
@@ -342,14 +348,16 @@ public sealed class AwkNumericFieldConsumptionTests
         memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         for (var repeat = 0; repeat < 8; repeat++)
         {
-            Assert.True(state.RecordFields.TryGetFieldComparisonNumber(new(2), state.NumberParsingMode, out var number));
-            Assert.Equal(7, number);
+            var comparison = state.RecordFields.GetFieldComparisonArgument(new(2), state.NumberParsingMode);
+            Assert.True(comparison.IsNumberValue);
+            Assert.Equal(7, comparison.StoredNumber);
             Assert.Equal(7, state.RecordFields.GetFieldNumber(new(2), state.NumberParsingMode));
         }
 
         Assert.Throws<AwkRuntimeException>(() => state.RecordFields.GetFieldValue(new(2)));
-        Assert.True(state.RecordFields.TryGetFieldComparisonNumber(new(2), state.NumberParsingMode, out var retained));
-        Assert.Equal(7, retained);
+        var retained = state.RecordFields.GetFieldComparisonArgument(new(2), state.NumberParsingMode);
+        Assert.True(retained.IsNumberValue);
+        Assert.Equal(7, retained.StoredNumber);
         Assert.Equal(record, state.CurrentRecordByteText);
         Assert.Equal(2, state.FieldCount);
         Assert.Equal(committed, state.MemoryAccounting.LiveBytes);

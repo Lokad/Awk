@@ -223,7 +223,11 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         if (index.Value > _fieldTexts.Count)
             return AwkValue.UnassignedText();
 
-        var fieldIndex = index.Value - 1;
+        return GetPreparedFieldValue(index.Value - 1);
+    }
+
+    private AwkValue GetPreparedFieldValue(int fieldIndex)
+    {
         if (TryGetCachedFieldValue(fieldIndex, out var cached)) return cached;
         return MaterializeFieldValue(fieldIndex);
     }
@@ -418,22 +422,23 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         return new(field.InputClassification, ReadFieldByteOperand(field));
     }
 
-    internal bool TryGetFieldComparisonNumber(AwkFieldIndex index, AwkNumberParsingMode mode, out double number)
+    internal AwkValue GetFieldComparisonArgument(AwkFieldIndex index, AwkNumberParsingMode mode)
     {
-        number = 0;
-        if (index.IsCurrentRecord) return false;
+        if (index.IsCurrentRecord) return GetRecordValue();
         EnsureField(index);
-        if (index.Value > _fieldTexts.Count) return false;
+        if (index.Value > _fieldTexts.Count) return AwkValue.UnassignedText();
         var fieldIndex = index.Value - 1;
         var field = _fieldTexts[fieldIndex];
-        if (field.IsUnassigned) return false;
+        if (field.IsUnassigned) return AwkValue.UnassignedText();
         if (!_recordTextIsCurrent || HasCachedScalarValue(field) || field.Kind == AwkFieldTextKind.Owned)
         {
-            var value = GetFieldValue(index);
+            var value = GetPreparedFieldValue(fieldIndex);
             return value.StoredKind is AwkValueKind.Number or AwkValueKind.NumericString &&
-                value.TryGetStoredComparisonNumber(out number, state.CancellationCheckpoint);
+                value.TryGetStoredComparisonNumber(out var normalized, state.CancellationCheckpoint)
+                ? AwkValue.FromNumber(normalized) : value;
         }
-        return ClassifyInputField(fieldIndex, field, mode).TryGetComparisonNumber(out number);
+        return ClassifyInputField(fieldIndex, field, mode).TryGetComparisonNumber(out var number)
+            ? AwkValue.FromNumber(number) : GetPreparedFieldValue(fieldIndex);
     }
 
     // Speculative computation can consume an established fact, but cannot split,
@@ -525,6 +530,11 @@ internal sealed class AwkFieldFrame(AwkRuntimeState state)
         var cached = _fieldValueCache[field.CacheSlot - 1];
         if (cached.IsScalar)
         {
+            if (cached.Value.IsNumberValue)
+            {
+                number = cached.Value.StoredNumber;
+                return true;
+            }
             cachedValue = field.CacheSlot - 1;
             return false;
         }

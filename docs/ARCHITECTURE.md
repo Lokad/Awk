@@ -68,6 +68,9 @@ or callbacks that replace their backing. Publish active ownership before operati
 can fail; unwind through the owner that acquired it. Pending operations retain their
 arguments/output until actual completion, including when a host ignores cancellation.
 Capture return values before flushing; do not reread mutable sources after callbacks.
+Argument groups capture values before intervening effects. Field arguments for
+numeric comparison use the prepared field's numeric fact or its original spelling.
+Arithmetic can stage a known number directly into the incoming frame.
 Check for a new pending operation after completing the current one. Forwarding a return
 can start another append while the caller still owns its frame.
 
