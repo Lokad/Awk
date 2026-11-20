@@ -152,9 +152,11 @@ Forwarding a local scalar reuses the caller's classified value in the same
 invocation. The incoming frame admits the spelling it retains before publication.
 Field arguments and bound global input arguments reuse the input classification
 produced by their storage read in that mode.
-Text-only arguments can retain a record slot and range while call preparation and the
-callee cannot advance input. The slot holds funded fallback bytes when admission retires
-the host borrow. Text operations resolve the range after admission before copying.
+Text-only field arguments can retain a record slot and range when the preparation
+after their first capture and the callee cannot advance input. Prepared call bounds
+limit the pending-output check to batches overlapping those operands. The slot
+holds funded fallback bytes when admission retires the host borrow. Text operations
+resolve the range after admission before copying.
 Initialized special scalars use their bound cells for writes. Numeric and general
 assignments enter the same format, separator and admission logic. Computed field
 count reads and writes belong to the record frame.

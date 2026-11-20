@@ -142,9 +142,10 @@ public sealed class AwkArgumentBindingTests
             finally { host.ReadAsyncOverride = Read; }
         }
 
+        const string result = "{return substr(text,1,3) \":\" (n+step) \":\" length(text)}";
         var command = AwkTestHarness.BuildInvocation("awk", "function advance(){getline;return $2}" +
-            (textFirst ? "function total(text,step,n){return length(text)+step+n}{print total($1,advance(),$2);exit}"
-                : "function total(n,step,text){return n+step+length(text)}{print total($2,advance(),$1);exit}"));
+            (textFirst ? "function report(text,step,n)" + result + "{print report($1,advance(),$2);exit}"
+                : "function report(n,step,text)" + result + "{print report($2,advance(),$1);exit}"));
         var budget = new CooperativeTestBudget(8 << 20);
         var policy = AwkTestHarness.CreatePolicy();
         if (governed) policy = policy.WithMemoryBudget(budget);
@@ -158,7 +159,7 @@ public sealed class AwkArgumentBindingTests
         }
         finally { release.TrySetResult(); }
         Assert.Equal(AwkExitCode.Success, await execution);
-        Assert.Equal(textFirst ? "26\n" : "25\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(textFirst ? "abc:18:8\n" : "lon:12:13\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(0, budget.Reserved);
