@@ -691,7 +691,7 @@ internal sealed class AwkRegionStorage : IDisposable
     {
         ref readonly var before = ref scope.Before;
         ref readonly var after = ref scope.After;
-        ClearIncomingFrames(_incoming.Length);
+        ClearIncomingFrames(after.Incoming);
         for (var index = after.Sorts - 1; index >= before.Sorts; index--) ReleaseSort(index);
         if (after.Values != before.Values) Array.Clear(_values, before.Values, after.Values - before.Values);
         if (after.Targets != before.Targets) Array.Clear(_targets, before.Targets, after.Targets - before.Targets);
@@ -705,7 +705,7 @@ internal sealed class AwkRegionStorage : IDisposable
         if (after.Texts != before.Texts) Array.Clear(_texts, before.Texts, after.Texts - before.Texts);
         if (after.PrintSegments != before.PrintSegments)
             Array.Clear(_printSegments, before.PrintSegments, after.PrintSegments - before.PrintSegments);
-        ClearBuildersAndPayload();
+        ClearBuildersAndPayload(after.Builders);
     }
 
     private void ClearIncomingFrames(int count)
@@ -717,9 +717,6 @@ internal sealed class AwkRegionStorage : IDisposable
             _state.FunctionCalls.DiscardIncomingFrame(frame);
         }
     }
-
-    private void ClearBuildersAndPayload()
-        => ClearBuildersAndPayload(_builders.Length);
 
     private void ClearBuildersAndPayload(int count)
     {

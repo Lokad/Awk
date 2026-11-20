@@ -210,8 +210,8 @@ internal enum AwkRegionArgumentKind : byte
     Value, Number, Local, Global, Variable, Field, DynamicField
 }
 
-// Prepared ownership bounds for one rule's scratch, including reused update slots. Shared
-// builder/incoming-frame slots retain their ordinary whole-owner cleanup.
+// Prepared ownership bounds for one rule's scratch. Reused update, builder and
+// incoming-frame slots start at zero for each rule.
 internal sealed class AwkRegionRuleScope(AwkRegionStorageLayout before, AwkRegionStorageLayout after)
 {
     internal readonly AwkRegionStorageLayout Before = before;

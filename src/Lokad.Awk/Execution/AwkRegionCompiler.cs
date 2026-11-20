@@ -51,7 +51,6 @@ internal sealed partial class AwkRegionCompiler
     private int _printSegments;
     private int _iterators;
     private int _arrayTargets;
-    private bool _usesOutputBuilder;
     private AwkDiagnostic? _diagnostic;
     private int _mainBodyStart = -1;
     internal bool HasMainRules { get; private set; }
@@ -70,6 +69,12 @@ internal sealed partial class AwkRegionCompiler
 
     internal bool AppendMainRule(AwkRuleSyntax rule, int rangeIndex, out AwkDiagnostic diagnostic)
     {
+        // These slots are reused across rules. Track this rule's range independently
+        // of the maximum capacity needed by the complete program.
+        var previousBuilders = _builderCount;
+        var previousIncoming = _incomingCalls;
+        _builderCount = 0;
+        _incomingCalls = 0;
         var before = StorageLayout() with { Targets = 0 };
         var firstUpdate = _updates.Count;
         var firstRead = _arrayReads.Count;
@@ -100,6 +105,8 @@ internal sealed partial class AwkRegionCompiler
             }
             HasMainRules = true;
         }
+        _builderCount = Math.Max(previousBuilders, _builderCount);
+        _incomingCalls = Math.Max(previousIncoming, _incomingCalls);
         diagnostic = _diagnostic ?? (success ? default : InvalidRule(rule));
         return success;
     }
@@ -212,7 +219,7 @@ internal sealed partial class AwkRegionCompiler
     }
 
     private AwkRegionStorageLayout StorageLayout() =>
-        new(_numbers, _values, _texts, _updateSlots, Math.Max(_builderCount, _usesOutputBuilder ? 1 : 0), _incomingCalls, _printSegments, _getlines.Count, _capturedPaths, _iterators, _arrayTargets, _sortSlots);
+        new(_numbers, _values, _texts, _updateSlots, _builderCount, _incomingCalls, _printSegments, _getlines.Count, _capturedPaths, _iterators, _arrayTargets, _sortSlots);
 
     private AwkRegion CreateRegion()
     {
@@ -537,7 +544,7 @@ internal sealed partial class AwkRegionCompiler
         var captured = _values++;
         Emit(new(AwkRegionInstructionKind.Value, captured, value));
         output = new(captured, redirection.Kind);
-        _usesOutputBuilder = true;
+        _builderCount = Math.Max(_builderCount, 1);
         return true;
     }
 
@@ -556,7 +563,8 @@ internal sealed partial class AwkRegionCompiler
             arguments[^1] = new(AwkRegionPrintArgumentKind.PreparedText, 0);
         }
         var print = new AwkRegionPrint(_texts, _printSegments, arguments, output);
-        if (output.IsRedirected || (!print.UsesFieldViews && arguments.Length > 1)) _usesOutputBuilder = true;
+        if (output.IsRedirected || (!print.UsesFieldViews && arguments.Length > 1))
+            _builderCount = Math.Max(_builderCount, 1);
         _texts = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_texts, print.TextCount));
         if (arguments.Length > 1 || output.IsRedirected || print.UsesFieldViews)
             _printSegments = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedAdd(_printSegments, arguments.Length));
