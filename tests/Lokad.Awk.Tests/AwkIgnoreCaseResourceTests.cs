@@ -36,24 +36,28 @@ public sealed class AwkIgnoreCaseResourceTests
     [InlineData(true)]
     public void LongFoldedScansObserveCancellationBetweenChunks(bool search)
     {
+        var shortChecks = 0;
+        Assert.Equal(0, Scan(16, () => shortChecks++));
         using var cancellation = new CancellationTokenSource();
         var checkpoints = 0;
-        var strings = new AwkStringRuntime(AwkStringUnitMode.Utf8Rune, () =>
+        var error = Assert.Throws<OperationCanceledException>(() => Scan(4096, () =>
         {
-            if (++checkpoints == 2)
+            if (++checkpoints > shortChecks)
                 cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
-        });
-        var source = AwkText.FromString(new string('A', 4096));
-        var value = AwkText.FromString(search ? new string('a', 1024) + "b" : new string('a', 4096));
-        Assert.Throws<OperationCanceledException>(() =>
+        }));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(0, Scan(4096, null));
+
+        int Scan(int length, Action? checkpoint)
         {
-            if (search)
-                strings.IndexOfUnits(source.AsSpan(), value.AsSpan(), ignoreCase: true);
-            else
-                strings.Compare(source, value, ignoreCase: true, sorting: false);
-        });
-        Assert.Equal(2, checkpoints);
+            var strings = new AwkStringRuntime(AwkStringUnitMode.Utf8Rune, checkpoint);
+            var source = AwkText.FromString(new string('A', length));
+            var value = AwkText.FromString(search ? new string('a', length / 4) + "b" : new string('a', length));
+            return search
+                ? strings.IndexOfUnits(source.AsSpan(), value.AsSpan(), ignoreCase: true)
+                : strings.Compare(source, value, ignoreCase: true, sorting: false);
+        }
     }
 
     private static AwkRuntimeState CreateState(AwkRuntimeCounters counters, AwkRuntimeLimits limits)

@@ -200,16 +200,21 @@ public sealed class AwkRegexScratchMemoryTests
     public void UnboundedCaptureCanRetryAfterCancellation()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
+        var shortChecks = 0;
+        using (var control = Capture(3, AwkMemoryAccounting.Disabled, counters, () => shortChecks++))
+            Assert.Equal(3, control.Match.Groups.Count);
+
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
-        Assert.Throws<OperationCanceledException>(() =>
+        var error = Assert.Throws<OperationCanceledException>(() =>
         {
             using var result = Capture(1538, AwkMemoryAccounting.Disabled, counters, () =>
             {
-                if (++checks == 5) cancellation.Cancel();
+                if (++checks > shortChecks) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
             });
         });
+        Assert.Equal(cancellation.Token, error.CancellationToken);
         using var retry = new CancellationTokenSource();
         using var result = Capture(1538, AwkMemoryAccounting.Disabled, counters, retry.Token.ThrowIfCancellationRequested);
         Assert.Equal(1538, result.Match.Groups.Count);

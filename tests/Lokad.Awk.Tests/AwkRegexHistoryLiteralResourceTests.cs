@@ -127,8 +127,13 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     [InlineData("construct")]
     public void LiteralCancellationReleasesScratchAndPreservesBorrowedResultCharge(string phase)
     {
-        var text = new string('.', 8192);
+        const int existingResultBytes = 43;
+        var measuring = phase == "measure";
+        var text = measuring ? new string('a', 8192) + "." : new string('.', 8192);
         var input = AwkText.FromString(text);
+        var shortChecks = 0;
+        _ = AwkRegexConstruction.EscapeLiteral(AwkText.FromString("aaaa"), () => shortChecks++,
+            AwkMemoryAccounting.Disabled, AwkMemoryLease.Disabled);
 
         using var memoryForGovernor = new CooperativeTestMemory(1 << 24);
         var governor = memoryForGovernor.Accounting;
@@ -136,16 +141,19 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         var checks = 0;
         using (var resultText = governor.CreateTransientLease())
         {
-            resultText.ReserveAdditional(43);
+            resultText.ReserveAdditional(existingResultBytes);
             var error = Assert.Throws<OperationCanceledException>(() =>
                 AwkRegexConstruction.EscapeLiteral(input, () =>
                 {
-                    if (phase == "measure" && ++checks == 3 || phase == "construct" && governor.LiveBytes > 43)
+                    var reached = measuring
+                        ? governor.LiveBytes == existingResultBytes && ++checks > shortChecks
+                        : governor.LiveBytes > existingResultBytes;
+                    if (reached)
                         cancellation.Cancel();
                     cancellation.Token.ThrowIfCancellationRequested();
                 }, governor, resultText));
             Assert.Equal(cancellation.Token, error.CancellationToken);
-            Assert.Equal(43, governor.LiveBytes);
+            Assert.Equal(existingResultBytes, governor.LiveBytes);
         }
         Assert.Equal(0, governor.LiveBytes);
         using var retry = governor.CreateTransientLease();
