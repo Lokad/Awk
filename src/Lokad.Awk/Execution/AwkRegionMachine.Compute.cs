@@ -513,7 +513,7 @@ internal partial struct AwkRegionMachine
                     throw new AwkRuntimeException(AwkMessages.ErrorUnsupportedCoprocess, AwkDiagnosticId.UnsupportedPolicy);
                 case AwkRegionInstructionKind.GetlineBoundary:
                 {
-                    var read = computationView.Region.Getlines[instruction.Left];
+                    var read = computationView.Region.Getlines[instruction.GetlineSite];
                     _position = position + 1;
                     var flush = read.Kind == AwkGetlineSourceKind.MainInput
                         ? output.FlushAsync(_io)
@@ -537,11 +537,12 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.GetlineTarget:
-                    computationView.Storage.PrepareGetlineTarget(instruction.Target, computationView.ResolveReference(instruction.Left));
+                    computationView.Storage.PrepareGetlineTarget(instruction.GetlineSite,
+                        computationView.ResolveReference(instruction.GetlineTargetOperand));
                     break;
                 case AwkRegionInstructionKind.Getline:
                     _position = position + 1;
-                    BeginRead(computationView.Region.Getlines[instruction.Left]);
+                    BeginRead(computationView.Region.Getlines[instruction.GetlineSite]);
                     goto Resume;
                 case AwkRegionInstructionKind.Return:
                     AwkValue returnedValue;

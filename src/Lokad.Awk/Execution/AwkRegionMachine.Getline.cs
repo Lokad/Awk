@@ -29,7 +29,7 @@ internal partial struct AwkRegionMachine
         // The execution location cannot move during a pending read. Its preceding instruction
         // identifies the funded source/destination without another pending object.
         var instruction = _region.Instructions[_position - 1];
-        ApplyRead(_region.Getlines[instruction.Left], ((Task<AwkGetlineCompletion>)_hostCompletion).Result);
+        ApplyRead(_region.Getlines[instruction.GetlineSite], ((Task<AwkGetlineCompletion>)_hostCompletion).Result);
     }
 
     private void ApplyRead(AwkRegionGetline read, AwkGetlineCompletion completion)

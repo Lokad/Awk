@@ -157,6 +157,14 @@ internal readonly partial record struct AwkRegionInstruction(
     internal static AwkRegionInstruction Call(int site, int destination, int firstPendingArgument) =>
         new(AwkRegionInstructionKind.Call, destination, site, firstPendingArgument);
 
+    internal int GetlineSite => Left;
+    internal int GetlineTargetOperand => Target;
+
+    internal static AwkRegionInstruction GetlineBoundary(int site) => new(AwkRegionInstructionKind.GetlineBoundary, Left: site);
+    internal static AwkRegionInstruction CaptureGetlineTarget(int site, int targetOperand) =>
+        new(AwkRegionInstructionKind.GetlineTarget, targetOperand, site);
+    internal static AwkRegionInstruction Getline(int site) => new(AwkRegionInstructionKind.Getline, Left: site);
+
     internal static AwkRegionInstruction Arithmetic(AwkNumericOperation operation, int target, int left, int right) =>
         new(operation switch
         {

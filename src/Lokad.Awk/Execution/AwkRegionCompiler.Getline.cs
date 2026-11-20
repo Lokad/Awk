@@ -25,7 +25,7 @@ internal sealed partial class AwkRegionCompiler
                         _source = parts.HasRedirection ? compiler._values++ : -1;
                         compiler._getlines.Add(new(_site, _source, parts.SourceKind, number));
                         if (!parts.HasRedirection || isExpression)
-                            compiler.Emit(new(AwkRegionInstructionKind.GetlineBoundary, Left: _site));
+                            compiler.Emit(AwkRegionInstruction.GetlineBoundary(_site));
                         _stage = 2;
                         if (parts.HasRedirection)
                         {
@@ -52,12 +52,12 @@ internal sealed partial class AwkRegionCompiler
                         break;
                     case 3:
                         var location = CompletedResult<PreparedLocation>(completed);
-                        compiler.Emit(new(AwkRegionInstructionKind.GetlineTarget, _site, location.Operand));
+                        compiler.Emit(AwkRegionInstruction.CaptureGetlineTarget(_site, location.Operand));
                         if (location.Access >= 0) compiler.FinishKey(location.Access);
                         _stage = 4;
                         break;
                     default:
-                        compiler.Emit(new(AwkRegionInstructionKind.Getline, Left: _site));
+                        compiler.Emit(AwkRegionInstruction.Getline(_site));
                         compiler.Label();
                         return Complete(_result);
                 }
