@@ -77,7 +77,7 @@ Check for a new pending operation after completing the current one. Forwarding a
 can start another append while the caller still owns its frame.
 
 Enforced by [main-input ownership](../tests/Lokad.Awk.Tests/AwkMainInputOwnershipTests.cs),
-[return continuations](../tests/Lokad.Awk.Tests/AwkPreparedFunctionRegionTests.ReturnContinuations.cs)
+[return continuations](../tests/Lokad.Awk.Tests/Execution/AwkPreparedFunctionRegionTests.ReturnContinuations.cs)
 and [function flow goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FunctionFlow.cs).
 
 During preparation, emit the consumer before selecting an adjacent producer for
@@ -113,7 +113,7 @@ checks before effects, rather than relying only on an earlier computation poll.
 Enforced by [small-stack public execution](../tests/Lokad.Awk.Tests/AwkStackSafetyTests.cs),
 [invocation admission](../tests/Lokad.Awk.Tests/AwkInvocationAdmissionTests.cs),
 [scan cancellation](../tests/Lokad.Awk.Tests/AwkScanCancellationTests.cs) and
-[prepared admission](../tests/Lokad.Awk.Tests/AwkPreparedFunctionRegionTests.Admission.cs).
+[prepared admission](../tests/Lokad.Awk.Tests/Execution/AwkPreparedFunctionRegionTests.Admission.cs).
 
 ## Values, text and calls
 
