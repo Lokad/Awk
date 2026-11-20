@@ -16,7 +16,7 @@ internal sealed partial class AwkRegionCompiler
             var scalarWrite = instruction.CompletesScalarUpdate;
             var path = instruction.Kind switch
             {
-                AwkRegionInstructionKind.ArrayRead or AwkRegionInstructionKind.ArrayNumber => _arrays[instruction.Left].Path,
+                AwkRegionInstructionKind.ArrayRead or AwkRegionInstructionKind.ArrayNumber => _arrays[instruction.ArrayAccess].Path,
                 AwkRegionInstructionKind.ArrayUpdate or AwkRegionInstructionKind.CompleteArrayNumberUpdate
                     when _updates[instruction.Left].PrepareAccess >= 0 =>
                     _updates[instruction.Left].Path,

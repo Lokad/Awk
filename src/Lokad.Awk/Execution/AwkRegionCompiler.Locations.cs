@@ -128,7 +128,7 @@ internal sealed partial class AwkRegionCompiler
                 var location = CompletedResult<PreparedLocation>(completed);
                 if (location.Access >= 0)
                 {
-                    var position = compiler.Emit(new(AwkRegionInstructionKind.ArrayAssign, location.Access, _value));
+                    var position = compiler.Emit(AwkRegionInstruction.AssignArray(location.Access, _value));
                     compiler.FuseImmediatePath(location.Access, position);
                     compiler.FinishKey(location.Access);
                 }
@@ -207,13 +207,13 @@ internal sealed partial class AwkRegionCompiler
             var captureIndex = keyRetirement ? preceding - 1 : preceding;
             if (captureIndex >= 0 && _code[captureIndex] is { Kind: AwkRegionInstructionKind.ArrayPrepare } capture &&
                 capture.Target == site.Slot && (!keyRetirement ||
-                    _arrays[capture.Left] is { Path: < 0 } access &&
+                    _arrays[capture.ArrayAccess] is { Path: < 0 } access &&
                     _operands[access.Key] is { Kind: AwkRegionOperandKind.KeyBuilder } key &&
                     key.Index == _code[preceding].Target))
             {
                 _code.ReplaceTail(captureIndex, instruction);
                 position = captureIndex;
-                site = site with { PrepareAccess = capture.Left, Slot = -1 };
+                site = site with { PrepareAccess = capture.ArrayAccess, Slot = -1 };
                 if (site.Right.IsRegister ||
                     _operands[site.Right.OperandIndex].Kind is AwkRegionOperandKind.LocalVariable or
                         AwkRegionOperandKind.GlobalVariable or AwkRegionOperandKind.Literal or

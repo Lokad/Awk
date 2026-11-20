@@ -101,11 +101,12 @@ internal partial struct AwkRegionMachine
                         computationView.ReadVariable(computationView.Operands[instruction.Left]).AsNumber(computationView.State.CancellationCheckpoint));
                     break;
                 case AwkRegionInstructionKind.ArrayNumber:
-                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction, computationView.ReadArrayNumber(computationView.Region.Arrays[instruction.Left]));
+                    computationView.Numbers[instruction.Target] = computationView.CompleteNumberRead(in instruction,
+                        computationView.ReadArrayNumber(computationView.Region.Arrays[instruction.ArrayAccess]));
                     break;
                 case AwkRegionInstructionKind.ArrayContains:
                 {
-                    var membership = computationView.Region.Arrays[instruction.Left];
+                    var membership = computationView.Region.Arrays[instruction.ArrayAccess];
                     var keyOperand = computationView.Operands[membership.Key];
                     var found = keyOperand.Kind == AwkRegionOperandKind.KeyBuilder
                         ? computationView.State.Arrays.ContainsBorrowedKey(membership.Name, computationView.Storage.Builders[keyOperand.Index].Buffer.AsMemory().Span, membership.Binding)
@@ -148,7 +149,7 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.ArrayTarget:
                 {
-                    var captured = computationView.Region.Arrays[instruction.Left];
+                    var captured = computationView.Region.Arrays[instruction.ArrayAccess];
                     if (captured.Key < 0 && captured.Path < 0)
                         computationView.Storage.StoreArrayTarget(instruction.Target, new(captured.Name));
                     else
@@ -188,7 +189,7 @@ internal partial struct AwkRegionMachine
                 }
                 case AwkRegionInstructionKind.InspectArray:
                 {
-                    var inspected = computationView.Region.Arrays[instruction.Left];
+                    var inspected = computationView.Region.Arrays[instruction.ArrayAccess];
                     var kind = inspected.Path >= 0
                         ? computationView.State.Variables.GetArrayValue(computationView.CapturedPath(inspected.Path).ResolveOwner(computationView.State), computationView.CapturedPath(inspected.Path).Key).RuntimeKind
                         : computationView.State.Arrays.GetElementRuntimeKind(inspected.Name, computationView.Key(inspected), inspected.Binding);
@@ -278,14 +279,14 @@ internal partial struct AwkRegionMachine
                         .ContainsKey(computationView.Storage.Builders[instruction.Right].Buffer.AsMemory().Span) ? 1 : 0;
                     break;
                 case AwkRegionInstructionKind.ArrayDelete:
-                    var deleted = computationView.Region.Arrays[instruction.Target];
+                    var deleted = computationView.Region.Arrays[instruction.ArrayAccess];
                     var deletedKey = computationView.CaptureKey(deleted.Key);
                     computationView.State.ThrowIfCancellationRequested();
                     computationView.State.Arrays.DeleteValue(deleted.Name, deletedKey);
                     break;
                 case AwkRegionInstructionKind.ArrayClear:
                     computationView.State.ThrowIfCancellationRequested();
-                    computationView.State.Arrays.Clear(computationView.Region.Arrays[instruction.Target].Name);
+                    computationView.State.Arrays.Clear(computationView.Region.Arrays[instruction.ArrayAccess].Name);
                     break;
                 case AwkRegionInstructionKind.IteratorBegin:
                     var iteration = computationView.Region.Iterations[instruction.Left];
@@ -311,7 +312,8 @@ internal partial struct AwkRegionMachine
                     computationView.Storage.ReleasePath(computationView.Region.Paths[instruction.Target].Slot);
                     break;
                 case AwkRegionInstructionKind.ArrayRead:
-                    computationView.Storage.StoreValue(instruction.Target, computationView.ReadArray(computationView.Region.Arrays[instruction.Left]), preserveOrigin: instruction.Detail != 0);
+                    computationView.Storage.StoreValue(instruction.Target,
+                        computationView.ReadArray(computationView.Region.Arrays[instruction.ArrayAccess]), preserveOrigin: instruction.Detail != 0);
                     break;
                 case AwkRegionInstructionKind.Add:
                     computationView.Numbers[instruction.Target] =
@@ -416,10 +418,10 @@ internal partial struct AwkRegionMachine
                     break;
                 case AwkRegionInstructionKind.ArrayPrepare:
                 {
-                    var path = computationView.Region.Arrays[instruction.Left].Path;
+                    var path = computationView.Region.Arrays[instruction.ArrayAccess].Path;
                     AwkArrayUpdateTarget preparedTarget;
                     if (path >= 0) preparedTarget = computationView.PreparePathUpdate(path);
-                    else computationView.PrepareArrayUpdate(instruction.Left, out preparedTarget, instruction.Target);
+                    else computationView.PrepareArrayUpdate(instruction.ArrayAccess, out preparedTarget, instruction.Target);
                     computationView.Storage.StoreTarget(instruction.Target, in preparedTarget);
                     break;
                 }
@@ -437,20 +439,20 @@ internal partial struct AwkRegionMachine
                     break;
                 }
                 case AwkRegionInstructionKind.ArrayAssign:
-                    var assigned = computationView.Region.Arrays[instruction.Target];
+                    var assigned = computationView.Region.Arrays[instruction.ArrayAccess];
                     if (assigned.Path >= 0)
                     {
                         if (computationView.Region.Paths[assigned.Path].ImmediateKeys is not null)
                         {
                             var assignedKey = computationView.ResolvePath(assigned.Path, out var assignedOwner);
-                            var assignedValue = computationView.Value(instruction.Left);
+                            var assignedValue = computationView.Value(instruction.AssignedArrayValue);
                             computationView.State.ThrowIfCancellationRequested();
                             computationView.State.Variables.SetArrayValue(assignedOwner, assignedKey, assignedValue);
                         }
                         else
                         {
                             var assignedPath = computationView.CapturedPath(assigned.Path);
-                            var assignedValue = computationView.Value(instruction.Left);
+                            var assignedValue = computationView.Value(instruction.AssignedArrayValue);
                             computationView.State.ThrowIfCancellationRequested();
                             computationView.State.Variables.SetArrayValue(assignedPath.ResolveOwner(computationView.State), assignedPath.Key, assignedValue);
                         }
@@ -459,7 +461,7 @@ internal partial struct AwkRegionMachine
                     {
                         // The RHS already lives in captured scratch. Consume a
                         // located cell directly; only misses need an owned key.
-                        var assignedValue = computationView.Value(instruction.Left);
+                        var assignedValue = computationView.Value(instruction.AssignedArrayValue);
                         var assignedOperand = computationView.Operands[assigned.Key];
                         if (computationView.TryArrayNumberKey(assigned.Key, out var assignedNumber))
                         {

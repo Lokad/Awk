@@ -57,7 +57,7 @@ internal sealed partial class AwkRegionCompiler
                 AwkRegionInstructionKind.ReturnNumber => NumericReturn(instruction.Left),
                 AwkRegionInstructionKind.Return => ValueReturn(instruction.Left),
                 AwkRegionInstructionKind.ArrayPrepare or AwkRegionInstructionKind.ArrayRead or
-                AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.ArrayContains => TerminalAccess(instruction.Left),
+                AwkRegionInstructionKind.ArrayNumber or AwkRegionInstructionKind.ArrayContains => TerminalAccess(instruction.ArrayAccess),
                 AwkRegionInstructionKind.PrintField => TerminalOperand(instruction.Left),
                 AwkRegionInstructionKind.PrintList => TerminalPrint(_prints[instruction.Left]),
                 AwkRegionInstructionKind.Printf => TerminalFields(_printfs[instruction.Left].Fields),

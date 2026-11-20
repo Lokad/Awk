@@ -448,7 +448,7 @@ internal sealed partial class AwkRegionCompiler
             if (_scope.IsReservedVariable(name.Identifier)) return false;
             var site = _arrays.Count;
             _arrays.Add(new(new(name.Identifier), _scope.GetArrayBinding(name.Identifier), -1));
-            Emit(new(AwkRegionInstructionKind.ArrayClear, site));
+            Emit(new(AwkRegionInstructionKind.ArrayClear, Left: site));
             return true;
         }
         if (syntax.Kind != AwkExpressionKind.ArrayElement || syntax.Children.Count < 2) return false;
@@ -460,7 +460,7 @@ internal sealed partial class AwkRegionCompiler
             return true;
         }
         if (!ArrayAccess(syntax, out var flat)) return false;
-        Emit(new(AwkRegionInstructionKind.ArrayDelete, flat));
+        Emit(new(AwkRegionInstructionKind.ArrayDelete, Left: flat));
         FinishKey(flat);
         return true;
     }
@@ -483,7 +483,7 @@ internal sealed partial class AwkRegionCompiler
         var operand = _operands[target];
         if (operand.Kind == AwkRegionOperandKind.ArrayElement)
         {
-            var position = Emit(new(AwkRegionInstructionKind.ArrayAssign, operand.Index, value));
+            var position = Emit(AwkRegionInstruction.AssignArray(operand.Index, value));
             FuseImmediatePath(operand.Index, position);
             FinishKey(operand.Index);
         }
@@ -813,7 +813,7 @@ internal sealed partial class AwkRegionCompiler
             _code[position] is { Kind: AwkRegionInstructionKind.ArrayRead, Detail: 0 } read &&
             read.Target == source.Index)
         {
-            access = read.Left;
+            access = read.ArrayAccess;
             return true;
         }
         access = -1;

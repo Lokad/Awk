@@ -165,6 +165,12 @@ internal readonly partial record struct AwkRegionInstruction(
         new(AwkRegionInstructionKind.GetlineTarget, targetOperand, site);
     internal static AwkRegionInstruction Getline(int site) => new(AwkRegionInstructionKind.Getline, Left: site);
 
+    internal int ArrayAccess => Left;
+    internal int AssignedArrayValue => Target;
+
+    internal static AwkRegionInstruction AssignArray(int access, int valueOperand) =>
+        new(AwkRegionInstructionKind.ArrayAssign, valueOperand, access);
+
     internal static AwkRegionInstruction Arithmetic(AwkNumericOperation operation, int target, int left, int right) =>
         new(operation switch
         {
