@@ -39,10 +39,14 @@ internal sealed class AwkLoweringScope
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? functions = null, AwkFrontendMemory? memory = null) =>
         new(functionLocals, true, mode, checkpoint, globalReads, functions, memory);
 
-    internal bool ConsumesArithmetic(AwkVariableName name) =>
-        TryGetFunctionLocalSlot(name, out var slot)
-            ? _functionLocals.InputConsumption(slot.Index) == AwkParameterInput.Arithmetic
-            : _globalReads is not null && _globalReads.ConsumesArithmetic(name);
+    internal AwkParameterInput FieldAssignmentInput(AwkVariableName name)
+    {
+        var demand = TryGetFunctionLocalSlot(name, out var slot)
+            ? _functionLocals.InputConsumption(slot.Index)
+            : _globalReads?.AssignmentInput(name) ?? AwkParameterInput.Value;
+        return demand is AwkParameterInput.Arithmetic or AwkParameterInput.NumericComparison
+            ? demand : AwkParameterInput.Value;
+    }
 
     public bool TryGetGlobalReadIndex(AwkVariableName name, out int index)
     {

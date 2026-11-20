@@ -899,11 +899,13 @@ internal sealed partial class AwkRegionCompiler
             // contract. Keep used assignment snapshots and all mixed observations
             // owning; arithmetic field capture defers conversion failures as before.
             if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
-                _scope.ConsumesArithmetic(_operands[assignment.Target].Name) &&
                 _code[^2] is { Kind: AwkRegionInstructionKind.Value } input && input.Target == source.Index &&
                 _operands[input.Left].Kind is AwkRegionOperandKind.Field or AwkRegionOperandKind.DynamicField)
-                _code[^2] = input with { Kind = AwkRegionInstructionKind.InputValue,
-                    Detail = (int)AwkParameterInput.Arithmetic };
+            {
+                var consumption = _scope.FieldAssignmentInput(_operands[assignment.Target].Name);
+                if (consumption != AwkParameterInput.Value)
+                    _code[^2] = input with { Kind = AwkRegionInstructionKind.InputValue, Detail = (int)consumption };
+            }
             // Publish from its existing owner; adjacent calls keep their
             // already-prepared return handoff.
             if (source.Kind == AwkRegionOperandKind.TextTemporary && _code.Count >= 2 &&

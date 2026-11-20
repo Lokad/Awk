@@ -19,7 +19,11 @@ public sealed class AwkScalarConsumptionTests
             ("function f(x){print x}{x=$1;total+=x;f(\"local\")}END{print total}", "local\nlocal\nlocal\n12\n"),
             ("{x=$1;$1=\"changed\";total+=x}END{print total}", "12\n"),
             ("{x=$1;column=1;y=$column;total+=x+y}END{print total}", "24\n"),
-            ("{x=$1;copy=x;total+=copy;print x}END{print total}", "0007\n5tail\nword\n12\n")
+            ("{x=$1;copy=x;total+=copy;print x}END{print total}", "0007\n5tail\nword\n12\n"),
+            ("{col=1;x=$col;$1=\"changed\";hits+=x<10;total+=x}END{print hits,total}", "1 12\n"),
+            ("function f(x){x=$1;return x+(x<10)}{total+=f(0)}END{print total}", "13\n"),
+            ("{x=$1;print (x<10),typeof(x),x}", "1 strnum 0007\n0 string 5tail\n0 string word\n"),
+            ("BEGIN{name=\"x\"}{x=$1;print (x<10),SYMTAB[name]}", "1 0007\n0 5tail\n0 word\n")
         ];
         foreach (var (source, output) in cases)
         foreach (var governed in new[] { false, true }) yield return [source, output, governed];
@@ -43,13 +47,37 @@ public sealed class AwkScalarConsumptionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
-    public async Task DeferredNumericFailuresStayAtActualUse(bool governed, bool take)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FieldAssignmentToArrayParameterStillReportsScalarUse(bool governed)
+    {
+        var host = new MockFileSystem();
+        host.SetStandardInput("0007\n");
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        const string source = "function f(x){x=$1;return x<10} BEGIN{a[1]=1} " +
+            "{print \"before\";f(a);print \"after\"}";
+        var command = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
+        Assert.Equal(2, (await command.ExecuteAsync(host, policy, CancellationToken.None)).Value);
+        Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: attempt to use array `x' in a scalar context\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)] [InlineData(true, false, false)]
+    [InlineData(false, true, false)] [InlineData(true, true, false)]
+    [InlineData(false, false, true)] [InlineData(true, false, true)]
+    [InlineData(false, true, true)] [InlineData(true, true, true)]
+    public async Task DeferredNumericFailuresStayAtActualUse(bool governed, bool take, bool comparison)
     {
         var host = new MockFileSystem();
         host.SetStandardInput("0x1.5\n");
-        var source = "{x=$1;print \"captured\";if(" + (take ? "1" : "0") + ")print x+0;print \"done\"}";
+        var expression = comparison ? "(x<10)" : "x+0";
+        var source = "{x=$1;print \"captured\";if(" + (take ? "1" : "0") + ")print " +
+            expression + ";print \"done\"}";
         var budget = new CooperativeTestBudget(8 << 20);
         var policy = AwkTestHarness.CreatePolicy();
         if (governed) policy = policy.WithMemoryBudget(budget);

@@ -127,8 +127,10 @@ Copies into already funded destinations use the caller's admission.
 Text backing resolves rune ranges. The runtime funds and copies partial slices and
 reuses the backing for whole slices. Byte slices must end up as valid UTF-8.
 Adjacent text assignments transfer the producer's existing charge when the scalar
-destination publishes. A bound destination admits any remaining growth. Ordinary
-assignment fallbacks retain a complete capture through their own mutation checks.
+destination publishes. A bound destination admits any remaining growth. A discarded
+field assignment can store a strictly classified number when all of the destination's
+reads use arithmetic or numeric comparison. Observable spelling and unclassified
+values keep the complete capture through assignment and its mutation checks.
 Iteration snapshots retain compact keys. When `for-in` needs a new owning spelling,
 mutation admission covers its construction and assignment even when it replaces text
 of the same size. Sorted snapshots already fund their projected key text.

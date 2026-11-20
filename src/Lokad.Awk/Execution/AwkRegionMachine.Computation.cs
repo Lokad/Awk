@@ -84,6 +84,9 @@ internal partial struct AwkRegionMachine
             {
                 if (consumption == AwkParameterInput.Arithmetic)
                     return state.RecordFields.GetFieldArithmeticArgument(FieldIndex(in operand), state.NumberParsingMode);
+                if (consumption == AwkParameterInput.NumericComparison &&
+                    state.RecordFields.TryGetFieldComparisonNumber(FieldIndex(in operand), state.NumberParsingMode,
+                        out var number)) return AwkValue.FromNumber(number);
                 if (consumption == AwkParameterInput.Text &&
                     state.TryGetFieldTextArgument(FieldIndex(in operand), out var text)) return text;
             }

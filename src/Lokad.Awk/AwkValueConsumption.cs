@@ -238,16 +238,18 @@ internal static class AwkValueConsumption
 
         if (closedGlobals)
         {
-            bool[] arithmetic = [];
+            AwkParameterInput[] inputs = [];
             for (var index = 0; index < globals.Count; index++)
             {
                 if ((index & 63) == 0) checkpoint?.Invoke();
                 var use = uses[globalStart + index];
-                if ((use & ~(Use.Arithmetic | Use.Storage)) != 0 || (use & Use.Arithmetic) == 0) continue;
-                if (arithmetic.Length == 0) arithmetic = new bool[globals.Count];
-                arithmetic[index] = true;
+                if ((use & ~(Use.Arithmetic | Use.Comparison | Use.Storage)) != 0 ||
+                    (use & (Use.Arithmetic | Use.Comparison)) == 0) continue;
+                if (inputs.Length == 0) inputs = new AwkParameterInput[globals.Count];
+                inputs[index] = (use & Use.Comparison) != 0
+                    ? AwkParameterInput.NumericComparison : AwkParameterInput.Arithmetic;
             }
-            globals.PrepareArithmeticInputs(arithmetic);
+            globals.PrepareAssignmentInputs(inputs);
         }
 
         bool ProducesNumber(AwkExpressionSyntax expression, AwkFunctionLocalLayout layout)
