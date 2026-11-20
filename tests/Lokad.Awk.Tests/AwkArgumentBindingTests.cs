@@ -452,6 +452,27 @@ public sealed class AwkArgumentBindingTests
     }
 
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task GlobalArgumentUsesInputClassificationFromTheStorageRead(bool malformed, bool governed)
+    {
+        const string source = "function observe(s){print s;print s+0} {x=$1;observe(x)}";
+        var command = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "--non-decimal-data", source));
+        var host = new MockFileSystem();
+        host.SetStandardInput(malformed ? "0x1.5\n" : "010\n");
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        Assert.Equal(malformed ? 2 : 0, (await command.ExecuteAsync(host, policy, CancellationToken.None)).Value);
+        Assert.Equal(malformed ? "0x1.5\n" : "010\n8\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        if (malformed) Assert.Contains("exponent", host.GetOutput(AwkFileDescriptor.StdErr));
+        else Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void PreparedKeysCaptureBeforeAdmissionCanChangeTheirSource(bool existingKey)

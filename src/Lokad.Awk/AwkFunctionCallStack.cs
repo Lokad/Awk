@@ -119,6 +119,16 @@ internal sealed class AwkFunctionCallStack(AwkRuntimeState state)
         PublishScalarArgument(frame, index, in captured);
     }
 
+    internal void StageStoredScalarArgument(AwkFunctionFrame frame, int index, in AwkValue slot)
+    {
+        var value = slot.ReadVariableStorage(state.NumberParsingMode, state.CancellationCheckpoint);
+        if ((uint)index >= (uint)frame.Layout.SlotCount) return;
+        // The storage read already classified input spelling in this invocation's mode.
+        var captured = slot.StoredKind == AwkValueKind.StoredInputText && value.RetainsInputClassification
+            ? value : value.ForFunctionStorage(state.NumberParsingMode, state.CancellationCheckpoint);
+        PublishScalarArgument(frame, index, in captured);
+    }
+
     private void PublishScalarArgument(AwkFunctionFrame frame, int index, in AwkValue captured)
     {
         // Arithmetic-only consumers need the normalized numeric fact, rather than
