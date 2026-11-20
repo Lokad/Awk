@@ -287,22 +287,23 @@ internal partial struct AwkRegionMachine
         var callerFrame = frame.CallerFrame;
         var resumePoint = frame.ResumePoint;
         ResolveCaller(callerFrame, out var region, out var storage);
+        if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
+        {
+            var source = _storage.MoveConsumedReturnTo(storage, in value);
+            RetireToCaller(region, storage, resumePoint.Position, callerFrame);
+            _state.AssignConsumedScalar(in region.Operands[resumePoint.Destination], value, in source);
+            return;
+        }
         if (resumePoint.Consumer is AwkRegionReturnConsumer.Number or AwkRegionReturnConsumer.ArrayUpdate)
             // Conversion consumes the actual funded callee snapshot before retirement.
             storage.Numbers[resumePoint.Destination] = value.AsNumber(_state.CancellationCheckpoint);
         else _storage.MoveRetiringReturnValueTo(storage, resumePoint.Destination, in value);
         RetireToCaller(region, storage, resumePoint.Position, callerFrame);
-        if (resumePoint.IsAssignment)
+        if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentValue)
         {
             ref readonly var variable = ref region.Operands[region.Instructions[_position].Target];
-            if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
-                _state.AssignConsumedScalar(in variable, storage, new(AwkRegionOperandKind.ValueTemporary, resumePoint.Destination));
-            else
-            {
-                _state.AssignScalarOperand(in variable, storage.Values[resumePoint.Destination]);
-            }
+            _state.AssignScalarOperand(in variable, storage.Values[resumePoint.Destination]);
             _position++;
-
         }
     }
 
@@ -334,9 +335,7 @@ internal partial struct AwkRegionMachine
             // still receives the ordinary scalar before the callee retires.
             if (resumePoint.Consumer == AwkRegionReturnConsumer.Number)
                 storage.Numbers[destination] = number;
-            else if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
-                storage.ReleaseValue(destination);
-            else if (resumePoint.Consumer != AwkRegionReturnConsumer.ArrayUpdate)
+            else if (resumePoint.Consumer is not (AwkRegionReturnConsumer.ArrayUpdate or AwkRegionReturnConsumer.AssignmentDiscarded))
                 storage.StoreValue(destination, AwkValue.FromNumber(number));
             RetireToCaller(region, storage, resumePoint.Position, callerFrame);
             if (resumePoint.Consumer == AwkRegionReturnConsumer.ArrayUpdate)
@@ -344,11 +343,12 @@ internal partial struct AwkRegionMachine
                 CompleteReturnedArrayUpdate(region, storage, number);
                 _position++;
             }
-            else if (resumePoint.IsAssignment)
+            else if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentDiscarded)
+                _state.AssignVariableNumber(in region.Operands[destination], callerFrame, number);
+            else if (resumePoint.Consumer == AwkRegionReturnConsumer.AssignmentValue)
             {
                 _state.AssignVariableNumber(in region.Operands[region.Instructions[_position].Target], callerFrame, number);
                 _position++;
-
             }
             return;
         }

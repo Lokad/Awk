@@ -140,10 +140,13 @@ assembled record reuses it when all appended bytes came from validated ASCII
 chunks. Unknown content undergoes strict UTF-8 validation. Escaping slices
 admit and copy their result bytes.
 Adjacent text assignments transfer the producer's existing charge when the scalar
-destination publishes. A bound destination admits any remaining growth. A discarded
-field assignment can store a strictly classified number when all of the destination's
-reads use arithmetic or numeric comparison. Observable spelling and unclassified
-values keep the complete capture through assignment and its mutation checks.
+destination publishes. A bound destination admits any remaining growth. A call
+whose assignment result is unused names that scalar destination in its continuation.
+The caller's existing lease funds the value through callee retirement and assignment.
+A discarded field assignment can store a strictly classified number when all
+of the destination's reads use arithmetic or numeric comparison. Observable
+spelling and unclassified values keep the complete capture through assignment
+and its mutation checks.
 Iteration snapshots retain compact keys. When `for-in` needs a new owning spelling,
 mutation admission covers its construction and assignment even when it replaces text
 of the same size. Sorted snapshots already fund their projected key text.

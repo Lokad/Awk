@@ -926,7 +926,20 @@ internal sealed partial class AwkRegionCompiler
             else if (source.Kind == AwkRegionOperandKind.ValueTemporary && _code.Count >= 2 &&
                 _code[^2] is { Kind: AwkRegionInstructionKind.Call, CallConsumer: AwkRegionReturnConsumer.AssignmentValue } call &&
                 call.CallDestination == source.Index)
-                _code[^2] = call with { CallConsumer = AwkRegionReturnConsumer.AssignmentDiscarded };
+            {
+                // The fresh return has no expression consumer. Bind the destination
+                // directly so the continuation can publish after callee retirement.
+                _code.ReplaceTail(_code.Count - 2, call with
+                {
+                    CallConsumer = AwkRegionReturnConsumer.AssignmentDiscarded,
+                    CallDestination = assignment.Target
+                });
+                if (operand == _operands.Count - 1 && source.Index == _values - 1)
+                {
+                    _operands.RemoveAt(operand);
+                    _values--;
+                }
+            }
             else _code[^1] = assignment with { Kind = AwkRegionInstructionKind.AssignConsumedScalar };
             // The assignment already validated its scalar and may have retired
             // the captured slot through its complete consumer.

@@ -114,9 +114,18 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ForwardedNumberStopsCallerMutationAfterEitherRetirementRefund(bool outer)
+    public Task ForwardedNumberStopsCallerMutationAfterEitherRetirementRefund(bool outer) =>
+        CheckAssignmentRetirementRefundAsync(ForwardReturnOwnedSource, outer, "total", AwkValue.FromNumber(0));
+
+    [Fact]
+    public Task ConsumedTextAssignmentStopsAfterCalleeRetirementRefund() =>
+        CheckAssignmentRetirementRefundAsync(
+            "function leaf(held){held=$0 \"suffix\";ready=1;return substr(held,1,7)}BEGIN{saved=leaf()}",
+            outer: true, name: "saved", initial: AwkValue.FromText("keep"));
+
+    private static async Task CheckAssignmentRetirementRefundAsync(string source, bool outer, string name, AwkValue initial)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(ForwardReturnOwnedSource,
+        var binding = AwkBinder.Bind(AwkParser.Parse(source,
             new AwkFrontendBudget(int.MaxValue), CancellationToken.None), AwkCompatibilityProfile.Default,
             externalArguments: new([], [], [], AwkPath.Root));
         Assert.True(binding.Success);
@@ -130,8 +139,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeFunctions(program.Functions);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("7 " + new string('x', 4096)));
-        var total = AwkVariableName.FromText("total");
-        state.AssignVariableValue(total, AwkValue.FromNumber(0));
+        var destination = AwkVariableName.FromText(name);
+        state.AssignVariableValue(destination, initial);
         state.AssignVariableValue(AwkVariableName.FromText("ready"), AwkValue.FromNumber(0));
         var observed = false;
         memory.Budget.OnRefund = () =>
@@ -151,7 +160,9 @@ public sealed partial class AwkPreparedFunctionRegionTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Assert.Single(program.BeginActions).ExecuteAsync(state, io, output).AsTask());
             Assert.True(observed);
             Assert.False(state.IsInsideFunction);
-            Assert.Equal(0, state.ResolveVariableValue(total).AsNumber());
+            var actual = state.ResolveVariableValue(destination);
+            Assert.Equal(initial.IsNumberValue, actual.IsNumberValue);
+            Assert.Equal(initial.AsString(), actual.AsString());
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         }

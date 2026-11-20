@@ -396,6 +396,13 @@ internal sealed class AwkRegionStorage : IDisposable
         if (oldBytes > 0) caller._payload.Release(oldBytes);
     }
 
+    internal ScalarSource MoveConsumedReturnTo(AwkRegionStorage caller, in AwkValue value)
+    {
+        var bytes = _state.MemoryAccounting.IsEnabled ? value.RetainedTextMemoryBytes : 0;
+        if (bytes > 0) _payload.MoveTo(caller._payload, bytes);
+        return new(caller, bytes, isText: false);
+    }
+
     internal void ReleaseValue(int index)
     {
         var bytes = _state.MemoryAccounting.IsEnabled ? _values[index].RetainedTextMemoryBytes : 0;
@@ -412,8 +419,9 @@ internal sealed class AwkRegionStorage : IDisposable
         private readonly int _index;
         private readonly long _producedBytes;
 
-        internal ScalarSource(AwkRegionStorage storage, long producedBytes) =>
-            (_storage, _kind, _producedBytes) = (storage, SourceKind.ProducedText, producedBytes);
+        internal ScalarSource(AwkRegionStorage storage, long producedBytes, bool isText = true) =>
+            (_storage, _kind, _producedBytes) =
+                (storage, isText ? SourceKind.ProducedText : SourceKind.ProducedValue, producedBytes);
 
         internal ScalarSource(AwkRegionStorage storage, in AwkRegionOperand operand) =>
             (_storage, _kind, _index) = (storage, operand.Kind switch
@@ -460,7 +468,7 @@ internal sealed class AwkRegionStorage : IDisposable
             else if (_producedBytes + additionalBytes > 0) storage._payload.Release(_producedBytes + additionalBytes);
         }
 
-        private enum SourceKind : byte { None, SavedText, SavedValue, ProducedText }
+        private enum SourceKind : byte { None, SavedText, SavedValue, ProducedText, ProducedValue }
     }
 
     internal void ReleaseValues(int start, int count)
