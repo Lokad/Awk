@@ -4,6 +4,14 @@ namespace Lokad.Awk;
 
 internal static class AwkHostBoundaryPolicy
 {
+    public static Task<AwkAppendResult> AppendResultAsync(IAwkHost host, AwkFileDescriptor descriptor,
+        ReadOnlyMemory<byte> bytes, AwkRuntimeCounters counters, CancellationToken cancellationToken)
+    {
+        counters.Add(AwkCounter.HostCalls);
+        counters.Add(AwkCounter.OutputBytes, bytes.Length);
+        return AwaitAsync(host.AppendAsync(descriptor, bytes, cancellationToken), cancellationToken);
+    }
+
     // Await the actual user before observing cancellation; borrowed storage stays alive.
     public static Task<T> AwaitAsync<T>(Task<T> operation, CancellationToken cancellationToken)
     {

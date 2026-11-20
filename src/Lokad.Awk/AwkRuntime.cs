@@ -92,11 +92,8 @@ internal static class AwkRuntime
             finally { await CleanupAfterFailureAsync(inputScheduler, io).ConfigureAwait(false); }
             if (!canReport)
                 return AwkExitCode.FatalError;
-            var message = exception.MessageBytes;
-            runtimeOptions.Counters.Add(AwkCounter.HostCalls, 1);
-            runtimeOptions.Counters.Add(AwkCounter.OutputBytes, message.Length);
-            _ = await AwkHostBoundaryPolicy.AwaitAsync(
-                host.AppendAsync(stdio.StdErr, message, cancellationToken), cancellationToken).ConfigureAwait(false);
+            _ = await AwkHostBoundaryPolicy.AppendResultAsync(host, stdio.StdErr, exception.MessageBytes,
+                runtimeOptions.Counters, cancellationToken).ConfigureAwait(false);
             return AwkExitCode.FatalError;
         }
         catch
