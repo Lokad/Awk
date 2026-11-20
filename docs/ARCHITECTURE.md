@@ -232,6 +232,8 @@ The frame transfers the staged record's funding on publication and checks cancel
 retiring the old payload. Field mutations publish cells and `NF` before refunds.
 The frame retains the published slot identity. Its owner supplies the current length and
 bytes, including when a custom memory accessor promotes its own borrow during a read.
+The read borrow identifies custom memory backing once. Record text capture still observes
+custom accessors before using coordinates and resolves the live bytes after promotion.
 A borrowed slot has funded fallback storage before publication. Governed input preflights
 the record and headers together using the staged length and captured split plan.
 

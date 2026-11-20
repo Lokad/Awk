@@ -20,7 +20,9 @@ internal sealed class AwkRecordStorage(AwkRuntimeState state) : IDisposable
 
     internal void ObserveMemoryAt(int slot)
     {
-        var memory = ContentAt(slot);
+        ref var buffer = ref BufferAt(slot);
+        if (buffer.Borrower?.ContentUsesMemoryManager != true) return;
+        var memory = buffer.BorrowedBytes;
         if (!MemoryMarshal.TryGetArray(memory, out _))
             _ = memory.Span;
     }

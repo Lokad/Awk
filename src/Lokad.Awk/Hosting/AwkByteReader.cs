@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Lokad.Awk;
@@ -18,6 +20,7 @@ internal sealed class AwkByteReader(
     public ReadOnlyMemory<byte> Content => _borrow is { } borrow ? borrow.Content[_offset..] : default;
     public bool ReachedEof => _completion == AwkReadCompletion.EndOfFile;
     internal bool ContentIsAscii => _borrowIsAscii;
+    internal bool ContentUsesMemoryManager { get; private set; }
     internal bool HasBorrow => _borrow is not null;
 
     public ValueTask<bool> TryBufferAsync() => !Content.IsEmpty
@@ -45,9 +48,12 @@ internal sealed class AwkByteReader(
         if (borrow.Content.Length > ReadSize)
             throw new AwkHostReadException(descriptor,
                 new(AwkOperationErrorKind.IoFailure, "Read exceeded the requested byte count."));
-        if (!borrow.Content.IsEmpty)
+        var content = borrow.Content;
+        if (!content.IsEmpty)
         {
-            _borrowIsAscii = IsAsciiBorrow(borrow.Content.Span);
+            // Identify an accessor without calling it. Record slices share this backing.
+            ContentUsesMemoryManager = MemoryMarshal.TryGetMemoryManager<byte, MemoryManager<byte>>(content, out _);
+            _borrowIsAscii = IsAsciiBorrow(content.Span);
             return true;
         }
         if (borrow.Failed) ThrowReadFailure();
@@ -83,6 +89,7 @@ internal sealed class AwkByteReader(
         _borrow = null;
         _offset = 0;
         _borrowIsAscii = false;
+        ContentUsesMemoryManager = false;
         borrow?.Dispose();
     }
 
