@@ -287,48 +287,81 @@ public sealed class AwkReplacementCaptureCancellationTests
     [InlineData("materialization")]
     public void MappedCapturesCancelWithRentedBoundaryStorage(string phase)
     {
-        var whole = new AwkRegexCaptureRange(true, 0, 1);
-        var cursor = new AwkRegexScalarCoordinates();
-        var ranges = Enumerable.Repeat(whole, 1538).ToArray();
+        const int captureCount = 1538;
+        var prefixLength = phase == "boundaries" ? LongText : 1;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = Governor();
-        var governor = memoryForGovernor.Accounting;
+        using var memory = Governor();
+        var accounting = memory.Accounting;
+        var coordinateBytes = 0L;
+        memory.Budget.OnGrowth = growth =>
+        {
+            if (coordinateBytes == 0) coordinateBytes = growth;
+        };
+        var shortChecks = 0;
+        if (phase != "materialization")
+        {
+            // Both runs allocate coordinate storage. For validation, vary the
+            // number of ranges. For mapping, vary only the distance to the match.
+            using (Capture(phase == "scalar-validation" ? 64 : captureCount, 1,
+                () => { if (IsTargetPhase()) shortChecks++; })) { }
+            Assert.True(coordinateBytes > 0);
+            Assert.Equal(0, accounting.LiveBytes);
+            coordinateBytes = 0;
+        }
+        var copiesBeforeCancellation = counters[AwkCounter.TextAllocations];
+
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
-        Action checkpoint = () =>
+        var error = Assert.Throws<OperationCanceledException>(() =>
         {
-            var reached = phase switch
+            using var match = Capture(captureCount, prefixLength, () =>
             {
-                "scalar-validation" => ++checks == 3,
-                "boundaries" => governor.LiveBytes > 0 && ++checks == 3,
-                "materialization" => counters[AwkCounter.TextAllocations] == 1025,
-                _ => throw new ArgumentOutOfRangeException(nameof(phase))
-            };
-            if (reached) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        };
-        Assert.Throws<OperationCanceledException>(() =>
-        {
-            using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
-                AwkStringUnitMode.Byte, checkpoint, AwkTestHarness.CreateRuntimeOptions(counters), governor);
-            using var match = runtime.MaterializeCaptures(whole, "a"u8, ranges, 0, ref cursor);
+                if (IsTargetPhase() && ++checks > shortChecks)
+                    cancellation.Cancel();
+                cancellation.Token.ThrowIfCancellationRequested();
+            });
         });
-        Assert.Equal(0, governor.LiveBytes);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        if (phase == "boundaries")
+            Assert.Equal(copiesBeforeCancellation, counters[AwkCounter.TextAllocations]);
+        Assert.Equal(0, accounting.LiveBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+
         using var retry = new CancellationTokenSource();
-        using var retryRuntime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Byte, retry.Token.ThrowIfCancellationRequested, AwkTestHarness.CreateRuntimeOptions(counters), governor);
-        using (var match = retryRuntime.MaterializeCaptures(whole, "a"u8, ranges, 0, ref cursor))
+        using (var match = Capture(captureCount, prefixLength, retry.Token.ThrowIfCancellationRequested))
         {
-            Assert.Equal(1538, match.Match.Groups.Count);
+            Assert.Equal(prefixLength * 2, match.Match.ByteIndex);
+            Assert.Equal(prefixLength, match.Match.Index);
+            Assert.Equal(captureCount, match.Match.Groups.Count);
             Assert.All(match.Match.Groups, group =>
             {
                 Assert.True(group.Success);
-                Assert.Equal(0, group.Index);
+                Assert.Equal(prefixLength, group.Index);
                 Assert.Equal(1, group.Length);
-                Assert.Equal("a", group.Value.AsString());
+                Assert.Equal("x", group.Value.AsString());
             });
         }
-        Assert.Equal(0, governor.LiveBytes);
+        Assert.Equal(0, accounting.LiveBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+
+        bool IsTargetPhase() => phase switch
+        {
+            "scalar-validation" => coordinateBytes == 0,
+            "boundaries" => coordinateBytes > 0 && accounting.LiveBytes == coordinateBytes,
+            "materialization" => counters[AwkCounter.TextAllocations] is > 0 and < captureCount,
+            _ => throw new ArgumentOutOfRangeException(nameof(phase))
+        };
+
+        AwkLeasedRegexMatch Capture(int groupCount, int prefixLength, Action checkpoint)
+        {
+            var bytes = Encoding.UTF8.GetBytes(new string('\u00e9', prefixLength) + "x");
+            var whole = new AwkRegexCaptureRange(true, bytes.Length - 1, 1);
+            var ranges = Enumerable.Repeat(whole, groupCount).ToArray();
+            var cursor = new AwkRegexScalarCoordinates();
+            using var runtime = new AwkRegexRuntime(static () => AwkRegexCaseSensitivity.CaseSensitive,
+                AwkStringUnitMode.Utf8Rune, checkpoint, AwkTestHarness.CreateRuntimeOptions(counters), accounting);
+            return runtime.MaterializeCaptures(whole, bytes, ranges, 0, ref cursor);
+        }
     }
 
     [Theory]
