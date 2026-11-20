@@ -563,8 +563,7 @@ internal sealed partial class AwkArrayRuntime
                 ordinal.AppendTo(builder, _state.CancellationCheckpoint);
                 builder.Append(separator, _state.CancellationCheckpoint);
                 builder.Append(part, _state.CancellationCheckpoint);
-                return new AwkArrayKey(_state.AdoptText(builder.CopyToOwnedBytes(_state.CancellationCheckpoint)),
-                    _state.CancellationCheckpoint);
+                return _state.CopyArrayKey(new(builder.AsSpan()));
             }
 
             for (var index = 0; index < groups.Count; index++)
@@ -603,7 +602,8 @@ internal sealed partial class AwkArrayRuntime
         var backing = AwkRuntimeMemory.EstimateArrayConstructionBytes(AwkRuntimeMemory.BoundArrayCapacity(entries), entries);
         var startLength = builderCapacity - MatchLengthCaptureKeyPart.ByteLength + MatchStartCaptureKeyPart.ByteLength;
         var keysPerGroup = AwkRuntimeMemory.CheckedAdd(
-            AwkRuntimeMemory.EstimateTextBytes(startLength), AwkRuntimeMemory.EstimateTextBytes(builderCapacity));
+            startLength > AwkArrayKey.InlineByteCapacity ? AwkRuntimeMemory.EstimateTextBytes(startLength) : 0,
+            builderCapacity > AwkArrayKey.InlineByteCapacity ? AwkRuntimeMemory.EstimateTextBytes(builderCapacity) : 0);
         var staged = AwkRuntimeMemory.CheckedAdd(backing, AwkRuntimeMemory.CheckedMultiply(keysPerGroup, entries / 3));
         return AwkRuntimeMemory.CheckedAdd(staged, (long)AwkRuntimeMemory.ArrayIdentityBytes + builderCapacity);
     }
