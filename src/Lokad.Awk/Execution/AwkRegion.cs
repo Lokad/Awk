@@ -230,8 +230,16 @@ internal readonly record struct AwkRegionCall
     internal int Slot { get; }
     internal ReadOnlySpan<AwkRegionArgument> Arguments => _arguments;
     internal int FinalFieldDemand { get; }
-    internal bool CanBorrowRecordText { get; init; }
+    internal AwkRegionRecordTextRange RecordTextArguments { get; init; }
 }
+
+// One-based endpoints. The default range permits no record borrowing.
+internal readonly record struct AwkRegionRecordTextRange(int First, int Last)
+{
+    internal bool IsEmpty => Last == 0;
+    internal bool Overlaps(int first, int end) => Last > first && First <= end;
+}
+
 // Known sources bind their actual location. Only generic values retain an operand
 // index; names preserve ordinary resolution when a bound location is unavailable.
 internal readonly record struct AwkRegionArgument(AwkRegionArgumentKind Kind, int Index,

@@ -49,8 +49,8 @@ internal static class AwkFunctionHostEffects
     internal static void PrepareCalls(AwkRegion region, Action? checkpoint)
     {
         if (!region.Calls.Any(static call => call.Function.LocalLayout.HasTextInput)) return;
-        // One-based positions leave zero for calls with no separately staged arguments.
-        var firstArguments = new int[region.Calls.Length];
+        // Remember the first instruction that can capture a record field.
+        var firstRecordText = new int[region.Calls.Length];
         var lastHost = 0;
         for (var index = 0; index < region.Instructions.Length; index++)
         {
@@ -59,16 +59,44 @@ internal static class AwkFunctionHostEffects
             if (instruction.Kind == AwkRegionInstructionKind.Call)
             {
                 ref var call = ref region.Calls[instruction.CallSite];
-                var start = firstArguments[instruction.CallSite];
+                var start = firstRecordText[instruction.CallSite];
                 var host = call.Function.MayInvokeHost;
-                call = call with { CanBorrowRecordText = !host && (start == 0 || lastHost < start) };
+                var range = !host && (start == 0 || lastHost < start) && call.Function.LocalLayout.HasTextInput
+                    ? IncludeRecordText(call.Arguments, instruction.FirstPendingArgument, call.Arguments.Length,
+                        start == 0 ? default : call.RecordTextArguments, checkpoint)
+                    : default;
+                call = call with { RecordTextArguments = range };
                 if (host) lastHost = index + 1;
                 continue;
             }
-            if (instruction.Kind == AwkRegionInstructionKind.Arguments && firstArguments[instruction.CallSite] == 0)
-                firstArguments[instruction.CallSite] = index + 1;
+            if (instruction.Kind == AwkRegionInstructionKind.Arguments)
+            {
+                ref var call = ref region.Calls[instruction.CallSite];
+                if (call.Function.MayInvokeHost || !call.Function.LocalLayout.HasTextInput) continue;
+                ref var start = ref firstRecordText[instruction.CallSite];
+                var range = IncludeRecordText(call.Arguments, instruction.FirstArgument, instruction.ArgumentEnd,
+                    start == 0 ? default : call.RecordTextArguments, checkpoint);
+                if (range.IsEmpty) continue;
+                if (start == 0) start = index + 1;
+                call = call with { RecordTextArguments = range };
+                continue;
+            }
             if (DirectHost(in instruction)) lastHost = index + 1;
         }
+    }
+
+    private static AwkRegionRecordTextRange IncludeRecordText(ReadOnlySpan<AwkRegionArgument> arguments,
+        int first, int end, AwkRegionRecordTextRange range, Action? checkpoint)
+    {
+        for (var index = first; index < end; index++)
+        {
+            if ((index & 127) == 127) checkpoint?.Invoke();
+            ref readonly var argument = ref arguments[index];
+            if (argument.Consumption == AwkParameterInput.Text &&
+                argument.Kind is AwkRegionArgumentKind.Field or AwkRegionArgumentKind.DynamicField)
+                range = new(range.IsEmpty ? index + 1 : range.First, index + 1);
+        }
+        return range;
     }
 
     private static bool DirectHost(in AwkRegionInstruction instruction) =>

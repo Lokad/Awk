@@ -436,7 +436,7 @@ internal partial struct AwkRegionMachine
             int first, int count, int fieldDemand)
         {
             if (count == 0) return;
-            var borrowRecord = call.CanBorrowRecordText &&
+            var borrowRecord = call.RecordTextArguments.Overlaps(first, first + count) &&
                 (!state.TryGetExecutionContext(out var execution) || !execution.Output.HasPendingOutput);
             var arguments = call.Arguments;
 

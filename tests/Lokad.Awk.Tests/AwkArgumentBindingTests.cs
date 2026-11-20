@@ -118,6 +118,53 @@ public sealed class AwkArgumentBindingTests
     }
 
     [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task TextFieldArgumentsObserveTheirSideOfPendingGetline(bool governed, bool textFirst)
+    {
+        const string first = "abcdefgh 3\n";
+        var host = new MockFileSystem();
+        host.SetStandardInput(first + "longer-second 9\n");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reads = 0;
+        host.ReadAsyncOverride = Read;
+        async ValueTask<AwkReadBuffer> Read(AwkFileDescriptor descriptor, int maximum, CancellationToken token)
+        {
+            if (++reads == 1) maximum = Math.Min(maximum, first.Length);
+            else if (reads == 2)
+            {
+                entered.TrySetResult();
+                await release.Task.WaitAsync(token).ConfigureAwait(false);
+            }
+            host.ReadAsyncOverride = null;
+            try { return await host.ReadAsync(descriptor, maximum, token).ConfigureAwait(false); }
+            finally { host.ReadAsyncOverride = Read; }
+        }
+
+        var command = AwkTestHarness.BuildInvocation("awk", "function advance(){getline;return $2}" +
+            (textFirst ? "function total(text,step,n){return length(text)+step+n}{print total($1,advance(),$2);exit}"
+                : "function total(n,step,text){return n+step+length(text)}{print total($2,advance(),$1);exit}"));
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkTestHarness.CreatePolicy();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var execution = AwkTestHarness.ParseAwk(command).ExecuteAsync(host, policy, timeout.Token);
+        try
+        {
+            await entered.Task.WaitAsync(timeout.Token);
+            Assert.False(execution.IsCompleted);
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));
+        }
+        finally { release.TrySetResult(); }
+        Assert.Equal(AwkExitCode.Success, await execution);
+        Assert.Equal(textFirst ? "26\n" : "25\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void PreparedArgumentsUseTheirExecutionOwnerAndStandaloneUsesVisibleBindings(bool key)
