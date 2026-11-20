@@ -9,6 +9,36 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkTimeBuiltinsTests
 {
     [Theory]
+    [InlineData("rand()", false)] [InlineData("rand()", true)]
+    [InlineData("srand()", false)] [InlineData("srand()", true)]
+    public async Task RandomStateAdmissionStopsBeforeLaterEffects(string call, bool cancel)
+    {
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var clock = new SeedClock(false);
+        using var cancellation = new CancellationTokenSource();
+        host.AfterAppend = () =>
+        {
+            host.AfterAppend = null;
+            if (cancel)
+                budget.OnGrowth = growth => { if (growth >= 4096) cancellation.Cancel(); };
+            else
+                budget.RefuseNextAdmissionMinimumGrowth = 4096;
+        };
+
+        var invocation = AwkTestHarness.BuildInvocation("awk", "BEGIN{print \"ready\";x=" + call + ";print \"tail\"}");
+        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget).WithTimeProvider(clock);
+        var run = AwkTestHarness.ParseAwk(invocation)
+            .ExecuteAsync(host, policy, cancellation.Token);
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+        else Assert.Equal(AwkExitCode.FatalError, await run);
+        Assert.Equal("ready\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(cancel ? "" : "awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, clock.Calls);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, false)] [InlineData(false, true)]
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task OnlyImplicitSeedRequestsTheHostClock(bool explicitSeed, bool throwing)

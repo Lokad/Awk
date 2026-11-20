@@ -17,6 +17,7 @@ internal sealed class AwkRandomGenerator
     private const int ShuffleSize = 512;
     private const int ShuffleMask = ShuffleSize - 1;
     private const double Divisor = 2147483648.0;
+    internal static long RetainedBytes => AwkRuntimeMemory.EstimateRandomGeneratorBytes(Degree, ShuffleSize);
 
     private readonly uint[] _state = new uint[Degree];
     private readonly long[] _shuffleBuffer = new long[ShuffleSize];

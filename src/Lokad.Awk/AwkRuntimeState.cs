@@ -24,7 +24,7 @@ internal sealed class AwkRuntimeState : IDisposable
 
     private readonly CancellationToken _cancellationToken;
     private readonly AwkUnobservedRecordHeaders _unobservedRecordHeaders;
-    private readonly AwkRandomRuntime _randomRuntime;
+    private AwkRandomGenerator? _randomGenerator;
     private readonly AwkTimeRuntime _timeRuntime;
     private readonly AwkVariables _variables;
     private readonly AwkRegexRuntime _regexRuntime;
@@ -78,7 +78,6 @@ internal sealed class AwkRuntimeState : IDisposable
         StringUnitMode = compatibilityProfile.StringUnitMode;
         var stringUnitMode = StringUnitMode;
         _timeRuntime = new AwkTimeRuntime(runtimeOptions.CurrentUnixTimeSeconds, runtimeOptions.TimeZone);
-        _randomRuntime = new AwkRandomRuntime(runtimeOptions.CreateRandomGenerator(), _timeRuntime);
         _cancellationToken = cancellationToken;
         CancellationCheckpoint = ThrowIfCancellationRequested;
         AwkSpecialVariableDispatcher? specialVariables = null;
@@ -586,9 +585,32 @@ internal sealed class AwkRuntimeState : IDisposable
     public bool TryGetExecutionContext(out AwkExecutionContext context) =>
         _executionContexts.TryGet(out context);
 
-    public double NextRandomNumber() => _randomRuntime.NextNumber();
+    public double NextRandomNumber() => GetRandomGenerator().NextDouble();
 
-    public AwkRandomSeed SeedRandom(AwkRandomSeedRequest seed) => _randomRuntime.Seed(seed);
+    public AwkRandomSeed SeedRandom(AwkRandomSeedRequest seed)
+    {
+        var generator = GetRandomGenerator();
+        var resolvedSeed = seed.Resolve(_timeRuntime);
+        ThrowIfCancellationRequested();
+        return generator.Seed(resolvedSeed);
+    }
+
+    private AwkRandomGenerator GetRandomGenerator()
+    {
+        if (_randomGenerator is { } generator) return generator;
+
+        MemoryAccounting.Charge(AwkRandomGenerator.RetainedBytes);
+        try
+        {
+            ThrowIfCancellationRequested();
+            return _randomGenerator = Options.CreateRandomGenerator();
+        }
+        catch
+        {
+            MemoryAccounting.Refund(AwkRandomGenerator.RetainedBytes);
+            throw;
+        }
+    }
 
     public AwkUnixTimestampSeconds CurrentUnixTimeSeconds() => _timeRuntime.CurrentUnixTimeSeconds();
 
@@ -1608,9 +1630,14 @@ internal sealed class AwkRuntimeState : IDisposable
                 try { _recordFields.ResetRecord(); }
                 finally
                 {
-                    var rangeBytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(_rangePatterns.Length);
+                    var retiredBytes = AwkRuntimeMemory.EstimateBooleanArrayBytes(_rangePatterns.Length);
                     _rangePatterns = [];
-                    if (rangeBytes > 0) MemoryAccounting.Refund(rangeBytes);
+                    if (_randomGenerator is not null)
+                    {
+                        _randomGenerator = null;
+                        retiredBytes += AwkRandomGenerator.RetainedBytes;
+                    }
+                    MemoryAccounting.Refund(retiredBytes);
                 }
             }
         }

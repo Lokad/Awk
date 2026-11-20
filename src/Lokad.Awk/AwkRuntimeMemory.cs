@@ -20,6 +20,7 @@ internal static class AwkRuntimeMemory
     private const int DictionaryEntryBytes = 40;
     private const int ListObjectBytes = 32;
     private const int ReferenceBytes = 8;
+    private const int RandomGeneratorObjectBytes = 64;
     private const int AwkRegexMatchBytes = 64;
     private const int AwkRegexGroupBytes = 32;
     internal const int RegexSearchOwnerBytes = 128;
@@ -197,6 +198,10 @@ internal static class AwkRuntimeMemory
     // backing arrays and collection objects.
     internal static long EstimateRegexCacheBackingBytes(int capacity) =>
         CheckedAdd(128, EstimateDictionaryBufferBytes(CheckedToInt32(CheckedMultiply(capacity, 2))));
+
+    internal static long EstimateRandomGeneratorBytes(int stateWords, int shuffleWords) =>
+        RandomGeneratorObjectBytes + 2 * ArrayObjectBytes +
+        (long)stateWords * sizeof(uint) + (long)shuffleWords * sizeof(long);
 
     public static long EstimateAwkTextArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, ReferenceBytes);

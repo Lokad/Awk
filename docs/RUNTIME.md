@@ -142,6 +142,7 @@ Retained frontend/runtime capacity, growth overlap, captured values and pending 
 admitted before allocation/publication. Estimates are coarse, not a process-heap cap or
 per-object ledger. Live storage is charged rather than cumulative input/output volume;
 reused capacity remains funded. Refused admission fails the command without retry.
+The random generator is created and admitted on the first `rand()` or `srand()` call.
 Mutation preflights preserve existing state/output, rather than undoing earlier effects.
 `CreateDefault()` without a supplied budget has no aggregate memory cap. Restricted
 execution requires a budget. The shipped `AwkMemoryBudget.CreateFixed(bytes)` implements
