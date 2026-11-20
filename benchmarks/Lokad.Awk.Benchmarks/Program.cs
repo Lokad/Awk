@@ -23,9 +23,7 @@ if (args.Length > 0 && args[0] is "--compare" or "--smoke" or "--reference-bench
 }
 
 Environment.ExitCode = ReferenceComparison.RunBenchmarks(
-    [typeof(FrontendLayerBenchmarks),
-     typeof(FrontendScalingBenchmarks), typeof(WorkloadAllocationBenchmarks),
-     typeof(FunctionSchedulingBenchmarks)], args);
+    [typeof(FrontendLayerBenchmarks), typeof(FrontendScalingBenchmarks), typeof(WorkloadAllocationBenchmarks)], args);
 
 internal static class BenchmarkCounterReport
 {
