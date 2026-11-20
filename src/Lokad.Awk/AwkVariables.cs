@@ -245,7 +245,10 @@ internal sealed partial class AwkVariables
         if (array.IsIndexed)
         {
             cell = null;
-            if (!array.TryGetIndexed(index, out _, out slot)) slot = CreateMissingArraySlot(array, index, out cell);
+            // A successful indexed read proves canonical spelling. Keep the ordinal through RHS evaluation.
+            if (array.TryGetIndexed(index, out var ordinal, out slot))
+                index = AwkArrayKey.FromOrdinal(ordinal).WithInputOrigin(index.HasInputOrigin);
+            else slot = CreateMissingArraySlot(array, index, out cell);
         }
         else
         {
